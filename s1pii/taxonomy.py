@@ -33,9 +33,11 @@ TAB_ENTITY = {
     "DATETIME": DATE, "DEM": OTHER_PII, "QUANTITY": OTHER_PII, "MISC": OTHER_PII,
 }
 
-SPY = {
+SPY = {  # tags as emitted by SPY.py (_ENT_TAGS), plus the lowercase card spelling
+    "NAME": PERSON, "EMAIL": EMAIL, "PHONE_NUM": PHONE, "ADDRESS": ADDRESS,
+    "URL": URL, "USERNAME": OTHER_PII, "ID_NUM": ACCOUNT_NUMBER,
     "name": PERSON, "email": EMAIL, "phone_number": PHONE, "address": ADDRESS,
-    "url": URL, "username": OTHER_PII, "id_num": OTHER_PII,
+    "url": URL, "username": OTHER_PII, "id_num": ACCOUNT_NUMBER,
 }
 
 PII_TRACE = {
@@ -104,6 +106,26 @@ MAPS: dict[str, dict[str, str]] = {
     "spy": SPY, "pii_trace": PII_TRACE, "nemotron": NEMOTRON, "gretel": GRETEL,
     "ai4privacy": AI4PRIVACY, "fresh_real": FRESH_REAL,
 }
+
+
+# Prediction types admissible per benchmark. Predictions of other types are dropped for
+# every system before scoring, so a correct prediction of a type the benchmark never
+# annotates (e.g. a DATE on SPY) is not counted as over-redaction. OTHER_PII and
+# ACCOUNT_NUMBER are both admissible wherever either is annotated, because systems
+# legitimately confuse them.
+_ALL = frozenset((PERSON, ADDRESS, EMAIL, PHONE, URL, DATE, ACCOUNT_NUMBER, SECRET, OTHER_PII))
+ADMISSIBLE: dict[str, frozenset[str]] = {
+    "tab_direct": _ALL, "tab_quasi": _ALL, "pii_trace": _ALL, "nemotron": _ALL, "gretel": _ALL,
+    "ai4privacy": _ALL, "fresh_real": _ALL,
+    "spy_medical": frozenset((PERSON, EMAIL, PHONE, ADDRESS, URL, ACCOUNT_NUMBER, OTHER_PII)),
+    "spy_legal": frozenset((PERSON, EMAIL, PHONE, ADDRESS, URL, ACCOUNT_NUMBER, OTHER_PII)),
+}
+
+
+def admissible(dataset: str) -> frozenset[str]:
+    if dataset not in ADMISSIBLE:
+        raise KeyError(f"{dataset}: no admissible prediction types declared in taxonomy.ADMISSIBLE")
+    return ADMISSIBLE[dataset]
 
 
 def map_label(dataset: str, raw: str) -> str:

@@ -3,9 +3,15 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: {python-version: "3.11"}
-      - run: pip install -e ".[dev]" && pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install "transformers>=4.48" phonenumbers
+        with: {python-version: "${{ matrix.python }}"}
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install ".[dev,model]" faker
+      - name: non-editable install ships the manifest
+        run: cd /tmp && python -c "from s1pii.data.manifest import manifest; assert 'nemotron' in manifest()"
       - run: pytest -q

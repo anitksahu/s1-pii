@@ -1,9 +1,11 @@
 import json
 
+import numpy as np
 import pytest
 
 from s1pii.schema import Doc, Span, OffsetError, validate_doc, PERSON, IGNORE, NOT_PII, write_jsonl, read_jsonl
 from s1pii.data import loaders as L
+from s1pii.data.census import census_raws
 from s1pii import taxonomy as tx
 from s1pii.data.manifest import require_allowed, LicenceGateError
 
@@ -18,18 +20,17 @@ def test_offset_roundtrip_unicode(text, surface, tmp_path):
     s = text.index(surface)
     d = Doc("d1", text, (Span("d1", s, s + len(surface), PERSON, surface=surface),))
     validate_doc(d)
-    p = tmp_path / "x.jsonl"
-    write_jsonl([d], p)
-    back = read_jsonl(p)[0]
+    write_jsonl([d], tmp_path / "x.jsonl")
+    back = read_jsonl(tmp_path / "x.jsonl")[0]
     assert back.text[back.spans[0].start:back.spans[0].end] == surface
 
 
-def test_surface_mismatch_rejected():
+def test_span_offset_types():
+    assert Span("d", np.int64(1), np.int64(3), PERSON).start == 1
     with pytest.raises(OffsetError):
-        validate_doc(Doc("d", "hello world", (Span("d", 0, 5, PERSON, surface="world"),)))
-
-
-def test_bad_spans_rejected():
+        Span("d", True, 3, PERSON)
+    with pytest.raises(OffsetError):
+        Span("d", 1.0, 3, PERSON)
     with pytest.raises(OffsetError):
         Span("d", 5, 5, PERSON)
     with pytest.raises(OffsetError):
@@ -38,69 +39,115 @@ def test_bad_spans_rejected():
         Span("d", 0, 2, PERSON, score=1.5)
 
 
-def test_tab_mapping_tiers():
-    recs = [{"doc_id": "x", "text": "Mr John Smith of Oslo, case 123/45.", "annotations": {
-        "a1": {"entity_mentions": [
-            {"start_offset": 3, "end_offset": 13, "span_text": "John Smith", "entity_type": "PERSON", "identifier_type": "DIRECT"},
-            {"start_offset": 17, "end_offset": 21, "span_text": "Oslo", "entity_type": "LOC", "identifier_type": "QUASI"},
-            {"start_offset": 28, "end_offset": 34, "span_text": "123/45", "entity_type": "CODE", "identifier_type": "NO_MASK"}]},
-        "a2": {"entity_mentions": [
-            {"start_offset": 3, "end_offset": 7, "span_text": "John", "entity_type": "PERSON", "identifier_type": "QUASI"}]}}}]
-    direct = L.tab_from_records(recs, "test", "direct")[0]
-    labs = sorted((s.start, s.label_canonical) for s in direct.spans)
-    assert labs == [(3, IGNORE), (3, PERSON), (17, IGNORE), (28, NOT_PII)]
-    quasi = L.tab_from_records(recs, "test", "quasi")[0]
-    assert sum(s.is_pii for s in quasi.spans) == 3
+def test_surface_mismatch_rejected():
+    with pytest.raises(OffsetError):
+        validate_doc(Doc("d", "hello world", (Span("d", 0, 5, PERSON, surface="world"),)))
 
 
-def test_spy_token_reconstruction():
-    rec = {"tokens": ["Call", "Anna", "Berg", "at", "anna@x.org", "."],
-           "trailing_whitespace": [True, True, True, True, False, False],
-           "ent_tags": ["O", "B-name", "I-name", "O", "B-email", "O"]}
-    d = L.spy_from_records([rec], "medical", "test")[0]
-    assert d.text == "Call Anna Berg at anna@x.org."
-    assert [(d.text[s.start:s.end], s.label_canonical) for s in d.spans] == [("Anna Berg", "PERSON"), ("anna@x.org", "EMAIL")]
-
-
-def test_spy_placeholder_detected():
-    rec = {"tokens": ["{name}"], "trailing_whitespace": [False], "ent_tags": ["B-name"]}
+def test_rows_normalizer_and_parse_spans():
+    assert L.rows({"a": [1, 2], "b": ["x", "y"]}) == [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+    assert L.rows([{"a": 1}]) == [{"a": 1}]
+    assert L.parse_spans("[{'start': 0, 'end': 1, 'label': 'x'}]", "t") == [{"start": 0, "end": 1, "label": "x"}]
     with pytest.raises(L.SchemaError):
-        L.spy_from_records([rec], "legal", "test")
+        L.parse_spans("not json", "t")
 
 
-def test_pii_trace_offsets():
-    rec = {"id": "c1", "turns": [{"turn": 0, "user": "I am Ravi.", "assistant": "Hi Ravi!"},
-                                 {"turn": 1, "user": "Mail ravi@a.io", "assistant": "Noted."}],
-           "spans": [{"label": "private_person", "turn": 0, "source": "user", "start": 5, "end": 9, "text": "Ravi"},
-                     {"label": "private_person", "turn": 0, "source": "assistant", "start": 3, "end": 7, "text": "Ravi"},
-                     {"label": "private_email", "turn": 1, "source": "user", "start": 5, "end": 14, "text": "ravi@a.io"}]}
-    d = L.pii_trace_from_records([rec], "test")[0]
-    assert [d.text[s.start:s.end] for s in d.spans] == ["Ravi", "Ravi", "ravi@a.io"]
+def _build(raws, name, mapper, **kw):
+    return L.build(raws, name, "test", mapper, **kw)
 
 
-def test_json_span_dataset_fail_closed():
+TAB_RECS = [{"doc_id": "x", "text": "Mr John Smith of Oslo, case 123/45.", "annotations": {
+    "a1": {"entity_mentions": [
+        {"start_offset": 3, "end_offset": 13, "span_text": "John Smith", "entity_type": "PERSON", "identifier_type": "DIRECT"},
+        {"start_offset": 17, "end_offset": 21, "span_text": "Oslo", "entity_type": "LOC", "identifier_type": "QUASI"},
+        {"start_offset": 28, "end_offset": 34, "span_text": "123/45", "entity_type": "CODE", "identifier_type": "NO_MASK"}]},
+    "a2": {"entity_mentions": [
+        {"start_offset": 3, "end_offset": 13, "span_text": "John Smith", "entity_type": "PERSON", "identifier_type": "DIRECT"},
+        {"start_offset": 3, "end_offset": 7, "span_text": "John", "entity_type": "PERSON", "identifier_type": "QUASI"}]}}}]
+
+
+def test_tab_tiers_and_dedupe():
+    direct, _ = _build(L.raw_tab(TAB_RECS, "test"), "tab_direct", lambda r: tx.map_tab(*r.split("/"), tier="direct"))
+    labs = sorted((s.start, s.end, s.label_canonical) for s in direct[0].spans)
+    assert labs == [(3, 7, IGNORE), (3, 13, PERSON), (17, 21, IGNORE), (28, 34, NOT_PII)]
+    quasi, _ = _build(L.raw_tab(TAB_RECS, "test"), "tab_quasi", lambda r: tx.map_tab(*r.split("/"), tier="quasi"))
+    assert sum(s.is_pii for s in quasi[0].spans) == 3
+
+
+def test_spy_faker_fill_deterministic_and_reconstruct():
+    recs = [{"tokens": ["Hi", "I", "am", "NAME_PH", "email", "EMAIL_PH", "."],
+             "trailing_whitespaces": [True, True, True, True, True, False, False],
+             "ent_tags": ["O", "O", "O", "B-NAME", "O", "B-EMAIL", "O"]}] * 3
+    f1, f2 = L.spy_faker_fill(recs, seed=0), L.spy_faker_fill(recs, seed=0)
+    assert f1 == f2 and L.spy_faker_fill(recs, seed=1) != f1
+    docs, rep = _build(L.raw_spy_tokens(f1, "medical"), "spy_medical", lambda r: tx.map_label("spy", r))
+    d = docs[0]
+    assert d.text.startswith("Hi I am ") and d.text.endswith(".")
+    labs = [s.label_canonical for s in d.spans]
+    assert labs == ["PERSON", "EMAIL"]
+    assert " " not in d.text[d.spans[1].start:d.spans[1].end]
+
+
+def test_spy_rejects_classlabel_ints_and_placeholders():
+    bad = [{"tokens": ["a"], "trailing_whitespace": [False], "ent_tags": [3]}]
+    with pytest.raises(L.SchemaError):
+        list(L.raw_spy_tokens(bad, "legal"))
+    ph = [{"tokens": ["{name}"], "trailing_whitespace": [False], "ent_tags": ["B-NAME"]}]
+    with pytest.raises(L.SchemaError):
+        list(L.raw_spy_tokens(ph, "legal"))
+
+
+def test_pii_trace_offsets_prefix_ignore_and_hf_dict_of_lists():
+    rec = {"id": "c1",
+           "turns": {"turn": [0, 1], "user": ["I am Ravi.", "Mail ravi@a.io"], "assistant": ["Hi Ravi!", "Noted."]},
+           "spans": {"label": ["private_person", "private_person", "private_email"], "turn": [0, 0, 1],
+                     "source": ["user", "assistant", "user"], "start": [5, 3, 5], "end": [9, 7, 14],
+                     "text": ["Ravi", "Ravi", "ravi@a.io"]}}
+    docs, _ = _build(L.raw_pii_trace([rec]), "pii_trace", lambda r: tx.map_label("pii_trace", r))
+    d = docs[0]
+    assert [d.text[s.start:s.end] for s in d.pii_spans()] == ["Ravi", "Ravi", "ravi@a.io"]
+    assert all(d.text[s.start:s.end] in ("User: ", "Assistant: ") for s in d.ignore_spans())
+
+
+def test_json_spans_fail_closed_and_census():
     recs = [{"uid": "u1", "text": "Bob", "spans": json.dumps([{"start": 0, "end": 3, "label": "mystery"}])}]
+    raws = lambda: L.raw_json_spans(recs, "nemotron", text_key="text", spans_key="spans",
+                                    id_fn=lambda r, i: r["uid"], cluster_fn=None)
     with pytest.raises(tx.UnmappedLabelError) as e:
-        L.spans_dataset_from_records(recs, "nemotron", "test", text_key="text", spans_key="spans",
-                                     id_key="uid", cluster_key=None)
+        _build(raws(), "nemotron", lambda r: tx.map_label("nemotron", r))
     assert e.value.labels == ["mystery"]
+    c = census_raws(raws(), lambda r: tx.map_label("nemotron", r))
+    assert c["unmapped"] == ["mystery"] and c["labels"]["mystery"]["count"] == 1
 
 
-def test_json_span_dataset_ok_and_cluster():
-    recs = [{"uid": "u1", "fam": "f", "text": "Bob lives at 1 Main St",
-             "spans": json.dumps([{"start": 0, "end": 3, "label": "first_name", "text": "Bob"},
-                                  {"start": 13, "end": 22, "label": "street_address", "text": "1 Main St"}])}]
-    d = L.spans_dataset_from_records(recs, "nemotron", "test", text_key="text", spans_key="spans",
-                                     id_key="uid", cluster_key="fam")[0]
-    assert d.cluster_id == "nemotron:f" and len(d.spans) == 2
+def test_reject_budget():
+    recs = [{"uid": f"u{i}", "text": "Bob", "spans": [{"start": 0, "end": 3 if i else 9, "label": "first_name"}]}
+            for i in range(10)]
+    mk = lambda: L.raw_json_spans(recs, "nemotron", text_key="text", spans_key="spans",
+                                  id_fn=lambda r, i: r["uid"], cluster_fn=None)
+    with pytest.raises(L.RejectBudgetExceeded):
+        _build(mk(), "nemotron", lambda r: tx.map_label("nemotron", r))
+    docs, rep = _build(mk(), "nemotron", lambda r: tx.map_label("nemotron", r), max_reject_rate=0.2)
+    assert len(docs) == 9 and rep["rejected"] == 1 and "u0" in rep["rejects"][0]["doc_id"]
 
 
-def test_taxonomy_maps_total_over_targets():
-    from s1pii.schema import ALL_TARGETS
+def test_census_offset_issues():
+    rd = L.RawDoc("d", "Call Bob now", [{"start": 4, "end": 8, "label": "first_name", "surface": " Bob"},
+                                        {"start": 6, "end": 7, "label": "first_name"}])
+    c = census_raws([rd], lambda r: tx.map_label("nemotron", r))
+    assert c["issues"]["whitespace_edge"] == 1 and c["issues"]["cuts_word"] == 1 and c["issues"]["overlapping"] == 1
+
+
+def test_taxonomy_targets_and_admissible():
+    from s1pii.schema import ALL_TARGETS, CANONICAL_TYPES
     for name, table in tx.MAPS.items():
         assert set(table.values()) <= set(ALL_TARGETS), name
-    for v in tx.TAB_ENTITY.values():
-        assert v in ALL_TARGETS
+    for ds, allowed in tx.ADMISSIBLE.items():
+        assert allowed <= set(CANONICAL_TYPES), ds
+    from s1pii.data.manifest import manifest
+    for ds, e in manifest().items():
+        if "eval" in e.get("purposes", []):
+            tx.admissible(ds)
 
 
 def test_licence_gate(monkeypatch):
@@ -116,9 +163,23 @@ def test_licence_gate(monkeypatch):
     require_allowed("ai4privacy", "eval")
 
 
-def test_sampling_deterministic_and_stratified():
-    docs = [Doc(f"d{i}", "x", dataset="a" if i < 80 else "b") for i in range(100)]
+def test_calib_split_by_cluster_and_sampling():
+    docs = [Doc(f"d{i}", "x", cluster_id=f"c{i // 3}", dataset="a" if i < 80 else "b") for i in range(99)]
+    cal, test = L.calib_test_split(docs, 0.2)
+    assert {d.cluster_id for d in cal}.isdisjoint({d.cluster_id for d in test})
+    assert len(cal) + len(test) == 99 and len({d.cluster_id for d in cal}) == 7
     s1 = L.sample(docs, 10, strata=lambda d: d.dataset)
-    s2 = L.sample(list(reversed(docs)), 10, strata=lambda d: d.dataset)
-    assert [d.doc_id for d in s1] == [d.doc_id for d in s2]
-    assert sum(d.dataset == "a" for d in s1) == 8
+    assert [d.doc_id for d in s1] == [d.doc_id for d in L.sample(list(reversed(docs)), 10, strata=lambda d: d.dataset)]
+
+
+def test_snapshot_load_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "DATA_DIR", tmp_path)
+    calls = []
+    def recipe(split):
+        calls.append(split)
+        return L.raw_tab(TAB_RECS, split), (lambda r: tx.map_tab(*r.split("/"), tier="direct")), {"source_sha256": "x"}
+    monkeypatch.setitem(L.RECIPES, "tab_direct", (recipe, "test"))
+    a = L.load("tab_direct")
+    b = L.load("tab_direct")
+    assert calls == ["test"] and [d.to_json() for d in a] == [d.to_json() for d in b]
+    assert L.snapshot_meta("tab_direct", "test")["dataset_hash"]

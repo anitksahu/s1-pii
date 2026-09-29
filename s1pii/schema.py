@@ -56,8 +56,14 @@ class Span:
     surface: str | None = None
 
     def __post_init__(self) -> None:
-        if not (isinstance(self.start, int) and isinstance(self.end, int)):
-            raise OffsetError(f"{self.doc_id}: offsets must be int")
+        import operator
+        if isinstance(self.start, bool) or isinstance(self.end, bool):
+            raise OffsetError(f"{self.doc_id}: offsets must be integers, not bool")
+        try:
+            object.__setattr__(self, "start", operator.index(self.start))
+            object.__setattr__(self, "end", operator.index(self.end))
+        except TypeError as e:
+            raise OffsetError(f"{self.doc_id}: offsets must be integers") from e
         if self.start < 0 or self.end <= self.start:
             raise OffsetError(f"{self.doc_id}: bad span [{self.start},{self.end})")
         if self.label_canonical not in ALL_TARGETS:

@@ -21,13 +21,33 @@ from .schema import Doc, Span
 RESULTS = Path(os.environ.get("S1PII_RESULTS", "results"))
 
 
+REPO = Path(__file__).resolve().parents[1]
+
+
+class UnknownProvenance(RuntimeError):
+    pass
+
+
 def git_sha() -> str:
+    """Commit of the installed code: the repo checkout this module lives in, else the commit
+    recorded by a ``pip install git+...`` (PEP 610 direct_url.json), else $S1PII_GIT_SHA."""
     try:
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
-        dirty = subprocess.call(["git", "diff", "--quiet"], stderr=subprocess.DEVNULL) != 0
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO, stderr=subprocess.DEVNULL).decode().strip()
+        dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=REPO,
+                                        stderr=subprocess.DEVNULL).decode().strip() != ""
         return sha + ("-dirty" if dirty else "")
     except Exception:
-        return "unknown"
+        pass
+    try:
+        from importlib.metadata import distribution
+        raw = distribution("s1pii").read_text("direct_url.json")
+        if raw:
+            vcs = json.loads(raw).get("vcs_info", {})
+            if vcs.get("commit_id"):
+                return vcs["commit_id"]
+    except Exception:
+        pass
+    return os.environ.get("S1PII_GIT_SHA", "unknown")
 
 
 def stable_hash(obj) -> str:
@@ -41,13 +61,23 @@ def dataset_hash(docs: Sequence[Doc]) -> str:
     return h.hexdigest()[:16]
 
 
-def append(row: dict, path: Path | None = None) -> dict:
+def append(row: dict, path: Path | None = None, headline: bool = False) -> dict:
+    """Append one row with a single O_APPEND write followed by fsync. Headline rows refuse
+    unknown or dirty code provenance."""
     path = path or RESULTS / "ledger.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    full = {"ts": dt.datetime.now(dt.timezone.utc).isoformat(), "git_sha": git_sha(),
-            "harness_version": __version__, **row}
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(full, default=str) + "\n")
+    sha = git_sha()
+    if headline and (sha == "unknown" or sha.endswith("-dirty")):
+        raise UnknownProvenance(f"headline results need clean, known code provenance (got {sha!r})")
+    full = {"ts": dt.datetime.now(dt.timezone.utc).isoformat(), "git_sha": sha,
+            "harness_version": __version__, "headline": headline, **row}
+    data = (json.dumps(full, default=str) + "\n").encode()
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, data)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
     return full
 
 
@@ -69,13 +99,20 @@ def cache_path(key: str, root: Path | None = None) -> Path:
 
 
 def write_predictions(preds_by_doc: dict[str, list[Span]], path: Path, meta: dict) -> None:
+    """Atomic write: unique temp file in the same directory, fsync, then rename."""
+    import tempfile
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        f.write(json.dumps({"_meta": meta}) + "\n")
-        for did, spans in preds_by_doc.items():
-            f.write(json.dumps({"doc_id": did, "spans": [s.to_dict() for s in spans]}, ensure_ascii=False) + "\n")
-    tmp.replace(path)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".part")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"_meta": meta}) + "\n")
+            for did, spans in preds_by_doc.items():
+                f.write(json.dumps({"doc_id": did, "spans": [s.to_dict() for s in spans]}, ensure_ascii=False) + "\n")
+            f.flush(); os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def read_predictions(path: Path) -> tuple[dict, dict[str, list[Span]]]:

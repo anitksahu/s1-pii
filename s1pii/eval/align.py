@@ -7,7 +7,7 @@ from typing import Sequence
 
 from ..schema import Span
 
-_WORD = re.compile(r"\S+")
+_WORD = re.compile(r"[^\W_]+")  # maximal alphanumeric runs (Unicode-aware)
 
 
 def word_bounds(text: str) -> list[tuple[int, int]]:
@@ -15,19 +15,21 @@ def word_bounds(text: str) -> list[tuple[int, int]]:
 
 
 def expand_to_words(text: str, start: int, end: int, bounds: list[tuple[int, int]] | None = None) -> tuple[int, int]:
-    """Expand [start, end) to cover every whitespace-delimited word it overlaps.
+    """Expand [start, end) to cover every alphanumeric run it overlaps.
 
     Applied to predictions only, identically for every system, so subword and character
     maskers are compared at the same granularity. Partial masking across words (a card
     number split by spaces) is still visible to the span-exposure metric."""
+    import bisect
     bounds = bounds if bounds is not None else word_bounds(text)
     s, e = start, end
-    for ws, we in bounds:
-        if we <= start:
-            continue
-        if ws >= end:
-            break
-        s, e = min(s, ws), max(e, we)
+    i = bisect.bisect_right(bounds, (start, float("inf"))) - 1
+    i = max(i, 0)
+    while i < len(bounds) and bounds[i][0] < end:
+        ws, we = bounds[i]
+        if we > start:
+            s, e = min(s, ws), max(e, we)
+        i += 1
     return s, e
 
 

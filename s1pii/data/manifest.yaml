@@ -1,8 +1,10 @@
-# Dataset licence and use manifest. Loaders refuse any dataset or purpose not listed here.
+# Dataset licence and use manifest. `revision` pins a HF commit SHA (null = resolve on first
+# load and record it in the snapshot meta; then copy it here in a reviewed commit).
+# Loaders refuse any dataset or purpose not listed here.
 # role: headline | secondary. purposes: eval, train. research_only datasets additionally
 # require S1PII_ALLOW_RESEARCH=1 and are never used for published weights.
-tab_direct:   {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: headline, purposes: [eval]}
-tab_quasi:    {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: secondary, purposes: [eval]}
+tab_direct:   {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: headline, purposes: [eval], sha256: {test: cd0f0f15f84a8739654c7cf30c6be8ce27b051ef73974d39d792a0cb8c846379, dev: 8c3c7306f46b8d54debeb38ae11d8b0b8bcf4bdccbc3b6f13c12ad7be16893ec, train: 4aba41f8ac305ff9e93dd6f0bbc16756e57e9ace396c827931fab70e18d8c6a6}}
+tab_quasi:    {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: secondary, purposes: [eval], sha256: {test: cd0f0f15f84a8739654c7cf30c6be8ce27b051ef73974d39d792a0cb8c846379, dev: 8c3c7306f46b8d54debeb38ae11d8b0b8bcf4bdccbc3b6f13c12ad7be16893ec}}
 spy_medical:  {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
 spy_legal:    {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
 pii_trace:    {source: "hf:perplexity-ai/PII-TRACE", license: MIT, role: headline, purposes: [eval]}

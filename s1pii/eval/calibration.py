@@ -1,19 +1,21 @@
 """Span-level calibration over a candidate set, with identical recalibration for every system.
 
-Candidate set: every predicted span with score >= floor (0.05). Its target is 1 if it
-matches a gold PII span (character IoU >= 0.5; typed or type-agnostic), else 0. Candidates
-overlapping only IGNORE gold are dropped. Gold spans with no candidate are counted
-separately as ``uncovered`` because calibration of scores cannot describe them; they show up
-in the leak metric instead.
+Candidate set: every admissible predicted span with score >= floor (0.05). Matching to
+merged gold PII mentions is one-to-one: pairs with character IoU >= 0.5 (typed or
+type-agnostic) are matched greedily by descending score, then descending IoU, so the
+highest-scoring candidate on a gold mention is the positive and duplicates are negatives.
+Candidates overlapping only IGNORE gold are dropped. Gold mentions with no matched
+candidate are reported as ``uncovered``; they appear in the leak metric instead.
+Recalibration never touches the headline pAUC, which uses raw scores (prereg).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Sequence
 
 import numpy as np
 
-from ..schema import Doc, Span
+from .metrics import DocView
 
 FLOOR = 0.05
 
@@ -29,33 +31,41 @@ class Candidates:
     scores: np.ndarray
     targets: np.ndarray
     types: list[str]
-    uncovered_gold: int
-    total_gold: int
+    clusters: list[str] = field(default_factory=list)
+    uncovered_gold: int = 0
+    total_gold: int = 0
 
 
-def candidates(docs: Sequence[Doc], preds_by_doc: dict, typed: bool = False, floor: float = FLOOR,
+def candidates(views: Sequence[DocView], typed: bool = False, floor: float = FLOOR,
                iou: float = 0.5) -> Candidates:
-    sc, tg, ty = [], [], []
+    sc, tg, ty, cl = [], [], [], []
     unc = tot = 0
-    for d in docs:
-        gold = d.pii_spans()
-        ign = d.ignore_spans()
-        preds = [p for p in preds_by_doc.get(d.doc_id, []) if p.score >= floor]
-        covered = set()
-        for p in preds:
-            hit = False
-            for gi, g in enumerate(gold):
-                if typed and g.label_canonical != p.label_canonical:
+    for v in views:
+        gold = v.gold
+        ign = [(s.start, s.end) for s in v.doc.ignore_spans()]
+        preds = [p for p in v.preds if p.score >= floor]
+        pairs = []
+        for pi, p in enumerate(preds):
+            for gi, (a, b, lab) in enumerate(gold):
+                if typed and lab != p.label_canonical:
                     continue
-                if _iou(p.start, p.end, g.start, g.end) >= iou:
-                    hit = True; covered.add(gi)
-            if not hit and any(min(g.end, p.end) > max(g.start, p.start) for g in ign) and \
-                    not any(min(g.end, p.end) > max(g.start, p.start) for g in gold):
-                continue
-            sc.append(p.score); tg.append(int(hit)); ty.append(p.label_canonical)
+                j = _iou(p.start, p.end, a, b)
+                if j >= iou:
+                    pairs.append((-p.score, -j, pi, gi))
+        pairs.sort()
+        up, ug = set(), set()
+        for _, _, pi, gi in pairs:
+            if pi not in up and gi not in ug:
+                up.add(pi); ug.add(gi)
+        for pi, p in enumerate(preds):
+            if pi not in up:
+                touches_gold = any(min(b, p.end) > max(a, p.start) for a, b, _ in gold)
+                if not touches_gold and any(min(b, p.end) > max(a, p.start) for a, b in ign):
+                    continue
+            sc.append(p.score); tg.append(int(pi in up)); ty.append(p.label_canonical); cl.append(v.cluster_id)
         tot += len(gold)
-        unc += len(gold) - len(covered)
-    return Candidates(np.array(sc, float), np.array(tg, int), ty, unc, tot)
+        unc += len(gold) - len(ug)
+    return Candidates(np.array(sc, float), np.array(tg, int), ty, cl, unc, tot)
 
 
 def brier(p: np.ndarray, y: np.ndarray) -> float:
@@ -63,7 +73,6 @@ def brier(p: np.ndarray, y: np.ndarray) -> float:
 
 
 def adaptive_ece(p: np.ndarray, y: np.ndarray, n_bins: int = 15) -> float:
-    """Equal-mass binning ECE."""
     if len(p) == 0:
         return float("nan")
     order = np.argsort(p, kind="stable")
@@ -71,10 +80,20 @@ def adaptive_ece(p: np.ndarray, y: np.ndarray, n_bins: int = 15) -> float:
     return float(sum(len(b) / len(p) * abs(p[b].mean() - y[b].mean()) for b in bins if len(b)))
 
 
-def ece_ci(p: np.ndarray, y: np.ndarray, n_boot: int = 1000, seed: int = 0) -> tuple[float, float]:
+def cluster_ci(c: Candidates, fn, n_boot: int = 1000, seed: int = 0) -> tuple[float, float]:
+    """Bootstrap CI of fn(p, y) resampling clusters, not candidates."""
+    ids = sorted(set(c.clusters))
+    rows = {k: [] for k in ids}
+    for i, k in enumerate(c.clusters):
+        rows[k].append(i)
     rng = np.random.default_rng(seed)
-    vals = [adaptive_ece(p[i], y[i]) for i in (rng.integers(0, len(p), len(p)) for _ in range(n_boot))]
-    return float(np.quantile(vals, 0.025)), float(np.quantile(vals, 0.975))
+    vals = []
+    for _ in range(n_boot):
+        pick = rng.integers(0, len(ids), len(ids))
+        idx = np.concatenate([rows[ids[j]] for j in pick]) if len(ids) else np.array([], int)
+        idx = idx.astype(int)
+        vals.append(fn(c.scores[idx], c.targets[idx]))
+    return float(np.nanquantile(vals, 0.025)), float(np.nanquantile(vals, 0.975))
 
 
 class TypeIsotonic:
@@ -88,26 +107,28 @@ class TypeIsotonic:
 
     def fit(self, c: Candidates) -> "TypeIsotonic":
         from sklearn.isotonic import IsotonicRegression
-        self.pooled = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(c.scores, c.targets)
+        mk = lambda: IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1)
+        self.pooled = mk().fit(c.scores, c.targets)
         types = np.array(c.types)
         for t in set(c.types):
             m = types == t
             if m.sum() >= self.min_n:
-                self.models[t] = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(
-                    c.scores[m], c.targets[m])
+                self.models[t] = mk().fit(c.scores[m], c.targets[m])
         return self
 
-    def transform_span(self, s: Span) -> float:
-        model = self.models.get(s.label_canonical, self.pooled)
-        return float(np.clip(model.predict([s.score])[0], 0, 1))
+    def transform(self, scores: np.ndarray, types: Sequence[str]) -> np.ndarray:
+        out = np.empty(len(scores))
+        types = np.array(types)
+        for t in set(types.tolist()):
+            m = types == t
+            out[m] = self.models.get(t, self.pooled).predict(scores[m])
+        return np.clip(out, 0, 1)
 
 
 def fit_temperature(logits: np.ndarray, y: np.ndarray) -> float:
-    """Binary temperature on logit(score) by minimizing NLL (golden-section on log T)."""
+    """Binary temperature on logit(score) minimizing NLL (golden-section search on log T)."""
     def nll(logT):
-        z = logits / np.exp(logT)
-        p = 1 / (1 + np.exp(-z))
-        p = np.clip(p, 1e-7, 1 - 1e-7)
+        p = np.clip(1 / (1 + np.exp(-logits / np.exp(logT))), 1e-7, 1 - 1e-7)
         return -np.mean(y * np.log(p) + (1 - y) * np.log(1 - p))
     a, b = -3.0, 3.0
     g = (5 ** 0.5 - 1) / 2
@@ -122,8 +143,6 @@ def fit_temperature(logits: np.ndarray, y: np.ndarray) -> float:
 
 
 def risk_coverage(p: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Selective risk (fraction wrong among kept) vs coverage when keeping candidates in
-    descending score order and predicting 'PII' for the kept ones."""
     order = np.argsort(-p, kind="stable")
     yk = y[order]
     k = np.arange(1, len(p) + 1)

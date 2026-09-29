@@ -6,14 +6,16 @@ Definitions (preregistered in prereg/v0.md)
 * Gold character classes, by precedence when gold spans overlap: PII > IGNORE > NOT_PII.
   Characters under no gold span are non-PII. IGNORE characters are excluded from both the
   numerator and denominator of every metric.
-* Predictions are expanded to whole whitespace-delimited words (``align.expand_to_words``);
-  each character gets the maximum score of any prediction covering it (-1 if none).
-* A character is masked at threshold t iff its score >= t.
+* Predictions whose type is not admissible for the benchmark (``taxonomy.ADMISSIBLE``) are
+  dropped for every system. Remaining predictions are expanded to whole alphanumeric runs
+  (``align.expand_to_words``); each character gets the maximum *raw* score of any prediction
+  covering it (-1 if none). Scores are quantized to a 1/1000 grid (bins); a character is
+  masked at threshold k/1000 iff its bin >= 1 + k. Every metric uses the same bins.
 * leak(t) = unmasked gold-PII chars / gold-PII chars;
-  over(t) = masked non-PII chars / non-PII chars. Both are micro-averaged over documents.
-
-Scores are quantized to a 1/1000 grid so that every metric is computed from per-cluster
-histograms; this makes the cluster bootstrap exact and cheap. Thresholds are k/1000.
+  over(t) = masked non-PII chars / non-PII chars; both micro-averaged over documents.
+* pAUC: exact integral over over-redaction budgets x in [0, max_over] of the lowest leak
+  among operating points with over <= x, divided by max_over. Budgets beyond a system's
+  reachable over-redaction use its lowest reachable leak. Lower is better.
 """
 from __future__ import annotations
 
@@ -25,14 +27,19 @@ import numpy as np
 from ..schema import Doc, Span, IGNORE, CANONICAL_TYPES
 from .align import expand_to_words, word_bounds
 
-NBINS = 1002          # index 0: no prediction; 1 + floor(1000 * score) for score in [0, 1]
+NBINS = 1002          # bin 0: no prediction; 1 + floor(1000 * score) for score in [0, 1]
 GRID = np.arange(1001) / 1000.0
+MASK_NOTHING = 1.001  # threshold sentinel: nothing is masked
 
 LAB_NON, LAB_IGN, LAB_PII = 0, 1, 2
 
 
+def k_of(t: float) -> int:
+    """Threshold -> grid index k; masked iff bin >= 1 + k. k = 1001 masks nothing."""
+    return min(1001, max(0, int(np.ceil(round(t * 1000, 6)))))
+
+
 def char_labels(doc: Doc) -> tuple[np.ndarray, np.ndarray]:
-    """Per-character gold class (0 non, 1 ignore, 2 pii) and PII type index (-1 if none)."""
     n = len(doc.text)
     lab = np.zeros(n, dtype=np.int8)
     typ = np.full(n, -1, dtype=np.int8)
@@ -52,6 +59,10 @@ def alnum_mask(text: str) -> np.ndarray:
     return np.fromiter((c.isalnum() for c in text), dtype=bool, count=len(text))
 
 
+def filter_admissible(preds: Sequence[Span], allowed: frozenset[str] | None) -> list[Span]:
+    return list(preds) if allowed is None else [p for p in preds if p.label_canonical in allowed]
+
+
 def char_scores(doc: Doc, preds: Sequence[Span], word_granularity: bool = True) -> np.ndarray:
     sc = np.full(len(doc.text), -1.0)
     bounds = word_bounds(doc.text) if word_granularity else None
@@ -68,80 +79,97 @@ def to_bins(scores: np.ndarray) -> np.ndarray:
     return b
 
 
+def merged_gold(doc: Doc) -> list[tuple[int, int, str]]:
+    """Union of overlapping gold PII spans (type of the earliest). Used by span-level metrics
+    so overlapping annotations from several annotators count as one mention."""
+    out: list[list] = []
+    for s in sorted(doc.pii_spans(), key=lambda s: (s.start, -s.end)):
+        if out and s.start < out[-1][1]:
+            out[-1][1] = max(out[-1][1], s.end)
+        else:
+            out.append([s.start, s.end, s.label_canonical])
+    return [tuple(x) for x in out]
+
+
 @dataclass
-class DocStats:
-    doc_id: str
-    cluster_id: str
-    hist_pii: np.ndarray      # (NBINS,)
-    hist_non: np.ndarray      # (NBINS,)
-    n_chars: int
+class DocView:
+    """Everything a metric needs for one (doc, system) pair, computed once."""
+    doc: Doc
+    preds: list[Span]
+    lab: np.ndarray
+    typ: np.ndarray
+    alnum: np.ndarray
+    bins: np.ndarray
+    gold: list[tuple[int, int, str]]
+
+    @property
+    def cluster_id(self) -> str:
+        return self.doc.cluster_id or self.doc.doc_id
+
+    def masked(self, t: float) -> np.ndarray:
+        return self.bins >= 1 + k_of(t)
+
+    def hist(self) -> tuple[np.ndarray, np.ndarray]:
+        return (np.bincount(self.bins[self.alnum & (self.lab == LAB_PII)], minlength=NBINS),
+                np.bincount(self.bins[self.alnum & (self.lab == LAB_NON)], minlength=NBINS))
 
 
-def doc_stats(doc: Doc, preds: Sequence[Span], word_granularity: bool = True) -> DocStats:
-    lab, _ = char_labels(doc)
-    an = alnum_mask(doc.text)
-    bins = to_bins(char_scores(doc, preds, word_granularity))
-    return DocStats(
-        doc.doc_id, doc.cluster_id or doc.doc_id,
-        np.bincount(bins[an & (lab == LAB_PII)], minlength=NBINS),
-        np.bincount(bins[an & (lab == LAB_NON)], minlength=NBINS),
-        len(doc.text),
-    )
+def view(doc: Doc, preds: Sequence[Span], allowed: frozenset[str] | None = None,
+         word_granularity: bool = True) -> DocView:
+    kept = filter_admissible(preds, allowed)
+    lab, typ = char_labels(doc)
+    return DocView(doc, kept, lab, typ, alnum_mask(doc.text),
+                   to_bins(char_scores(doc, kept, word_granularity)), merged_gold(doc))
 
 
-def cluster_histograms(stats: Iterable[DocStats]) -> tuple[list[str], np.ndarray, np.ndarray]:
+def cluster_histograms(views: Iterable[DocView]) -> tuple[list[str], np.ndarray, np.ndarray]:
     idx: dict[str, int] = {}
     pii, non = [], []
-    for s in stats:
-        if s.cluster_id not in idx:
-            idx[s.cluster_id] = len(idx)
-            pii.append(np.zeros(NBINS, dtype=np.int64))
-            non.append(np.zeros(NBINS, dtype=np.int64))
-        k = idx[s.cluster_id]
-        pii[k] += s.hist_pii
-        non[k] += s.hist_non
-    return list(idx), np.array(pii), np.array(non)
+    for v in views:
+        hp, hn = v.hist()
+        if v.cluster_id not in idx:
+            idx[v.cluster_id] = len(idx)
+            pii.append(np.zeros(NBINS)); non.append(np.zeros(NBINS))
+        pii[idx[v.cluster_id]] += hp
+        non[idx[v.cluster_id]] += hn
+    return list(idx), np.array(pii, dtype=np.float64), np.array(non, dtype=np.float64)
 
+
+# ------------------------------------------------------------------ curves
 
 def curve_from_hist(hist_pii: np.ndarray, hist_non: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """leak and over-redaction for thresholds GRID (k/1000, k=0..1000), plus the point
-    'mask nothing' appended at the end (over=0, leak=1). Works on 1-D or batched (B, NBINS)."""
+    """leak and over for thresholds GRID (k = 0..1000) plus the mask-nothing point (k = 1001).
+    Works on 1-D histograms or batched (B, NBINS)."""
     hp = np.atleast_2d(hist_pii).astype(np.float64)
     hn = np.atleast_2d(hist_non).astype(np.float64)
     npii = hp.sum(1, keepdims=True)
     nnon = hn.sum(1, keepdims=True)
-    # masked iff bin >= 1 + k  -> count of bins >= j via reverse cumsum
-    rp = np.cumsum(hp[:, ::-1], axis=1)[:, ::-1]   # rp[:, j] = # with bin >= j
+    rp = np.cumsum(hp[:, ::-1], axis=1)[:, ::-1]      # rp[:, j] = # chars with bin >= j
     rn = np.cumsum(hn[:, ::-1], axis=1)[:, ::-1]
-    masked_pii = rp[:, 1:]                         # j = 1..1001 -> k = 0..1000
-    masked_non = rn[:, 1:]
     with np.errstate(invalid="ignore", divide="ignore"):
-        leak = np.where(npii > 0, 1 - masked_pii / npii, np.nan)
-        over = np.where(nnon > 0, masked_non / nnon, np.nan)
+        leak = np.where(npii > 0, 1 - rp[:, 1:] / npii, np.nan)
+        over = np.where(nnon > 0, rn[:, 1:] / nnon, 0.0)
     leak = np.concatenate([leak, np.ones((leak.shape[0], 1))], axis=1)
     over = np.concatenate([over, np.zeros((over.shape[0], 1))], axis=1)
-    if np.ndim(hist_pii) == 1:
-        return leak[0], over[0]
-    return leak, over
+    return (leak[0], over[0]) if np.ndim(hist_pii) == 1 else (leak, over)
 
 
-def best_leak_at(leak: np.ndarray, over: np.ndarray, budget: float) -> np.ndarray:
-    """Lowest leak among operating points with over-redaction <= budget (no interpolation)."""
+def best_leak_at(leak: np.ndarray, over: np.ndarray, budget: float):
     L = np.atleast_2d(leak); O = np.atleast_2d(over)
-    masked = np.where(O <= budget + 1e-12, L, np.inf)
-    out = masked.min(1)
-    return out if np.ndim(leak) > 1 else out[0]
+    out = np.where(O <= budget + 1e-12, L, np.inf).min(1)
+    return out if np.ndim(leak) > 1 else float(out[0])
 
 
-def pauc(leak: np.ndarray, over: np.ndarray, max_over: float = 0.05, steps: int = 101) -> np.ndarray:
-    """Normalized partial area under the best-achievable leak curve over over-redaction
-    budgets in [0, max_over]: the mean over budgets of the lowest leak reachable within
-    budget. Lower is better; 1.0 means nothing is ever masked. Budgets beyond a system's
-    reachable over-redaction use its lowest reachable leak (what it can actually do)."""
-    xs = np.linspace(0, max_over, steps)
-    vals = np.stack([best_leak_at(leak, over, x) for x in xs], axis=-1)
-    trap = getattr(np, "trapezoid", None) or np.trapz
-    return trap(vals, xs, axis=-1) / max_over
+def pauc(leak: np.ndarray, over: np.ndarray, max_over: float = 0.05):
+    """Exact normalized integral of the best-achievable-leak step function on [0, max_over]."""
+    L = np.atleast_2d(leak).astype(np.float64); O = np.atleast_2d(over).astype(np.float64)
+    order = np.argsort(O, axis=1, kind="stable")
+    Os = np.take_along_axis(O, order, 1)
+    Ls = np.minimum.accumulate(np.take_along_axis(L, order, 1), axis=1)
+    x0 = np.minimum(Os, max_over)
+    x1 = np.minimum(np.concatenate([Os[:, 1:], np.full((Os.shape[0], 1), np.inf)], 1), max_over)
+    area = (Ls * (x1 - x0)).sum(1) / max_over
+    return area if np.ndim(leak) > 1 else float(area[0])
 
 
 def reachable_max_over(over: np.ndarray) -> float:
@@ -149,100 +177,101 @@ def reachable_max_over(over: np.ndarray) -> float:
 
 
 def at_threshold(hist_pii: np.ndarray, hist_non: np.ndarray, t: float) -> dict:
-    k = int(round(t * 1000))
+    k = k_of(t)
     leak, over = curve_from_hist(hist_pii, hist_non)
     tp = hist_pii[1 + k:].sum(); fn = hist_pii[:1 + k].sum(); fp = hist_non[1 + k:].sum()
     p = tp / (tp + fp) if tp + fp else float("nan")
     r = tp / (tp + fn) if tp + fn else float("nan")
-    f1 = 2 * p * r / (p + r) if p == p and r == r and p + r else float("nan")
+    f1 = 2 * p * r / (p + r) if (p == p and r == r and p + r) else float("nan")
     return {"threshold": t, "leak": float(leak[k]), "over": float(over[k]),
             "char_precision": float(p), "char_recall": float(r), "char_f1": float(f1)}
 
 
 # ------------------------------------------------------------------ span-level metrics
 
-def _masked_at(scores: np.ndarray, t: float) -> np.ndarray:
-    return scores >= t - 1e-12
-
-
-def span_exposure(doc: Doc, preds: Sequence[Span], t: float, word_granularity: bool = True) -> tuple[int, int]:
-    """(# gold PII spans with at least one unmasked alphanumeric char, # gold PII spans with
-    at least one alphanumeric char). Characters inside IGNORE-only regions are irrelevant here
-    because we only look inside PII spans."""
-    sc = char_scores(doc, preds, word_granularity)
-    m = _masked_at(sc, t)
-    an = alnum_mask(doc.text)
+def span_exposure(v: DocView, t: float) -> tuple[int, int]:
+    """(# merged gold PII mentions with >= 1 unmasked alphanumeric char, # mentions with any
+    alphanumeric char)."""
+    m = v.masked(t)
     exposed = total = 0
-    for s in doc.pii_spans():
-        seg = an[s.start:s.end]
+    for a, b, _ in v.gold:
+        seg = v.alnum[a:b]
         if not seg.any():
             continue
         total += 1
-        exposed += int((~m[s.start:s.end] & seg).any())
+        exposed += int((~m[a:b] & seg).any())
     return exposed, total
 
 
-def consistency(doc: Doc, preds: Sequence[Span], t: float, word_granularity: bool = True) -> tuple[int, int]:
-    """Multi-mention consistency: among gold PII entities mentioned 2+ times (same casefolded
-    surface within a document), how many have every mention fully masked."""
-    sc = char_scores(doc, preds, word_granularity)
-    m = _masked_at(sc, t)
-    an = alnum_mask(doc.text)
-    groups: dict[str, list[Span]] = {}
-    for s in doc.pii_spans():
-        groups.setdefault(doc.text[s.start:s.end].strip().casefold(), []).append(s)
-    ok = tot = 0
+def consistency(v: DocView, t: float) -> dict:
+    """Multi-mention consistency over gold entities mentioned 2+ times in a document (same
+    casefolded surface). ``all_masked``: every mention fully masked. ``conditional``: among
+    entities with at least one mention fully masked, how many have all mentions masked."""
+    m = v.masked(t)
+    groups: dict[str, list[tuple[int, int]]] = {}
+    for a, b, _ in v.gold:
+        groups.setdefault(v.doc.text[a:b].strip().casefold(), []).append((a, b))
+    full = lambda a, b: not (~m[a:b] & v.alnum[a:b]).any()
+    res = {"all_masked": 0, "groups": 0, "cond_num": 0, "cond_den": 0}
     for g in groups.values():
         if len(g) < 2:
             continue
-        tot += 1
-        ok += int(all(not (~m[s.start:s.end] & an[s.start:s.end]).any() for s in g))
-    return ok, tot
+        flags = [full(a, b) for a, b in g]
+        res["groups"] += 1
+        res["all_masked"] += int(all(flags))
+        if any(flags):
+            res["cond_den"] += 1
+            res["cond_num"] += int(all(flags))
+    return res
 
 
-def span_prf(docs: Sequence[Doc], preds_by_doc: dict, t: float, *, typed: bool, mode: str) -> dict:
-    """Span P/R/F1 at threshold t. mode='strict' (exact offsets) or 'partial' (any overlap).
-    Greedy one-to-one matching by overlap size. IGNORE gold spans absorb predictions (a
-    prediction overlapping only IGNORE gold is neither TP nor FP)."""
+def span_prf(views: Sequence[DocView], t: float, *, typed: bool, mode: str) -> dict:
+    """Span P/R/F1 at threshold t against merged gold. mode 'strict' (exact offsets) or
+    'partial' (any character overlap). One-to-one matching is global greedy by descending
+    overlap (order-independent). A prediction overlapping only IGNORE gold is neither TP nor FP."""
+    k = k_of(t)
     tp = fp = fn = 0
-    for d in docs:
-        gold = d.pii_spans()
-        ign = d.ignore_spans()
-        pr = [p for p in preds_by_doc.get(d.doc_id, []) if p.score >= t - 1e-12]
-        used = set()
-        for p in pr:
-            best, bo = None, 0
-            for gi, g in enumerate(gold):
-                if gi in used or (typed and g.label_canonical != p.label_canonical):
+    for v in views:
+        gold = v.gold
+        ign = [(s.start, s.end) for s in v.doc.ignore_spans()]
+        pr = [p for p in v.preds if 1 + int(np.floor(p.score * 1000 + 1e-9)) >= 1 + k]
+        pairs = []
+        for pi, p in enumerate(pr):
+            for gi, (a, b, lab) in enumerate(gold):
+                if b <= p.start or a >= p.end or (typed and lab != p.label_canonical):
                     continue
                 if mode == "strict":
-                    ov = (g.end - g.start) if (g.start, g.end) == (p.start, p.end) else 0
+                    if (a, b) == (p.start, p.end):
+                        pairs.append((b - a, pi, gi))
                 else:
-                    ov = max(0, min(g.end, p.end) - max(g.start, p.start))
-                if ov > bo:
-                    best, bo = gi, ov
-            if best is not None:
-                used.add(best); tp += 1
-            elif any(min(g.end, p.end) > max(g.start, p.start) for g in ign):
+                    pairs.append((min(b, p.end) - max(a, p.start), pi, gi))
+        pairs.sort(key=lambda x: (-x[0], x[1], x[2]))
+        up, ug = set(), set()
+        for _, pi, gi in pairs:
+            if pi not in up and gi not in ug:
+                up.add(pi); ug.add(gi)
+        tp += len(up)
+        for pi, p in enumerate(pr):
+            if pi in up:
                 continue
-            else:
-                fp += 1
-        fn += len(gold) - len(used)
+            if any(min(b, p.end) > max(a, p.start) for a, b in ign) and \
+                    not any(min(b, p.end) > max(a, p.start) for a, b, _ in gold):
+                continue
+            fp += 1
+        fn += len(gold) - len(ug)
     p = tp / (tp + fp) if tp + fp else float("nan")
     r = tp / (tp + fn) if tp + fn else float("nan")
     f = 2 * p * r / (p + r) if (p == p and r == r and p + r) else float("nan")
     return {"precision": p, "recall": r, "f1": f, "tp": tp, "fp": fp, "fn": fn}
 
 
-def per_type_recall(docs: Sequence[Doc], preds_by_doc: dict, t: float) -> dict:
+def per_type_recall(views: Sequence[DocView], t: float) -> dict:
     hit = np.zeros(len(CANONICAL_TYPES)); tot = np.zeros(len(CANONICAL_TYPES))
-    for d in docs:
-        lab, typ = char_labels(d)
-        an = alnum_mask(d.text)
-        m = _masked_at(char_scores(d, preds_by_doc.get(d.doc_id, [])), t)
-        sel = an & (lab == LAB_PII)
-        np.add.at(tot, typ[sel], 1)
-        np.add.at(hit, typ[sel & m], 1)
+    for v in views:
+        sel = v.alnum & (v.lab == LAB_PII)
+        m = v.masked(t)
+        np.add.at(tot, v.typ[sel], 1)
+        np.add.at(hit, v.typ[sel & m], 1)
     return {CANONICAL_TYPES[i]: {"recall": float(hit[i] / tot[i]) if tot[i] else float("nan"),
                                  "support_chars": int(tot[i])} for i in range(len(CANONICAL_TYPES))}
 
