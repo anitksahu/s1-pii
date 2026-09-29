@@ -162,11 +162,12 @@ class AdapterReport:
     dropped_unknown_label: int = 0
     dropped_bad_offsets: int = 0
     window_splits: int = 0
+    overlapping: int = 0            # kept spans overlapping another kept span (overlap policy check)
     unknown_labels: dict = field(default_factory=dict)
 
     def merge(self, o: "AdapterReport") -> None:
         for k in ("windows", "raw", "kept", "repaired", "dropped_unanchored", "dropped_unknown_label",
-                  "dropped_bad_offsets", "window_splits"):
+                  "dropped_bad_offsets", "window_splits", "overlapping"):
             setattr(self, k, getattr(self, k) + getattr(o, k))
         for k, v in o.unknown_labels.items():
             self.unknown_labels[k] = self.unknown_labels.get(k, 0) + v
@@ -232,6 +233,12 @@ class Adapter:
                         best[doc.doc_id][key] = fixed
         preds = {did: sorted(v.values(), key=lambda s: (s.start, s.end, s.label_canonical)) for did, v in best.items()}
         rep.kept = sum(len(v) for v in preds.values())
+        for v in preds.values():
+            end = -1
+            for sp in v:                  # sorted by start
+                if sp.start < end:
+                    rep.overlapping += 1
+                end = max(end, sp.end)
         if rep.dropped_unknown_label:
             raise ValueError(f"{self.system}: backend returned labels that were not queried "
                              f"{rep.unknown_labels}; the label configuration is wrong")

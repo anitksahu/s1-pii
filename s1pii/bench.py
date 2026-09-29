@@ -92,6 +92,11 @@ def score(system: str, dataset: str, calib_pred: Path | None, test_pred: Path, *
     meta, preds = read_predictions(test_pred)
     if meta.get("dataset_hash") and meta["dataset_hash"] != dataset_hash(test_docs):
         raise ValueError(f"{test_pred} was produced on different test docs than {paths['test']}")
+    if headline:                       # prereg: flagged clusters removed for every system
+        from .c0 import audited_test_docs
+        test_docs = audited_test_docs(dataset)
+        keep = {d.doc_id for d in test_docs}
+        preds = {k: v for k, v in preds.items() if k in keep}
     if default_threshold is None:
         default_threshold = load_config()["systems"].get(system, {}).get("default_threshold", 0.5)
     dev_t = None
