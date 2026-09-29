@@ -432,6 +432,8 @@ def _valid_snapshot(snap: Path, meta_path: Path) -> list[Doc] | None:
         meta = json.loads(meta_path.read_text())
         if meta.get("taxonomy") != tx.MAP_VERSION:
             return None
+        if hashlib.sha256(snap.read_bytes()).hexdigest() != meta.get("content_sha256"):
+            return None
         docs = read_jsonl(snap)
         return docs if dataset_hash(docs) == meta.get("dataset_hash") else None
     except (json.JSONDecodeError, KeyError, TypeError, OffsetError):
@@ -456,9 +458,10 @@ def load(name: str, split: str | None = None, *, purpose: str = "eval", refresh:
     from ..ledger import dataset_hash
     if meta_path.exists():
         meta_path.unlink()
-    _atomic_write_text(snap, "".join(d.to_json() + "\n" for d in docs))
+    body = "".join(d.to_json() + "\n" for d in docs)
+    _atomic_write_text(snap, body)
     meta = {"name": name, "split": split, "taxonomy": tx.MAP_VERSION, "dataset_hash": dataset_hash(docs),
-            "report": report, **prov}
+            "content_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(), "report": report, **prov}
     _atomic_write_text(meta_path, json.dumps(meta, indent=2))
     return docs
 
