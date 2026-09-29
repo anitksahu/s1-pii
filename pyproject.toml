@@ -19,7 +19,7 @@ dev = ["pytest>=8"]
 include = ["s1pii*"]
 
 [tool.setuptools.package-data]
-s1pii = ["data/*.yaml"]
+s1pii = ["data/*.yaml", "configs/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

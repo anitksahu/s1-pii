@@ -1,0 +1,81 @@
+# Baselines: the latest GLiNER models only (prereg v0).
+# revision: HF commit SHA. null = resolve at first run, recorded in the prediction cache
+# meta; copy it here in a reviewed commit before headline runs.
+# labels: model-native query label -> canonical type. Trained PII models are queried with
+# their own native label names for the core types; the zero-shot model gets the canonical
+# descriptions from configs/labels.yaml. Emission floor is identical for all systems.
+emission_floor: 0.01
+window: {words: 200, stride: 100}   # word windows with 50% overlap; stitch = max-score union
+
+systems:
+  gliner2_pii:
+    backend: gliner2
+    model_id: fastino/gliner2-privacy-filter-PII-multi
+    revision: null
+    default_threshold: 0.5
+    env: gliner2
+    labels:
+      person: PERSON
+      full_name: PERSON
+      email: EMAIL
+      phone_number: PHONE
+      address: ADDRESS
+      street_address: ADDRESS
+      date_of_birth: DATE
+      sensitive_date: DATE
+      account_number: ACCOUNT_NUMBER
+      bank_account: ACCOUNT_NUMBER
+      iban: ACCOUNT_NUMBER
+      routing_number: ACCOUNT_NUMBER
+      card_number: ACCOUNT_NUMBER
+      government_id: ACCOUNT_NUMBER
+      national_id_number: ACCOUNT_NUMBER
+      passport_number: ACCOUNT_NUMBER
+      drivers_license_number: ACCOUNT_NUMBER
+      tax_id: ACCOUNT_NUMBER
+      account_id: ACCOUNT_NUMBER
+      card_cvv: SECRET
+      password: SECRET
+      secret: SECRET
+      api_key: SECRET
+      access_token: SECRET
+      username: OTHER_PII
+      ip_address: OTHER_PII
+
+  nvidia_gliner_pii:
+    backend: gliner
+    model_id: nvidia/gliner-PII
+    revision: null
+    default_threshold: 0.3
+    env: gliner
+    labels:
+      first_name: PERSON
+      last_name: PERSON
+      email: EMAIL
+      phone_number: PHONE
+      street_address: ADDRESS
+      url: URL
+      date_of_birth: DATE
+      ssn: ACCOUNT_NUMBER
+      account_number: ACCOUNT_NUMBER
+      customer_id: ACCOUNT_NUMBER
+      medical_record_number: ACCOUNT_NUMBER
+      health_plan_beneficiary_number: ACCOUNT_NUMBER
+      certificate_license_number: ACCOUNT_NUMBER
+      employee_id: ACCOUNT_NUMBER
+      bank_routing_number: ACCOUNT_NUMBER
+      credit_debit_card: ACCOUNT_NUMBER
+      password: SECRET
+      pin: SECRET
+      cvv: SECRET
+      api_key: SECRET
+      user_name: OTHER_PII
+      ipv4: OTHER_PII
+
+  gliner25_base_zeroshot:
+    backend: gliner2
+    model_id: fastino/gliner2.5-base-v1
+    revision: null
+    default_threshold: 0.5
+    env: gliner2
+    labels_from: labels.yaml    # canonical descriptions, zero-shot

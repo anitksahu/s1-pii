@@ -1,0 +1,11 @@
+# Canonical label descriptions used for zero-shot querying (GLiNER2.5) and as S1 typing
+# descriptions. Keys are query labels; values give the canonical type and description.
+person name: {type: PERSON, description: "Full, first or last name of a specific private individual"}
+postal address: {type: ADDRESS, description: "Street address or full postal address of a person"}
+email address: {type: EMAIL, description: "Personal or work email address"}
+phone number: {type: PHONE, description: "Telephone or mobile number"}
+personal url: {type: URL, description: "URL or web address identifying a person or private account"}
+personal date: {type: DATE, description: "Date of birth or another date tied to a specific person"}
+account or id number: {type: ACCOUNT_NUMBER, description: "Bank, card, account, customer, government or other identification number"}
+secret credential: {type: SECRET, description: "Password, PIN, security code, API key or access token"}
+other personal identifier: {type: OTHER_PII, description: "Username, IP address, device id or other identifier of a person"}
