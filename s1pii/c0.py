@@ -1,50 +1,77 @@
-"""Leakage audit and the preregistered C0 decision.
+"""Leakage audit, the C2 propagation decision, and the preregistered C0 decision.
 
-    python -m s1pii.c0 audit                  # training sources vs every headline test split
-    python -m s1pii.c0 decide --out results/c0.json
+    python -m s1pii.c0 audit --models $DRIVE/models          # per S1 variant, from training manifests
+    python -m s1pii.c0 c2 --pred <PII-TRACE calib predictions of s1_all-sources-s1>
+    python -m s1pii.c0 decide [--fresh-real-absent]
 
-Audit (prereg): each headline test split is audited against the training sources of the S1
-variant scored on it (``no-nemotron`` for Nemotron, ``all-sources`` elsewhere). Whole
-clusters containing a flagged document are removed from headline scoring for every system.
+Audit: every headline test split is audited against the training sources of the S1 variant
+scored on it (``no-nemotron`` for Nemotron, ``all-sources`` elsewhere), rebuilt from the
+trained model's manifest and checked against its recorded source counts. One index per
+variant. Whole clusters containing a flagged document are removed for every system.
 
-C0: for every (headline set, baseline) pair, paired cluster bootstrap of mean-over-seeds
-pAUC(S1) - pAUC(baseline) under shared weights; Holm over the family; a set is won iff S1
-wins against every baseline evaluated on it; C0 holds iff >= 4 of 6 sets are won (3 of 5
-if Fresh-Real is absent, declared).
+C2 (on the PII-TRACE *calibration* split, before C0): precision of propagated spans and the
+multi-mention consistency with and without them (propagation is post-processing, so the
+no-propagation system is the same prediction set minus propagated spans). The decision is
+written to ``c2.json`` and ``decide`` enforces it on every S1 prediction file.
+
+C0: the family must be complete (17 comparisons, or 16 with ``--fresh-real-absent``), every
+S1 cell must have exactly seeds 1..3 of the right variant with the headline config, every
+prediction file must match the current test split, and no (system, split) may have more
+than one prediction file. Otherwise ``c0_holds`` is None and the reasons are listed.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 from .schema import read_jsonl, Doc
-from .audit.dedup import audit, drop_flagged
+from .audit.dedup import AuditIndex, drop_flagged
 from .data import loaders as L
 from .data.synth import generate
-from .eval.evaluate import compare
+from .eval.evaluate import compare, views
 from .eval.bootstrap import c0_decision
+from .eval import metrics as M
 from .ledger import read_predictions, append, dataset_hash
-from . import ledger
-from . import bench
+from . import ledger, bench
 
 HEADLINE = ["tab_direct", "spy_medical", "spy_legal", "pii_trace", "nemotron", "fresh_real"]
 BASELINES = ["gliner2_pii", "nvidia_gliner_pii", "gliner25_base_zeroshot"]
-EXCLUDED = {("nemotron", "nvidia_gliner_pii")}                     # trained on Nemotron-PII
-S1_VARIANT = {"nemotron": "no-nemotron"}                           # default: all-sources
+EXCLUDED = {("nemotron", "nvidia_gliner_pii")}
+S1_VARIANT = {"nemotron": "no-nemotron"}
+SEEDS = (1, 2, 3)
+FLOOR = 0.01
+
+
+class DuplicatePredictions(RuntimeError):
+    pass
 
 
 def variant_for(dataset: str) -> str:
     return S1_VARIANT.get(dataset, "all-sources")
 
 
-def training_sources(variant: str, synth_n: int = 20000, synth_seed: int = 17) -> list[Doc]:
-    docs = generate(synth_n, seed=synth_seed)
-    docs += bench.dev_slice(L.load("gretel", "train", purpose="train"))[1]
-    if variant == "all-sources":
-        docs += bench.dev_slice(L.load("nemotron", "train", purpose="train"))[1]
+def s1_system(variant: str, seed: int) -> str:
+    return f"s1_{variant}-s{seed}"
+
+
+# ------------------------------------------------------------------ audit
+
+def training_sources_from_manifest(manifest: dict) -> list[Doc]:
+    cfg = manifest["config"]
+    docs = generate(cfg["synth_n"], seed=cfg["synth_seed"])
+    counts = {"synthetic_conv": len(docs)}
+    g = bench.dev_slice(L.load("gretel", "train", purpose="train"))[1]
+    docs += g; counts["gretel"] = len(g)
+    if cfg["variant"] == "all-sources":
+        n = bench.dev_slice(L.load("nemotron", "train", purpose="train"))[1]
+        docs += n; counts["nemotron"] = len(n)
+    want = manifest.get("data", {}).get("source_counts")
+    if cfg.get("max_train_docs"):
+        raise ValueError("headline models must not use max_train_docs")
+    if want and want != counts:
+        raise ValueError(f"rebuilt training sources {counts} differ from the trained model's {want}")
     return docs
 
 
@@ -52,21 +79,24 @@ def audit_path(dataset: str) -> Path:
     return ledger.RESULTS / "audit" / f"{dataset}.json"
 
 
-def run_audit(datasets: list[str] | None = None, **kw) -> dict:
-    out, cache = {}, {}
+def run_audit(models_dir: Path, datasets: list[str] | None = None) -> dict:
+    """``models_dir`` holds ``<variant>-s<seed>/final/s1_manifest.json``; seed 1 of each
+    variant defines the training sources (all seeds share data by construction)."""
+    out, index = {}, {}
     for ds in datasets or HEADLINE:
         test_path = bench.split_paths(ds)["test"]
         if not test_path.exists():
             out[ds] = "missing test split"; continue
         v = variant_for(ds)
-        if v not in cache:
-            cache[v] = training_sources(v, **kw)
+        if v not in index:
+            man = json.loads((models_dir / f"{v}-s1" / "final" / "s1_manifest.json").read_text())
+            index[v] = AuditIndex(training_sources_from_manifest(man))
         test = read_jsonl(test_path)
-        rep = audit(cache[v], test)
+        rep = index[v].query(test)
         rep.update({"dataset": ds, "variant": v, "test_hash": dataset_hash(test)})
         p = audit_path(ds); p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(rep, indent=2))
-        out[ds] = {"n_test": rep["n_test"], "n_flagged": rep["n_flagged"]}
+        out[ds] = {k: rep[k] for k in ("n_test", "n_flagged", "dropped_doc_frac", "dropped_cluster_frac")}
     return out
 
 
@@ -81,56 +111,158 @@ def audited_test_docs(dataset: str) -> list[Doc]:
     return drop_flagged(test, rep)
 
 
+# ------------------------------------------------------------------ prediction files
+
 def prediction_index(pred_dir: Path | None = None) -> dict[tuple[str, str], Path]:
-    """(system, docs_path) -> merged prediction file, from each file's meta line."""
-    idx = {}
+    """(system, resolved docs_path) -> the single merged prediction file. Raises if a key has
+    more than one file (stale predictions from an older environment): delete or archive the
+    stale ones explicitly."""
+    groups: dict[tuple[str, str], list[Path]] = {}
     for p in sorted((pred_dir or ledger.RESULTS / "predictions").glob("*.jsonl")):
         with open(p, encoding="utf-8") as f:
             meta = json.loads(f.readline()).get("_meta", {})
         if meta.get("system") and meta.get("docs_path"):
-            idx[(meta["system"], str(Path(meta["docs_path"]).resolve()))] = p
-    return idx
+            groups.setdefault((meta["system"], str(Path(meta["docs_path"]).resolve())), []).append(p)
+    dups = {k: v for k, v in groups.items() if len(v) > 1}
+    if dups:
+        raise DuplicatePredictions("multiple prediction files for " +
+                                   "; ".join(f"{k[0]} on {Path(k[1]).name}: {[x.name for x in v]}" for k, v in dups.items()))
+    return {k: v[0] for k, v in groups.items()}
 
 
-def decide(n_boot: int = 10_000, seed: int = 0, s1_prefix: str = "s1_", pred_dir: Path | None = None) -> dict:
+def _load_checked(path: Path, test_docs_all: list[Doc], keep: set[str]) -> tuple[dict, dict]:
+    meta, preds = read_predictions(path)
+    if meta.get("dataset_hash") != dataset_hash(test_docs_all):
+        raise ValueError(f"{path.name} was produced on different test docs")
+    return meta, {k: v for k, v in preds.items() if k in keep}
+
+
+# ------------------------------------------------------------------ C2
+
+def c2_path() -> Path:
+    return ledger.RESULTS / "c2.json"
+
+
+def decide_propagation(pred_path: Path, min_precision: float = 0.90) -> dict:
+    """C2 on the PII-TRACE calibration split, from one S1 prediction file made with
+    propagation on. The file must be the calibration split, never test."""
+    calib_path = bench.split_paths("pii_trace")["calib"]
+    docs = read_jsonl(calib_path)
+    meta, preds = read_predictions(pred_path)
+    if meta.get("dataset_hash") != dataset_hash(docs):
+        raise ValueError("C2 must be decided on the PII-TRACE calibration split")
+    if not meta.get("config", {}).get("propagation"):
+        raise ValueError("C2 needs predictions made with propagation on")
+    prop = tp = 0
+    for d in docs:
+        gold = d.pii_spans()
+        for s in preds[d.doc_id]:
+            if s.label_raw == "propagated":
+                prop += 1
+                tp += any(min(g.end, s.end) > max(g.start, s.start) for g in gold)
+    without = {k: [s for s in v if s.label_raw != "propagated"] for k, v in preds.items()}
+    def cons(p):
+        vs = views(docs, p, "pii_trace")
+        c = [M.consistency(v, 0.5) for v in vs]
+        g = sum(x["groups"] for x in c)
+        return sum(x["all_masked"] for x in c) / g if g else float("nan")
+    precision = tp / prop if prop else float("nan")
+    cw, co = cons(preds), cons(without)
+    res = {"propagated_spans": prop, "precision": precision, "consistency_with": cw, "consistency_without": co,
+           "propagation": bool(prop and precision >= min_precision and cw > co), "source": str(pred_path)}
+    c2_path().parent.mkdir(parents=True, exist_ok=True)
+    c2_path().write_text(json.dumps(res, indent=2))
+    append({"kind": "c2", **res})
+    return res
+
+
+# ------------------------------------------------------------------ C0
+
+def _check_s1_meta(meta: dict, variant: str, seed: int, propagation: bool) -> list[str]:
+    v, c = meta.get("versions", {}), meta.get("config", {})
+    errs = []
+    if v.get("variant") != variant or v.get("seed") != seed:
+        errs.append(f"variant/seed {v.get('variant')}/{v.get('seed')} != {variant}/{seed}")
+    if c.get("validators") is not True:
+        errs.append("validators off")
+    if c.get("propagation") is not propagation:
+        errs.append(f"propagation {c.get('propagation')} != C2 decision {propagation}")
+    if c.get("floor") != FLOOR or c.get("o_exit_bias") != 0.0:
+        errs.append(f"floor/o_exit_bias {c.get('floor')}/{c.get('o_exit_bias')}")
+    return errs
+
+
+def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False, pred_dir: Path | None = None) -> dict:
+    problems: list[str] = []
+    if not c2_path().exists():
+        problems.append("C2 decision missing (run `python -m s1pii.c0 c2` on PII-TRACE calibration)")
+        propagation = None
+    else:
+        propagation = json.loads(c2_path().read_text())["propagation"]
+    sets = [d for d in HEADLINE if not (fresh_real_absent and d == "fresh_real")]
+    expected = sum(1 for d in sets for b in BASELINES if (d, b) not in EXCLUDED)
     idx = prediction_index(pred_dir)
-    results, missing = {}, []
-    available = [d for d in HEADLINE if bench.split_paths(d)["test"].exists()]
-    for ds in available:
-        test_path = str(bench.split_paths(ds)["test"].resolve())
+    results = {}
+    for ds in sets:
+        test_path = bench.split_paths(ds)["test"]
+        if not test_path.exists():
+            problems.append(f"{ds}: test split missing"); continue
+        all_docs = read_jsonl(test_path)
         docs = audited_test_docs(ds)
         keep = {d.doc_id for d in docs}
-        s1_systems = sorted(s for (s, p) in idx if p == test_path and s.startswith(f"{s1_prefix}{variant_for(ds)}-s"))
-        if len(s1_systems) < 3:
-            missing.append(f"{ds}: {len(s1_systems)} S1 seeds found (need 3)")
-            continue
-        load = lambda s: {k: v for k, v in read_predictions(idx[(s, test_path)])[1].items() if k in keep}
-        s1 = [load(s) for s in s1_systems]
+        tp = str(test_path.resolve())
+        v = variant_for(ds)
+        s1 = []
+        for sd in SEEDS:
+            key = (s1_system(v, sd), tp)
+            if key not in idx:
+                problems.append(f"{ds}: missing {key[0]}"); continue
+            meta, preds = _load_checked(idx[key], all_docs, keep)
+            if propagation is not None:
+                problems += [f"{ds}/{key[0]}: {e}" for e in _check_s1_meta(meta, v, sd, propagation)]
+            s1.append(preds)
         for b in BASELINES:
             if (ds, b) in EXCLUDED:
                 continue
-            if (b, test_path) not in idx:
-                missing.append(f"{ds}: no predictions for {b}"); continue
-            results[f"{ds}|{b}"] = compare(docs, s1, [load(b)], dataset=ds, n_boot=n_boot, seed=seed)
-    needed = 4 if "fresh_real" in available else 3
-    decision = c0_decision(results, needed=needed) if results else {"c0_holds": None}
-    out = {"available_sets": available, "missing": missing, "comparisons": results, "decision": decision}
-    append({"kind": "c0", **out}, headline=not missing)
+            if (b, tp) not in idx:
+                problems.append(f"{ds}: missing {b}"); continue
+            bmeta, bp = _load_checked(idx[(b, tp)], all_docs, keep)
+            from .adapters.base import load_config
+            pinned = load_config()["systems"][b].get("revision")
+            if pinned is None:
+                problems.append(f"{b}: revision not pinned in baselines.yaml")
+            elif bmeta.get("revision") != pinned:
+                problems.append(f"{ds}/{b}: predictions from revision {bmeta.get('revision')} != pinned {pinned}")
+            if len(s1) == len(SEEDS):
+                results[f"{ds}|{b}"] = compare(docs, s1, [bp], dataset=ds, n_boot=n_boot, seed=seed)
+    if len(results) != expected:
+        problems.append(f"family has {len(results)} comparisons, expected {expected}")
+    needed = 3 if fresh_real_absent else 4
+    decision = c0_decision(results, needed=needed) if results else {}
+    if problems:
+        decision["c0_holds"] = None
+    out = {"sets": sets, "fresh_real_absent": fresh_real_absent, "expected_family": expected,
+           "problems": problems, "comparisons": results, "decision": decision}
+    append({"kind": "c0", **out}, headline=not problems)
     return out
 
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("audit")
-    d = sub.add_parser("decide"); d.add_argument("--out", type=Path, default=None); d.add_argument("--n-boot", type=int, default=10_000)
+    a_ = sub.add_parser("audit"); a_.add_argument("--models", type=Path, required=True)
+    c_ = sub.add_parser("c2"); c_.add_argument("--pred", type=Path, required=True)
+    d_ = sub.add_parser("decide"); d_.add_argument("--n-boot", type=int, default=10_000)
+    d_.add_argument("--fresh-real-absent", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd == "audit":
-        print(json.dumps(run_audit(), indent=2))
+        print(json.dumps(run_audit(a.models), indent=2))
+    elif a.cmd == "c2":
+        print(json.dumps(decide_propagation(a.pred), indent=2))
     else:
-        r = decide(n_boot=a.n_boot)
-        (a.out or ledger.RESULTS / "c0.json").write_text(json.dumps(r, indent=2, default=str))
-        print(json.dumps(r["decision"], indent=2, default=str), r["missing"])
+        r = decide(n_boot=a.n_boot, fresh_real_absent=a.fresh_real_absent)
+        (ledger.RESULTS / "c0.json").write_text(json.dumps(r, indent=2, default=str))
+        print(json.dumps(r["decision"], indent=2, default=str)[:4000], "\nproblems:", r["problems"])
 
 
 if __name__ == "__main__":
