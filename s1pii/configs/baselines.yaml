@@ -20,7 +20,7 @@ systems:
   gliner2_pii:
     backend: gliner2
     model_id: fastino/gliner2-privacy-filter-PII-multi
-    revision: null
+    revision: 1cb4166094dc58fa8d836429f060d6c95f62b495
     default_threshold: 0.5
     env: gliner2
     use_descriptions: true
@@ -55,7 +55,7 @@ systems:
   nvidia_gliner_pii:
     backend: gliner
     model_id: nvidia/gliner-PII
-    revision: null
+    revision: bd23e8ef4425fd04e34c5204ab49ffaa706eae79
     default_threshold: 0.3
     env: gliner
     labels:
@@ -97,7 +97,7 @@ systems:
   gliner25_base_zeroshot:
     backend: gliner2
     model_id: fastino/gliner2.5-base-v1
-    revision: null
+    revision: ca906247640776a07753514055be9726f9080ead
     default_threshold: 0.5
     env: gliner2
     use_descriptions: true      # zero-shot: canonical labels with descriptions only
