@@ -168,3 +168,20 @@ def test_whitespace_tokens_inside_span_are_I_and_targets_valid():
     assert len(ex) == 1
     bad = td.target.copy(); bad[bad == tag("I", 1)] = 0
     assert not target_is_valid(bad)
+
+
+def test_build_examples_parallel_equals_serial_and_caches(tok, tmp_path, monkeypatch):
+    import numpy as np
+    from s1pii.model import train as T
+    from s1pii.model.encode import train_examples
+    from s1pii.data.synth import generate
+    docs = generate(1200, seed=3)
+    monkeypatch.setattr(T, "training_docs", lambda cfg: (docs, {"synthetic_conv": len(docs)}))
+    monkeypatch.setenv("S1PII_EXAMPLE_CACHE", str(tmp_path))
+    cfg = T.TrainConfig(backbone="local-test", max_len=128)
+    ex, man = T.build_examples(cfg, tok, workers=3)
+    ref = train_examples(docs, tok, 128)
+    assert len(ex) == len(ref) and all(np.array_equal(a.input_ids, b.input_ids) and a.doc_id == b.doc_id for a, b in zip(ex, ref))
+    assert T.examples_hash(ex) == T.examples_hash(ref) and man["n_examples"] == len(ref)
+    ex2, _ = T.build_examples(cfg, tok, workers=3)
+    assert T.examples_hash(ex2) == T.examples_hash(ex) and len(list(tmp_path.glob("*.pkl"))) == 1

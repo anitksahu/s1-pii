@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from . import encode as _encode
 from .encode import Example, train_examples
 from .s1 import S1Model, collate
 
@@ -75,6 +76,55 @@ def training_docs(cfg: TrainConfig):
         rng = random.Random(cfg.seed)
         docs = rng.sample(docs, min(cfg.max_train_docs, len(docs)))
     return docs, {k: len(v) for k, v in sources.items()}
+
+
+_TOK = None
+
+
+def _examples_chunk(args):
+    docs, max_len = args
+    return train_examples(docs, _TOK, max_len)
+
+
+def build_examples(cfg: TrainConfig, tokenizer, workers: int | None = None) -> tuple[list[Example], dict]:
+    """Training examples for ``cfg``, tokenized in parallel (fork workers, chunk order kept, so
+    the result equals the serial build) and cached on disk. The cache key covers the backbone
+    and revision, max_len, the exact training documents and the encoder code, so a stale cache
+    can never be reused. Cache dir: ``$S1PII_EXAMPLE_CACHE`` or ``<data dir>/examples``."""
+    import hashlib, inspect, pickle, tempfile
+    import multiprocessing as mp
+    from ..data import loaders as L
+    from ..ledger import dataset_hash
+    docs, counts = training_docs(cfg)
+    key = hashlib.sha256(json.dumps([cfg.backbone, cfg.backbone_revision, cfg.max_len, dataset_hash(docs),
+                                     hashlib.sha256(inspect.getsource(_encode).encode()).hexdigest()]).encode()).hexdigest()[:16]
+    cache = Path(os.environ.get("S1PII_EXAMPLE_CACHE") or (L.DATA_DIR / "examples")) / f"{cfg.variant}-{key}.pkl"
+    manifest = {"source_counts": counts}
+    if cache.exists():
+        with open(cache, "rb") as f:
+            examples = pickle.load(f)
+        print(f"examples: {len(examples)} from cache {cache}", flush=True)
+        return examples, {**manifest, "n_examples": len(examples)}
+    global _TOK
+    _TOK = tokenizer
+    workers = workers or max(1, (os.cpu_count() or 2) - 1)
+    t0 = time.time()
+    if workers > 1 and len(docs) > 1000 and "fork" in mp.get_all_start_methods():
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        n = workers * 8
+        chunks = [(docs[j * len(docs) // n:(j + 1) * len(docs) // n], cfg.max_len) for j in range(n)]
+        with mp.get_context("fork").Pool(workers) as pool:
+            parts = pool.map(_examples_chunk, chunks)
+        examples = [e for part in parts for e in part]
+    else:
+        examples = train_examples(docs, tokenizer, cfg.max_len)
+    print(f"examples: {len(examples)} built in {time.time() - t0:.0f}s with {workers} workers", flush=True)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=cache.parent, suffix=".part")
+    with os.fdopen(fd, "wb") as f:
+        pickle.dump(examples, f, protocol=pickle.HIGHEST_PROTOCOL)
+    os.replace(tmp, cache)
+    return examples, {**manifest, "n_examples": len(examples)}
 
 
 class BucketSampler:
@@ -239,9 +289,7 @@ def train(cfg: TrainConfig, out: Path, *, mirror: Path | None = None, resume: bo
         if cfg.backbone_revision:
             print(f"backbone {cfg.backbone}@{cfg.backbone_revision}", flush=True)
     if examples is None:
-        docs, counts = training_docs(cfg)
-        examples = train_examples(docs, tokenizer, cfg.max_len)
-        data_manifest = {"source_counts": counts, "n_examples": len(examples)}
+        examples, data_manifest = build_examples(cfg, tokenizer)
     if model is None:
         model = S1Model.from_pretrained_encoder(cfg.backbone, cfg.backbone_revision, cfg.dropout,
                                                 cfg.gradient_checkpointing)
