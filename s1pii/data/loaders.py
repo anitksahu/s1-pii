@@ -362,9 +362,11 @@ def _nemotron(split: str):
     e = entry("nemotron")
     ds = _hf_load("nvidia/Nemotron-PII", split, None, e.get("revision"))
     raws = raw_json_spans(ds, "nemotron", text_key="text", spans_key="spans",
-                          id_fn=lambda r, i: r.get("uid") or _text_id(r, i, "text"),
+                          # every uid ships twice (one document per locale, different text):
+                          # the id carries the locale, and meta["uid"] groups the twins
+                          id_fn=lambda r, i: f'{r.get("uid") or _text_id(r, i, "text")}-{r.get("locale")}',
                           cluster_fn=lambda r: f'{r.get("domain")}|{r.get("document_type")}',
-                          meta_keys=("domain", "document_type", "document_format", "locale"),
+                          meta_keys=("uid", "domain", "document_type", "document_format", "locale"),
                           casefold_surface=True)
     return raws, (lambda raw: tx.map_label("nemotron", raw)), \
         {"hf_revision": _hf_revision("nvidia/Nemotron-PII", e.get("revision"))}

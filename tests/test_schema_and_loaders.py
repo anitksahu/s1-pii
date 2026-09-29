@@ -216,3 +216,12 @@ def test_raw_json_spans_casefold_surface_and_numeric_surface():
     rd = next(raw_json_spans(recs, "x", text_key="text", spans_key="spans",
                              id_fn=lambda r, i: str(i), cluster_fn=None))
     assert rd.spans[0]["surface"] == "black"      # without the flag the mismatch is kept (and rejected)
+
+
+def test_dev_slice_keeps_locale_twins_together():
+    from s1pii import bench
+    from s1pii.schema import Doc
+    docs = [Doc(f"n_{u}-{loc}", "x", (), cluster_id="c", meta={"uid": str(u)}) for u in range(400) for loc in ("us", "intl")]
+    dev, rest = bench.dev_slice(docs)
+    dev_u = {d.meta["uid"] for d in dev}
+    assert dev and not dev_u & {d.meta["uid"] for d in rest}

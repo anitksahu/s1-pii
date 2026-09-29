@@ -31,9 +31,15 @@ def in_dev_slice(doc_id: str) -> bool:
     return h / 0xFFFFFFFF < DEV_SLICE_FRAC
 
 
+def _group(d: Doc) -> str:
+    """Near-duplicate group: Nemotron-PII ships each uid twice (one per locale); both twins
+    must fall on the same side of the dev/train cut."""
+    return (d.meta or {}).get("uid") or d.doc_id
+
+
 def dev_slice(train: list[Doc]) -> tuple[list[Doc], list[Doc]]:
     """(dev, remaining_train). The dev slice is excluded from every S1 training run."""
-    return [d for d in train if in_dev_slice(d.doc_id)], [d for d in train if not in_dev_slice(d.doc_id)]
+    return [d for d in train if in_dev_slice(_group(d))], [d for d in train if not in_dev_slice(_group(d))]
 
 
 def splits(name: str) -> tuple[list[Doc], list[Doc]]:
