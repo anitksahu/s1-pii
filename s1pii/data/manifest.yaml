@@ -1,0 +1,13 @@
+# Dataset licence and use manifest. Loaders refuse any dataset or purpose not listed here.
+# role: headline | secondary. purposes: eval, train. research_only datasets additionally
+# require S1PII_ALLOW_RESEARCH=1 and are never used for published weights.
+tab_direct:   {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: headline, purposes: [eval]}
+tab_quasi:    {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: secondary, purposes: [eval]}
+spy_medical:  {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
+spy_legal:    {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
+pii_trace:    {source: "hf:perplexity-ai/PII-TRACE", license: MIT, role: headline, purposes: [eval]}
+nemotron:     {source: "hf:nvidia/Nemotron-PII", license: CC-BY-4.0, role: headline, purposes: [eval, train]}
+gretel:       {source: "hf:gretelai/synthetic_pii_finance_multilingual", license: Apache-2.0, role: secondary, purposes: [eval, train]}
+ai4privacy:   {source: "hf:ai4privacy/pii-masking-400k", license: "ai4privacy custom (verify)", role: secondary, purposes: [eval, train], research_only: true}
+fresh_real:   {source: "local annotation", license: "own", role: headline, purposes: [eval]}
+synthetic_conv: {source: "s1pii.data.synth", license: "own", role: none, purposes: [train]}
