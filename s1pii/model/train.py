@@ -144,11 +144,10 @@ def examples_hash(examples: list[Example]) -> str:
 def resolve_backbone_revision(cfg: TrainConfig) -> str | None:
     if cfg.backbone_revision:
         return cfg.backbone_revision
-    try:
-        from huggingface_hub import HfApi
-        return HfApi().model_info(cfg.backbone).sha
-    except Exception:
-        return None                       # local/tiny backbones in tests
+    if "/" not in cfg.backbone or Path(cfg.backbone).exists():
+        return None                       # local directories and test backbones
+    from huggingface_hub import HfApi     # hub ids must pin: an outage fails the run instead of unpinning it
+    return HfApi().model_info(cfg.backbone).sha
 
 
 def save_checkpoint(out: Path, step: int, model, opt, sched, sampler, cfg: TrainConfig, mirror: Path | None,
