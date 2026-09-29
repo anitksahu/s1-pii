@@ -127,7 +127,14 @@ class Gliner2Backend(_Fits):
         from gliner2 import GLiNER2
         import gliner2
         path, self.revision = _snapshot(model_id, revision)
-        self.model = GLiNER2.from_pretrained(path)
+        import json, os
+        with open(os.path.join(path, "config.json")) as f:
+            self.architecture = json.load(f).get("architecture") or "span"
+        if self.architecture == "span":
+            self.model = GLiNER2.from_pretrained(path)
+        else:   # GLiNER2.5 boundary extractors load only through AutoExtractor (model card)
+            from gliner2 import AutoExtractor
+            self.model = AutoExtractor.from_pretrained(path)
         self.device = _device()
         if hasattr(self.model, "to"):
             self.model.to(self.device)
@@ -136,7 +143,7 @@ class Gliner2Backend(_Fits):
         self.descriptions = descriptions
         cfg = getattr(self.model, "config", None)
         self._init_limits(getattr(cfg, "max_len", None), getattr(cfg, "max_length", None) or 512)
-        self.versions = _versions(gliner2=getattr(gliner2, "__version__", "unknown"))
+        self.versions = _versions(gliner2=getattr(gliner2, "__version__", "unknown"), architecture=self.architecture)
         if self.descriptions:
             try:   # verify once that descriptions are accepted; fail loudly otherwise
                 with _infer_ctx():
