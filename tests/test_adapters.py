@@ -209,3 +209,11 @@ def test_fits_counts_descriptions():
     text = " ".join(["w"] * 30)
     assert B(None).fits(text, ["email"])
     assert not B({"email": " ".join(["long"] * 40)}).fits(text, ["email"])
+
+
+def test_nvidia_native_labels_match_nemotron_taxonomy():
+    from s1pii import taxonomy as tx
+    from s1pii.schema import CANONICAL_TYPES
+    from s1pii.adapters.base import load_config
+    native = load_config()["systems"]["nvidia_gliner_pii"]["labels"]
+    assert native == {k: v for k, v in tx.NEMOTRON.items() if v in CANONICAL_TYPES}

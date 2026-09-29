@@ -251,17 +251,27 @@ def raw_pii_trace(records: Iterable[dict]) -> Iterator[RawDoc]:
 
 def raw_json_spans(records: Iterable[dict], dataset: str, *, text_key: str, spans_key: str,
                    id_fn: Callable[[dict, int], str], cluster_fn: Callable[[dict], str] | None,
-                   meta_keys: tuple[str, ...] = ()) -> Iterator[RawDoc]:
+                   meta_keys: tuple[str, ...] = (), casefold_surface: bool = False) -> Iterator[RawDoc]:
+    """``casefold_surface``: the source's span ``text`` field is case-normalized for some labels
+    (Nemotron-PII lowercases e.g. ``Black`` -> ``black``) while offsets are right. A surface that
+    equals the offset slice up to case is replaced by the slice; any other mismatch is kept and
+    rejected by the build step."""
     for i, r in enumerate(records):
         _require(r, [text_key, spans_key], f"{dataset}[{i}]")
         did = f"{dataset}_{id_fn(r, i)}"
+        text = r[text_key]
         spans = []
         for s in parse_spans(r[spans_key], f"{dataset}[{i}]"):
             _require(s, ["start", "end", "label"], f"{dataset}[{i}].span")
-            spans.append({"start": s["start"], "end": s["end"], "label": s["label"],
-                          "surface": s.get("text", s.get("value"))})
+            surf = s.get("text", s.get("value"))
+            if surf is not None:
+                surf = str(surf)
+                seg = text[int(s["start"]):int(s["end"])] if isinstance(text, str) else None
+                if casefold_surface and seg is not None and seg != surf and seg.casefold() == surf.casefold():
+                    surf = seg
+            spans.append({"start": s["start"], "end": s["end"], "label": s["label"], "surface": surf})
         cl = cluster_fn(r) if cluster_fn else None
-        yield RawDoc(did, r[text_key], spans, cluster_id=f"{dataset}:{cl}" if cl else did,
+        yield RawDoc(did, text, spans, cluster_id=f"{dataset}:{cl}" if cl else did,
                      meta={k: r.get(k) for k in meta_keys})
 
 
@@ -354,7 +364,8 @@ def _nemotron(split: str):
     raws = raw_json_spans(ds, "nemotron", text_key="text", spans_key="spans",
                           id_fn=lambda r, i: r.get("uid") or _text_id(r, i, "text"),
                           cluster_fn=lambda r: f'{r.get("domain")}|{r.get("document_type")}',
-                          meta_keys=("domain", "document_type", "document_format", "locale"))
+                          meta_keys=("domain", "document_type", "document_format", "locale"),
+                          casefold_surface=True)
     return raws, (lambda raw: tx.map_label("nemotron", raw)), \
         {"hf_revision": _hf_revision("nvidia/Nemotron-PII", e.get("revision"))}
 
@@ -440,6 +451,12 @@ def _valid_snapshot(snap: Path, meta_path: Path) -> list[Doc] | None:
         return None
 
 
+# Census-backed exceptions to the 0.1% reject budget. Gretel finance EN has records whose
+# span offsets point past the end of a truncated text (5/2962 test, 68/25948 train in the
+# Colab census); those whole records are rejected and listed in the snapshot meta.
+REJECT_BUDGET = {"gretel": 0.005}
+
+
 def load(name: str, split: str | None = None, *, purpose: str = "eval", refresh: bool = False,
          strict: bool = True) -> list[Doc]:
     """Licence-gated, snapshotted load. ``split='all'`` datasets ship one split; carve
@@ -454,7 +471,8 @@ def load(name: str, split: str | None = None, *, purpose: str = "eval", refresh:
         if cached is not None:
             return cached
     raws, mapper, prov = recipe(split)
-    docs, report = build(raws, name, split, mapper, strict=strict)
+    docs, report = build(raws, name, split, mapper, strict=strict,
+                         max_reject_rate=REJECT_BUDGET.get(name, 0.001))
     from ..ledger import dataset_hash
     if meta_path.exists():
         meta_path.unlink()

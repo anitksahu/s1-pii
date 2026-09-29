@@ -13,3 +13,6 @@
 | Ledger as parquet | Append-only JSONL, exported to parquet | Atomic appends on Drive |
 | S1 trains on PII-TRACE train, with a no-PII-TRACE LOBO variant | S1 never trains on PII-TRACE | The public release has a single 500-conversation split, used only as calibration/test |
 | NVIDIA GLiNER-PII inference default `flat_ner=True` | `flat_ner=False` | M3 scientist review: keep overlapping candidates on both sides of the comparison |
+| Taxonomy v0.1 | v0.2 adds labels found unmapped by the Colab census: Nemotron `api_key`, `http_cookie` (SECRET), `credit_debit_card`, `national_id`, `tax_id`, `unique_id` (ACCOUNT_NUMBER), `fax_number` (PHONE), `ipv6` (OTHER_PII), `language` (IGNORE); Gretel `account_pin` (SECRET). NVIDIA GLiNER-PII native query labels = every Nemotron label mapped to a PII type | Fail-closed census before any scoring |
+| Surface must equal the offset slice exactly | Nemotron-PII span `text` is lowercased for some labels (e.g. `Black` vs `black`) while offsets are right: a case-only mismatch takes the slice; other mismatches are still rejected | Colab census: 1.5% of Nemotron test spans, all case-only |
+| Reject budget 0.1% | Gretel 0.5%: records whose span offsets point past the end of a truncated text are rejected whole (5/2962 test, 68/25948 train) and listed in the snapshot meta | Colab census |

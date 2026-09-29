@@ -203,3 +203,16 @@ def test_snapshot_invalidation(tmp_path, monkeypatch):
     meta.unlink()
     L.load("tab_direct")
     assert len(calls) == 4
+
+
+def test_raw_json_spans_casefold_surface_and_numeric_surface():
+    from s1pii.data.loaders import raw_json_spans
+    recs = [{"text": "She is Black, pin 1234.", "spans": [
+        {"start": 7, "end": 12, "label": "race_ethnicity", "text": "black"},
+        {"start": 18, "end": 22, "label": "pin", "text": 1234}]}]
+    rd = next(raw_json_spans(recs, "nemotron", text_key="text", spans_key="spans",
+                             id_fn=lambda r, i: str(i), cluster_fn=None, casefold_surface=True))
+    assert [s["surface"] for s in rd.spans] == ["Black", "1234"]
+    rd = next(raw_json_spans(recs, "x", text_key="text", spans_key="spans",
+                             id_fn=lambda r, i: str(i), cluster_fn=None))
+    assert rd.spans[0]["surface"] == "black"      # without the flag the mismatch is kept (and rejected)

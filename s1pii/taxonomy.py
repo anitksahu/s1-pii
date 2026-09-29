@@ -16,7 +16,7 @@ from .schema import (
     IGNORE, NOT_PII,
 )
 
-MAP_VERSION = "taxonomy-v0.1"
+MAP_VERSION = "taxonomy-v0.2"   # v0.2: labels found unmapped by the Colab census (Nemotron test, Gretel)
 
 
 class UnmappedLabelError(KeyError):
@@ -58,13 +58,16 @@ NEMOTRON = {
     "cvv": SECRET, "pin": SECRET, "password": SECRET,
     "user_name": OTHER_PII, "ipv4": OTHER_PII, "mac_address": OTHER_PII,
     "biometric_identifier": OTHER_PII,
+    "api_key": SECRET, "http_cookie": SECRET,
+    "credit_debit_card": ACCOUNT_NUMBER, "national_id": ACCOUNT_NUMBER, "tax_id": ACCOUNT_NUMBER,
+    "unique_id": ACCOUNT_NUMBER, "fax_number": PHONE, "ipv6": OTHER_PII,
     # quasi-identifiers and special-category attributes: excluded from headline metrics
     "city": IGNORE, "state": IGNORE, "county": IGNORE, "country": IGNORE, "postcode": IGNORE,
     "coordinate": IGNORE, "date": IGNORE, "time": IGNORE, "date_time": IGNORE,
     "company_name": IGNORE, "occupation": IGNORE, "education_level": IGNORE,
     "employment_status": IGNORE, "blood_type": IGNORE, "race_ethnicity": IGNORE,
     "religious_belief": IGNORE, "sexuality": IGNORE, "political_view": IGNORE,
-    "gender": IGNORE, "age": IGNORE,
+    "gender": IGNORE, "age": IGNORE, "language": IGNORE,
 }
 
 GRETEL = {
@@ -77,7 +80,7 @@ GRETEL = {
     "customer_id": ACCOUNT_NUMBER, "employee_id": ACCOUNT_NUMBER, "ssn": ACCOUNT_NUMBER,
     "tax_id": ACCOUNT_NUMBER, "passport_number": ACCOUNT_NUMBER,
     "driver_license_number": ACCOUNT_NUMBER,
-    "credit_card_security_code": SECRET, "password": SECRET, "api_key": SECRET, "pin": SECRET,
+    "credit_card_security_code": SECRET, "password": SECRET, "api_key": SECRET, "pin": SECRET, "account_pin": SECRET,
     "user_name": OTHER_PII, "ipv4": OTHER_PII, "ipv6": OTHER_PII,
     "date_of_birth": DATE,
     "company": IGNORE, "date": IGNORE, "date_time": IGNORE, "time": IGNORE,

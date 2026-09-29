@@ -5,7 +5,8 @@
 # labels.yaml; PII-trained models additionally get their native names below.
 #   GLiNER2-PII native names: model card label list (42 types),
 #     https://huggingface.co/fastino/gliner2-privacy-filter-PII-multi
-#   NVIDIA GLiNER-PII native names: the Nemotron-PII training label set,
+#   NVIDIA GLiNER-PII native names: every Nemotron-PII label that taxonomy.NEMOTRON maps to a
+#     PII type (kept equal by tests/test_adapters.py),
 #     https://huggingface.co/datasets/nvidia/Nemotron-PII
 # use_descriptions: pass label descriptions to backends that accept them (gliner2).
 # default_threshold: model-card inference default (NVIDIA card evaluates at 0.3;
@@ -60,24 +61,38 @@ systems:
     labels:
       first_name: PERSON
       last_name: PERSON
+      date_of_birth: DATE
+      street_address: ADDRESS
       email: EMAIL
       phone_number: PHONE
-      street_address: ADDRESS
       url: URL
-      date_of_birth: DATE
       ssn: ACCOUNT_NUMBER
-      account_number: ACCOUNT_NUMBER
-      customer_id: ACCOUNT_NUMBER
       medical_record_number: ACCOUNT_NUMBER
+      customer_id: ACCOUNT_NUMBER
+      account_number: ACCOUNT_NUMBER
       health_plan_beneficiary_number: ACCOUNT_NUMBER
       certificate_license_number: ACCOUNT_NUMBER
       employee_id: ACCOUNT_NUMBER
+      vehicle_identifier: ACCOUNT_NUMBER
+      license_plate: ACCOUNT_NUMBER
+      device_identifier: ACCOUNT_NUMBER
       bank_routing_number: ACCOUNT_NUMBER
-      password: SECRET
-      pin: SECRET
+      swift_bic: ACCOUNT_NUMBER
       cvv: SECRET
+      pin: SECRET
+      password: SECRET
       user_name: OTHER_PII
       ipv4: OTHER_PII
+      mac_address: OTHER_PII
+      biometric_identifier: OTHER_PII
+      api_key: SECRET
+      http_cookie: SECRET
+      credit_debit_card: ACCOUNT_NUMBER
+      national_id: ACCOUNT_NUMBER
+      tax_id: ACCOUNT_NUMBER
+      unique_id: ACCOUNT_NUMBER
+      fax_number: PHONE
+      ipv6: OTHER_PII
 
   gliner25_base_zeroshot:
     backend: gliner2
