@@ -32,7 +32,7 @@ def world(tmp_path, monkeypatch):
     models = tmp_path / "models"
     for v in ("all-sources", "no-nemotron"):
         (models / f"{v}-s1" / "final").mkdir(parents=True)
-        (models / f"{v}-s1" / "final" / "s1_manifest.json").write_text(json.dumps({"config": {"variant": v}}))
+        (models / f"{v}-s1" / "final" / "s1_manifest.json").write_text(json.dumps({"config": {"variant": v}, "data": {"source_counts": {"k": 1}}}))
     pred_dir = tmp_path / "results" / "predictions"
     tests = {}
     for ds in c0.HEADLINE:
@@ -116,3 +116,19 @@ def test_headline_ledger_refuses_dirty_code(tmp_path, monkeypatch):
     monkeypatch.setattr(ledger, "git_sha", lambda: "abc-dirty")
     with pytest.raises(ledger.UnknownProvenance):
         ledger.append({"x": 1}, headline=True)
+
+
+def test_fresh_real_fallback_refused_when_split_exists(world, monkeypatch):
+    world["full"]()
+    monkeypatch.setattr(c0, "HEADLINE", c0.HEADLINE + ["fresh_real"])
+    p = bench.split_paths("fresh_real")["test"]; p.parent.mkdir(parents=True, exist_ok=True)
+    write_jsonl(mkdocs(3, "fr"), p)
+    out = c0.decide(n_boot=50, fresh_real_absent=True)
+    assert out["decision"]["c0_holds"] is None and any("fresh-real-absent" in x for x in out["problems"])
+
+
+def test_manifest_without_source_counts_rejected(monkeypatch):
+    monkeypatch.setattr(c0, "generate", lambda n, seed: [])
+    monkeypatch.setattr(c0.L, "load", lambda *a, **k: [])
+    with pytest.raises(ValueError, match="source_counts"):
+        c0.training_sources_from_manifest({"config": {"variant": "no-nemotron", "synth_n": 0, "synth_seed": 1}})

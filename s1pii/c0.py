@@ -70,7 +70,9 @@ def training_sources_from_manifest(manifest: dict) -> list[Doc]:
     want = manifest.get("data", {}).get("source_counts")
     if cfg.get("max_train_docs"):
         raise ValueError("headline models must not use max_train_docs")
-    if want and want != counts:
+    if not want:
+        raise ValueError("model manifest has no data.source_counts; cannot verify the audit sources")
+    if want != counts:
         raise ValueError(f"rebuilt training sources {counts} differ from the trained model's {want}")
     return docs
 
@@ -90,6 +92,10 @@ def run_audit(models_dir: Path, datasets: list[str] | None = None) -> dict:
         v = variant_for(ds)
         if v not in index:
             man = json.loads((models_dir / f"{v}-s1" / "final" / "s1_manifest.json").read_text())
+            for sd in SEEDS[1:]:
+                mp = models_dir / f"{v}-s{sd}" / "final" / "s1_manifest.json"
+                if mp.exists() and json.loads(mp.read_text()).get("data") != man.get("data"):
+                    raise ValueError(f"{v}-s{sd} was trained on different data than {v}-s1")
             index[v] = AuditIndex(training_sources_from_manifest(man))
         test = read_jsonl(test_path)
         rep = index[v].query(test)
@@ -153,23 +159,31 @@ def decide_propagation(pred_path: Path, min_precision: float = 0.90) -> dict:
         raise ValueError("C2 must be decided on the PII-TRACE calibration split")
     if not meta.get("config", {}).get("propagation"):
         raise ValueError("C2 needs predictions made with propagation on")
-    prop = tp = 0
+    ver = meta.get("versions", {})
+    if meta.get("system") != s1_system("all-sources", 1) or ver.get("variant") != "all-sources" or ver.get("seed") != 1:
+        raise ValueError(f"C2 must use {s1_system('all-sources', 1)} predictions, got {meta.get('system')}")
+    prop = tp = exact = 0
     for d in docs:
         gold = d.pii_spans()
         for s in preds[d.doc_id]:
             if s.label_raw == "propagated":
                 prop += 1
                 tp += any(min(g.end, s.end) > max(g.start, s.start) for g in gold)
+                exact += any(g.start == s.start and g.end == s.end for g in gold)
     without = {k: [s for s in v if s.label_raw != "propagated"] for k, v in preds.items()}
     def cons(p):
         vs = views(docs, p, "pii_trace")
         c = [M.consistency(v, 0.5) for v in vs]
         g = sum(x["groups"] for x in c)
-        return sum(x["all_masked"] for x in c) / g if g else float("nan")
+        gc = sum(x["cond_den"] for x in c)
+        return {"all": sum(x["all_masked"] for x in c) / g if g else float("nan"),
+                "conditional": sum(x["cond_num"] for x in c) / gc if gc else float("nan")}
     precision = tp / prop if prop else float("nan")
     cw, co = cons(preds), cons(without)
-    res = {"propagated_spans": prop, "precision": precision, "consistency_with": cw, "consistency_without": co,
-           "propagation": bool(prop and precision >= min_precision and cw > co), "source": str(pred_path)}
+    better = cw["all"] > co["all"] and not (cw["conditional"] < co["conditional"])
+    res = {"propagated_spans": prop, "precision": precision, "exact_precision": exact / prop if prop else float("nan"),
+           "consistency_with": cw, "consistency_without": co,
+           "propagation": bool(prop and precision >= min_precision and better), "source": str(pred_path)}
     c2_path().parent.mkdir(parents=True, exist_ok=True)
     c2_path().write_text(json.dumps(res, indent=2))
     append({"kind": "c2", **res})
@@ -199,6 +213,8 @@ def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False,
         propagation = None
     else:
         propagation = json.loads(c2_path().read_text())["propagation"]
+    if fresh_real_absent and "fresh_real" in HEADLINE and bench.split_paths("fresh_real")["test"].exists():
+        problems.append("--fresh-real-absent given but the Fresh-Real test split exists; the fallback is only allowed when it is not ready")
     sets = [d for d in HEADLINE if not (fresh_real_absent and d == "fresh_real")]
     expected = sum(1 for d in sets for b in BASELINES if (d, b) not in EXCLUDED)
     idx = prediction_index(pred_dir)
