@@ -60,12 +60,9 @@ def validator_spans(doc: Doc, source: str = "validator") -> list[Span]:
     for m in _ABA.finditer(t):
         if aba_ok(m.group()) and _ROUTING_CUE.search(t[max(0, m.start() - 40):m.start()]):
             add(m.start(), m.end(), ACCOUNT_NUMBER, "aba")
-    try:
-        import phonenumbers
-        for m in phonenumbers.PhoneNumberMatcher(t, "US", leniency=phonenumbers.Leniency.VALID):
-            add(m.start, m.end, PHONE, "phone")
-    except ImportError:
-        pass
+    import phonenumbers   # hard dependency: a missing library must not silently change the system
+    for m in phonenumbers.PhoneNumberMatcher(t, "US", leniency=phonenumbers.Leniency.VALID):
+        add(m.start, m.end, PHONE, "phone")
     return out
 
 

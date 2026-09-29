@@ -55,6 +55,7 @@ def tokenize_doc(doc: Doc, tokenizer) -> TokDoc:
         if len(hit) == 0:
             continue
         t = CANONICAL_TYPES.index(s.label_canonical)
+        hit = np.arange(hit[0], hit[-1] + 1)          # whitespace-only tokens inside the span are I
         if len(hit) == 1:
             target[hit[0]] = tag("S", t)
         else:
@@ -106,22 +107,45 @@ def special_ids(tokenizer) -> tuple[list[int], list[int]]:
 @dataclass
 class Example:
     doc_id: str
-    input_ids: list[int]          # with special tokens
+    input_ids: np.ndarray         # int32, with special tokens
     n_prefix: int
     n_tok: int                    # real tokens in the window
     target: np.ndarray            # (n_tok,)
     tok_start: int                # window start in doc tokens
 
 
+def target_is_valid(target: np.ndarray) -> bool:
+    """True iff some valid BIOES path agrees with every known tag (ANY is a wildcard)."""
+    from .crf import constraint_masks
+    tr, st, en = (m.numpy() for m in constraint_masks())
+    allowed = allowed_matrix(target)
+    reach = st & allowed[0]
+    for i in range(1, len(target)):
+        reach = (reach[:, None] & tr).any(0) & allowed[i]
+        if not reach.any():
+            return False
+    return bool((reach & en).any())
+
+
+class InvalidTarget(ValueError):
+    pass
+
+
 def train_examples(docs: list[Doc], tokenizer, max_len: int = 1024, stride: int | None = None) -> list[Example]:
     pre, suf = special_ids(tokenizer)
     size = max_len - len(pre) - len(suf)
     stride = stride or size
-    out = []
+    out, bad = [], []
     for d in docs:
         td = tokenize_doc(d, tokenizer)
         if not td.ids:
             continue
         for a, b in token_windows(len(td.ids), size, stride):
-            out.append(Example(d.doc_id, pre + td.ids[a:b] + suf, len(pre), b - a, window_target(td, a, b), a))
+            tgt = window_target(td, a, b)
+            if not target_is_valid(tgt):
+                bad.append(d.doc_id)
+                continue
+            out.append(Example(d.doc_id, np.asarray(pre + td.ids[a:b] + suf, dtype=np.int32), len(pre), b - a, tgt, a))
+    if bad:
+        raise InvalidTarget(f"{len(bad)} windows have no valid BIOES path, e.g. docs {bad[:3]}")
     return out

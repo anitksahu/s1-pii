@@ -142,3 +142,29 @@ def test_s1_through_shared_runner(tok, tmp_path):
     out = run("s1_test", dp, tmp_path / "p", predictor=pr, shard_size=5)
     meta, preds = read_predictions(out)
     assert meta["revision"] == "w1" and len(preds) == 12 and meta["config"]["validators"] is True
+
+
+class NewlineTok:
+    """Stub fast-tokenizer that emits standalone whitespace tokens (like ModernBERT's BPE)."""
+    pad_token_id = 0
+    def __call__(self, text, add_special_tokens=True, return_offsets_mapping=False, truncation=False):
+        import re
+        toks = [(m.start(), m.end()) for m in re.finditer(r"\n|[^\s]+| +", text)]
+        ids = [5 + i for i in range(len(toks))]
+        if add_special_tokens:
+            return {"input_ids": [1] + ids + [2]}
+        return {"input_ids": ids, "offset_mapping": toks}
+
+
+def test_whitespace_tokens_inside_span_are_I_and_targets_valid():
+    from s1pii.model.encode import target_is_valid, tokenize_doc
+    from s1pii.schema import ADDRESS
+    text = "Ship to 12 Main St\nSpringfield now"
+    a, b = 8, len("Ship to 12 Main St\nSpringfield")
+    d = Doc("n", text, (Span("n", a, b, ADDRESS),))
+    td = tokenize_doc(d, NewlineTok())
+    assert target_is_valid(td.target)
+    ex = train_examples([d], NewlineTok(), max_len=64)
+    assert len(ex) == 1
+    bad = td.target.copy(); bad[bad == tag("I", 1)] = 0
+    assert not target_is_valid(bad)

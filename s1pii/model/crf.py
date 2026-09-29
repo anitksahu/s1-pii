@@ -107,10 +107,10 @@ class CRF(nn.Module):
 
     def nll(self, em: torch.Tensor, mask: torch.Tensor, allowed: torch.Tensor) -> torch.Tensor:
         """Mean over the batch of -log P(allowed paths). ``allowed`` (B,L,K) bool."""
-        _, logz = self._forward(em, mask)
         em_a = torch.where(allowed, em, torch.full_like(em, NEG))
-        _, logz_a = self._forward(em_a, mask)
-        return (logz - logz_a).mean()
+        B = em.shape[0]
+        _, logz_all = self._forward(torch.cat([em, em_a], 0), torch.cat([mask, mask], 0))   # one pass, 2B rows
+        return (logz_all[:B] - logz_all[B:]).mean()
 
     @torch.no_grad()
     def marginals(self, em: torch.Tensor, mask: torch.Tensor):
@@ -148,28 +148,31 @@ class CRF(nn.Module):
 def span_logprobs(crf: CRF, em: np.ndarray, alpha: np.ndarray, beta: np.ndarray, logz: float,
                   n: int, floor: float = 0.01, max_len: int = 64) -> list[tuple[int, int, int, float]]:
     """Exact span probabilities for one sequence of length n. Returns (i, j, type, prob) for
-    every span with prob >= floor and length <= max_len tokens."""
+    every span with prob >= floor and length <= max_len tokens. Starts are pruned by the B
+    marginal (lossless: a span's probability never exceeds its start-tag marginal); ends are
+    evaluated vectorized over j."""
     T, _, _ = (x.detach().double().cpu().numpy() for x in crf.potentials())
     lf = np.log(floor)
     out = []
     for t in range(NT):
         b, i_, e, s = tag("B", t), tag("I", t), tag("E", t), tag("S", t)
-        # singletons
         ps = alpha[:n, s] + beta[:n, s] - logz
         for i in np.nonzero(ps >= lf)[0]:
-            out.append((int(i), int(i), t, float(np.exp(ps[i]))))
-        # multi-token spans
+            out.append((int(i), int(i), t, float(np.exp(min(ps[i], 0.0)))))
         pb = alpha[:n, b] + beta[:n, b] - logz
-        c = T[i_, i_] + em[:n, i_]                    # middle I->I step score at position k
-        pref = np.concatenate([[0.0], np.cumsum(c)])  # pref[k] = sum c[0..k-1]
+        c = T[i_, i_] + em[:n, i_]
+        pref = np.concatenate([[0.0], np.cumsum(c)])
+        endscore = T[i_, e] + em[:n, e] + beta[:n, e]            # for j >= i + 2
         for i in np.nonzero(pb >= lf)[0]:
             i = int(i)
-            for j in range(i + 1, min(n, i + max_len)):
-                if j == i + 1:
-                    lp = alpha[i, b] + T[b, e] + em[j, e] + beta[j, e] - logz
-                else:
-                    lp = (alpha[i, b] + T[b, i_] + em[i + 1, i_] + (pref[j] - pref[i + 2])
-                          + T[i_, e] + em[j, e] + beta[j, e] - logz)
-                if lp >= lf:
-                    out.append((i, j, t, float(np.exp(min(lp, 0.0)))))
+            hi = min(n, i + max_len)
+            if i + 1 < hi:
+                lp1 = alpha[i, b] + T[b, e] + em[i + 1, e] + beta[i + 1, e] - logz
+                if lp1 >= lf:
+                    out.append((i, i + 1, t, float(np.exp(min(lp1, 0.0)))))
+            if i + 2 < hi:
+                js = np.arange(i + 2, hi)
+                lp = (alpha[i, b] + T[b, i_] + em[i + 1, i_] + (pref[js] - pref[i + 2]) + endscore[js] - logz)
+                for j in js[lp >= lf]:
+                    out.append((i, int(j), t, float(np.exp(min(lp[j - i - 2], 0.0)))))
     return out

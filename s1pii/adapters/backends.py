@@ -91,7 +91,8 @@ class _Fits:
 
 
 class GlinerBackend(_Fits):
-    """``gliner`` package (NVIDIA GLiNER-PII)."""
+    """``gliner`` package (NVIDIA GLiNER-PII). Runs with ``flat_ner=False`` so overlapping
+    candidates are kept, matching S1, which emits every overlapping span marginal (prereg)."""
     descriptions = None
 
     def __init__(self, model_id: str, revision: str | None = None):
@@ -110,11 +111,11 @@ class GlinerBackend(_Fits):
         m = self.model
         with _infer_ctx():
             if hasattr(m, "inference"):
-                outs = m.inference(list(texts), labels, threshold=threshold, flat_ner=True)
+                outs = m.inference(list(texts), labels, threshold=threshold, flat_ner=False)
             elif hasattr(m, "batch_predict_entities"):
-                outs = m.batch_predict_entities(list(texts), labels, threshold=threshold, flat_ner=True)
+                outs = m.batch_predict_entities(list(texts), labels, threshold=threshold, flat_ner=False)
             else:
-                outs = [m.predict_entities(t, labels, threshold=threshold, flat_ner=True) for t in texts]
+                outs = [m.predict_entities(t, labels, threshold=threshold, flat_ner=False) for t in texts]
         return [normalize_gliner(o) for o in outs]
 
 

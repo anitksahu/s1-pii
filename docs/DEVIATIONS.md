@@ -11,3 +11,5 @@
 | PII-TRACE LOBO model | Not needed | Public PII-TRACE release is a single 500-conversation split, used only as test |
 | SPY loaded via HF script | Re-implemented seeded Faker fill from the raw placeholder files | `datasets>=4` refuses loading scripts; original fill is unseeded |
 | Ledger as parquet | Append-only JSONL, exported to parquet | Atomic appends on Drive |
+| S1 trains on PII-TRACE train, with a no-PII-TRACE LOBO variant | S1 never trains on PII-TRACE | The public release has a single 500-conversation split, used only as calibration/test |
+| NVIDIA GLiNER-PII inference default `flat_ner=True` | `flat_ner=False` | M3 scientist review: keep overlapping candidates on both sides of the comparison |

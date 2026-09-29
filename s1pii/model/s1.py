@@ -31,7 +31,8 @@ class S1Model(nn.Module):
 
     def emissions(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         h = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
-        return self.head(self.dropout(h)).float()
+        with torch.autocast(device_type=h.device.type, enabled=False):   # head and CRF in fp32
+            return self.head(self.dropout(h.float()))
 
     def forward(self, batch: dict) -> torch.Tensor:
         em = self.emissions(batch["input_ids"], batch["attention_mask"])
@@ -56,7 +57,7 @@ def collate(examples: list[Example], pad_id: int, with_targets: bool = True) -> 
     tok_mask = torch.zeros((B, Lt), dtype=torch.bool)
     allowed = torch.ones((B, Lt, K), dtype=torch.bool)
     for i, e in enumerate(examples):
-        ids[i, :len(e.input_ids)] = torch.tensor(e.input_ids)
+        ids[i, :len(e.input_ids)] = torch.as_tensor(np.asarray(e.input_ids, dtype=np.int64))
         att[i, :len(e.input_ids)] = 1
         tok_mask[i, :e.n_tok] = True
         if with_targets:

@@ -10,8 +10,8 @@
 # use_descriptions: pass label descriptions to backends that accept them (gliner2).
 # default_threshold: model-card inference default (NVIDIA card evaluates at 0.3;
 #   GLiNER2 cards use 0.5). Emission floor is identical for all systems.
-# flat_ner=True is used for gliner (library default for inference); it suppresses nested
-# overlapping candidates, so reachable_max_over is reported per set.
+# flat_ner=False for gliner: overlapping candidates are kept, as S1 keeps every overlapping
+# span marginal, so neither side's curve is shortened by overlap suppression.
 emission_floor: 0.01
 window: {words: 150, stride: 75}    # GLiNER word-tokens, 50% overlap; stitch = max-score union
 

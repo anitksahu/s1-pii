@@ -68,7 +68,30 @@ class S1Predictor:
     def config(self) -> dict:
         return {"predictor_version": PREDICTOR_VERSION, "max_len": self.max_len, "floor": self.floor,
                 "max_span_tokens": self.max_span_tokens, "validators": self.validators,
-                "propagation": self.propagation, "stride": self.stride, "o_exit_bias": self.crf.o_exit_bias}
+                "propagation": self.propagation, "stride": self.stride, "o_exit_bias": self.crf.o_exit_bias,
+                "phonenumbers": __import__("phonenumbers").__version__ if self.validators else None}
+
+    @torch.no_grad()
+    def _lattices(self, ems: list[np.ndarray]):
+        """Batched forward-backward on the model device (float64 where supported)."""
+        dev = self.device
+        dt = torch.float64 if dev == "cpu" or torch.cuda.get_device_capability()[0] >= 8 else torch.float32
+        crf = self.crf.to(dev).to(dt)
+        out = []
+        for i in range(0, len(ems), self.batch_size):
+            chunk = ems[i:i + self.batch_size]
+            L = max(len(e) for e in chunk)
+            em = torch.zeros(len(chunk), L, chunk[0].shape[1], dtype=dt, device=dev)
+            mask = torch.zeros(len(chunk), L, dtype=torch.bool, device=dev)
+            for k, e in enumerate(chunk):
+                em[k, :len(e)] = torch.as_tensor(e, dtype=dt, device=dev); mask[k, :len(e)] = True
+            alpha, logz = crf._forward(em, mask)
+            beta = crf._backward(em, mask)
+            for k, e in enumerate(chunk):
+                out.append((alpha[k, :len(e)].double().cpu().numpy(), beta[k, :len(e)].double().cpu().numpy(),
+                            float(logz[k])))
+        self.crf.cpu().double()
+        return out
 
     @torch.no_grad()
     def _emissions(self, exs: list[Example]) -> list[np.ndarray]:
@@ -94,16 +117,13 @@ class S1Predictor:
             td = tokenize_doc(d, self.tokenizer)
             best: dict[tuple, Span] = {}
             wins = token_windows(len(td.ids), self.size, self.stride) if td.ids else []
-            exs = [Example(d.doc_id, self.pre + td.ids[a:b] + self.suf, len(self.pre), b - a,
+            exs = [Example(d.doc_id, np.asarray(self.pre + td.ids[a:b] + self.suf, dtype=np.int32), len(self.pre), b - a,
                            np.zeros(b - a, dtype=np.int64), a) for a, b in wins]
             rep.windows += len(exs)
             ems = self._emissions(exs)
-            for (a, b), em in zip(wins, ems):
+            for (a, b), em, (alpha, beta, logz) in zip(wins, ems, self._lattices(ems)):
                 n = b - a
-                emt = torch.from_numpy(em).unsqueeze(0)
-                alpha, beta, logz = crf.marginals(emt, torch.ones(1, n, dtype=torch.bool))
-                spans = span_logprobs(crf, em, alpha[0].numpy(), beta[0].numpy(), float(logz[0]), n,
-                                      floor=self.floor, max_len=self.max_span_tokens)
+                spans = span_logprobs(crf, em, alpha, beta, logz, n, floor=self.floor, max_len=self.max_span_tokens)
                 for i, j, t, p in spans:
                     rep.raw += 1
                     if (i == 0 and a > 0) or (j == n - 1 and b < len(td.ids)):
