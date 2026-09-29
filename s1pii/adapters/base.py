@@ -26,8 +26,10 @@ import yaml
 from ..schema import Doc, Span, CANONICAL_TYPES
 from ..eval.align import reanchor
 
-ADAPTER_VERSION = "adapters-v0.1"
-_WORD = re.compile(r"\S+")
+ADAPTER_VERSION = "adapters-v0.2"
+# GLiNER's own word splitter (words, hyphen/underscore compounds, single punctuation marks).
+# Windows are sized in these tokens, so punctuation-heavy text (JSON, logs) gets shorter windows.
+_TOK = re.compile(r"\w+(?:[-_]\w+)*|\S")
 
 
 @lru_cache(maxsize=None)
@@ -36,13 +38,15 @@ def load_config(name: str = "baselines.yaml") -> dict:
 
 
 def query_labels(system: str) -> dict[str, str]:
-    """native query label -> canonical type (frozen with the prereg)."""
+    """native query label -> canonical type (frozen with the prereg).
+
+    Uniform coverage rule (prereg v0): every system is queried with the canonical label set
+    of ``labels.yaml`` (every canonical type, with descriptions where the backend accepts
+    them); PII-trained models additionally get their native label names from
+    ``baselines.yaml``. So no system is structurally blind to a canonical type."""
     cfg = load_config()["systems"][system]
-    if "labels" in cfg:
-        labels = dict(cfg["labels"])
-    else:
-        desc = load_config(cfg["labels_from"])
-        labels = {k: v["type"] for k, v in desc.items()}
+    canon = {k: v["type"] for k, v in load_config("labels.yaml").items()}
+    labels = {**dict(cfg.get("labels", {})), **canon}
     bad = {k: v for k, v in labels.items() if v not in CANONICAL_TYPES}
     if bad:
         raise ValueError(f"{system}: labels map to non-canonical types {bad}")
@@ -50,16 +54,18 @@ def query_labels(system: str) -> dict[str, str]:
 
 
 def label_descriptions(system: str) -> dict[str, str] | None:
+    """Descriptions for the canonical labels, for backends that accept label descriptions
+    (``use_descriptions: true`` in baselines.yaml). Native labels are passed by name."""
     cfg = load_config()["systems"][system]
-    if "labels_from" not in cfg:
+    if not cfg.get("use_descriptions"):
         return None
-    return {k: v["description"] for k, v in load_config(cfg["labels_from"]).items()}
+    return {k: v["description"] for k, v in load_config("labels.yaml").items()}
 
 
-def windows(text: str, words: int = 200, stride: int = 100) -> list[tuple[int, int]]:
-    """Character windows covering ``words`` whitespace words each, advancing ``stride`` words.
+def windows(text: str, words: int = 150, stride: int = 75) -> list[tuple[int, int]]:
+    """Character windows covering ``words`` GLiNER word-tokens each, advancing ``stride``.
     Every character of the text is covered; the last window ends at len(text)."""
-    bounds = [(m.start(), m.end()) for m in _WORD.finditer(text)]
+    bounds = [(m.start(), m.end()) for m in _TOK.finditer(text)]
     if len(bounds) <= words:
         return [(0, len(text))]
     out, i = [], 0
@@ -115,6 +121,35 @@ def normalize_gliner2(out: Any) -> list[RawEnt]:
 
 class Backend(Protocol):
     def predict(self, texts: Sequence[str], labels: list[str], threshold: float) -> list[list[RawEnt]]: ...
+    # optional: def fits(self, text: str, labels: list[str]) -> bool  (context-limit check)
+
+
+class WindowTooLong(RuntimeError):
+    pass
+
+
+def fit_windows(text: str, spans: list[tuple[int, int]], backend, labels: list[str],
+                min_tokens: int = 8) -> tuple[list[tuple[int, int]], int]:
+    """Split any window the backend reports as over its context limit (label prompt
+    included) into overlapping halves until it fits. Returns (windows, n_splits). Raises
+    ``WindowTooLong`` if a window cannot be made to fit, so truncation is never silent."""
+    fits = getattr(backend, "fits", None)
+    if fits is None:
+        return spans, 0
+    out, splits, stack = [], 0, list(reversed(spans))
+    while stack:
+        a, b = stack.pop()
+        if fits(text[a:b], labels):
+            out.append((a, b)); continue
+        toks = [(a + m.start(), a + m.end()) for m in _TOK.finditer(text[a:b])]
+        if len(toks) <= min_tokens:
+            raise WindowTooLong(f"window [{a},{b}) exceeds the model context even at {len(toks)} tokens")
+        half, quarter = len(toks) // 2, len(toks) // 4
+        left = (a, toks[half - 1][1])
+        right = (toks[max(0, half - quarter)][0], b)
+        splits += 1
+        stack.extend([right, left])
+    return sorted(out), splits
 
 
 @dataclass
@@ -126,10 +161,12 @@ class AdapterReport:
     dropped_unanchored: int = 0
     dropped_unknown_label: int = 0
     dropped_bad_offsets: int = 0
+    window_splits: int = 0
     unknown_labels: dict = field(default_factory=dict)
 
     def merge(self, o: "AdapterReport") -> None:
-        for k in ("windows", "raw", "kept", "repaired", "dropped_unanchored", "dropped_unknown_label", "dropped_bad_offsets"):
+        for k in ("windows", "raw", "kept", "repaired", "dropped_unanchored", "dropped_unknown_label",
+                  "dropped_bad_offsets", "window_splits"):
             setattr(self, k, getattr(self, k) + getattr(o, k))
         for k, v in o.unknown_labels.items():
             self.unknown_labels[k] = self.unknown_labels.get(k, 0) + v
@@ -148,16 +185,20 @@ class Adapter:
 
     def config(self) -> dict:
         return {"labels": self.labels, "floor": self.floor, "words": self.words, "stride": self.stride,
+                "descriptions_used": bool(getattr(self.backend, "descriptions", None)),
                 "adapter_version": ADAPTER_VERSION}
 
     def predict_docs(self, docs: Sequence[Doc], batch_size: int = 16) -> tuple[dict[str, list[Span]], AdapterReport]:
         jobs = []  # (doc, window_start, window_text)
-        for d in docs:
-            for a, b in windows(d.text, self.words, self.stride):
-                jobs.append((d, a, d.text[a:b]))
-        rep = AdapterReport(windows=len(jobs))
-        best: dict[str, dict[tuple, Span]] = {d.doc_id: {} for d in docs}
         qlabels = list(self.labels)
+        n_splits = 0
+        for d in docs:
+            ws, k = fit_windows(d.text, windows(d.text, self.words, self.stride), self.backend, qlabels)
+            n_splits += k
+            for a, b in ws:
+                jobs.append((d, a, d.text[a:b]))
+        rep = AdapterReport(windows=len(jobs), window_splits=n_splits)
+        best: dict[str, dict[tuple, Span]] = {d.doc_id: {} for d in docs}
         for i in range(0, len(jobs), batch_size):
             chunk = jobs[i:i + batch_size]
             outs = self.backend.predict([t for _, _, t in chunk], qlabels, self.floor)
@@ -191,4 +232,7 @@ class Adapter:
                         best[doc.doc_id][key] = fixed
         preds = {did: sorted(v.values(), key=lambda s: (s.start, s.end, s.label_canonical)) for did, v in best.items()}
         rep.kept = sum(len(v) for v in preds.values())
+        if rep.dropped_unknown_label:
+            raise ValueError(f"{self.system}: backend returned labels that were not queried "
+                             f"{rep.unknown_labels}; the label configuration is wrong")
         return preds, rep

@@ -34,21 +34,24 @@ def run(system: str, docs_path: Path, out: Path, *, backend=None, shard_size: in
     adapter = Adapter(system, backend)
     revision = getattr(backend, "revision", "unknown")
     ds_hash = dataset_hash(docs)
-    key = cache_key(system, revision, ADAPTER_VERSION, ds_hash, adapter.config())
+    versions = dict(getattr(backend, "versions", {}))
+    key = cache_key(system, revision, ADAPTER_VERSION, ds_hash, {**adapter.config(), "versions": versions})
     final = out / f"{key}.jsonl"
     if final.exists():
         return final
-    shard_dir = out / f"{key}.shards"
+    shard_dir = out / f"{key}.shards-{shard_size}"
     shard_dir.mkdir(parents=True, exist_ok=True)
     report, t0 = AdapterReport(), time.time()
     for si in range(0, len(docs), shard_size):
         path = shard_dir / f"shard-{si // shard_size:05d}.jsonl"
-        if path.exists():
-            meta, _ = read_predictions(path)
-            r = AdapterReport(); r.__dict__.update(meta.get("report", {}))
-            report.merge(r)
-            continue
         shard = docs[si:si + shard_size]
+        if path.exists():
+            meta, got = read_predictions(path)
+            if set(got) == {d.doc_id for d in shard}:
+                r = AdapterReport(); r.__dict__.update(meta.get("report", {}))
+                report.merge(r)
+                continue
+            path.unlink()                         # stale or partial shard: recompute
         preds, rep = adapter.predict_docs(shard, batch_size)
         write_predictions(preds, path, {"report": rep.__dict__, "n_docs": len(shard)})
         report.merge(rep)
@@ -64,7 +67,7 @@ def run(system: str, docs_path: Path, out: Path, *, backend=None, shard_size: in
     meta = {"system": system, "revision": revision, "adapter_version": ADAPTER_VERSION,
             "dataset_hash": ds_hash, "docs_path": str(docs_path), "n_docs": len(docs),
             "config": adapter.config(), "report": report.__dict__, "code_sha": git_sha(),
-            "versions": {**getattr(backend, "versions", {}), "python": platform.python_version()},
+            "versions": {**versions, "python": platform.python_version()},
             "seconds": round(time.time() - t0, 1)}
     write_predictions({d.doc_id: merged[d.doc_id] for d in docs}, final, meta)
     return final

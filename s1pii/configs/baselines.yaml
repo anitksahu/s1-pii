@@ -1,11 +1,19 @@
 # Baselines: the latest GLiNER models only (prereg v0).
 # revision: HF commit SHA. null = resolve at first run, recorded in the prediction cache
 # meta; copy it here in a reviewed commit before headline runs.
-# labels: model-native query label -> canonical type. Trained PII models are queried with
-# their own native label names for the core types; the zero-shot model gets the canonical
-# descriptions from configs/labels.yaml. Emission floor is identical for all systems.
+# Query labels (prereg v0, uniform coverage rule): every system gets the canonical labels of
+# labels.yaml; PII-trained models additionally get their native names below.
+#   GLiNER2-PII native names: model card label list (42 types),
+#     https://huggingface.co/fastino/gliner2-privacy-filter-PII-multi
+#   NVIDIA GLiNER-PII native names: the Nemotron-PII training label set,
+#     https://huggingface.co/datasets/nvidia/Nemotron-PII
+# use_descriptions: pass label descriptions to backends that accept them (gliner2).
+# default_threshold: model-card inference default (NVIDIA card evaluates at 0.3;
+#   GLiNER2 cards use 0.5). Emission floor is identical for all systems.
+# flat_ner=True is used for gliner (library default for inference); it suppresses nested
+# overlapping candidates, so reachable_max_over is reported per set.
 emission_floor: 0.01
-window: {words: 200, stride: 100}   # word windows with 50% overlap; stitch = max-score union
+window: {words: 150, stride: 75}    # GLiNER word-tokens, 50% overlap; stitch = max-score union
 
 systems:
   gliner2_pii:
@@ -14,6 +22,7 @@ systems:
     revision: null
     default_threshold: 0.5
     env: gliner2
+    use_descriptions: true
     labels:
       person: PERSON
       full_name: PERSON
@@ -64,11 +73,9 @@ systems:
       certificate_license_number: ACCOUNT_NUMBER
       employee_id: ACCOUNT_NUMBER
       bank_routing_number: ACCOUNT_NUMBER
-      credit_debit_card: ACCOUNT_NUMBER
       password: SECRET
       pin: SECRET
       cvv: SECRET
-      api_key: SECRET
       user_name: OTHER_PII
       ipv4: OTHER_PII
 
@@ -78,4 +85,4 @@ systems:
     revision: null
     default_threshold: 0.5
     env: gliner2
-    labels_from: labels.yaml    # canonical descriptions, zero-shot
+    use_descriptions: true      # zero-shot: canonical labels with descriptions only

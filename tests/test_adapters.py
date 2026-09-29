@@ -32,6 +32,7 @@ class FakeBackend:
 def test_windows_cover_and_overlap():
     text = " ".join(f"w{i}" for i in range(450))
     ws = windows(text, 200, 100)
+    assert len(ws) == 4
     assert ws[0][0] == 0 and ws[-1][1] == len(text)
     covered = [False] * len(text)
     for a, b in ws:
@@ -54,7 +55,8 @@ def test_config_labels_are_canonical():
     for sysname in load_config()["systems"]:
         assert query_labels(sysname)
     assert label_descriptions("gliner25_base_zeroshot")
-    assert label_descriptions("gliner2_pii") is None
+    assert label_descriptions("nvidia_gliner_pii") is None
+    assert set(query_labels("gliner25_base_zeroshot")) == set(load_config("labels.yaml"))
 
 
 def test_adapter_windowed_stitch_and_reanchor():
@@ -70,13 +72,46 @@ def test_adapter_windowed_stitch_and_reanchor():
     assert len(ps) == len({(p.start, p.end, p.label_canonical) for p in ps})   # stitched
 
 
-def test_adapter_drops_unknown_labels_and_bad_offsets():
+def test_adapter_bad_offsets_dropped_and_unknown_labels_fail():
     d = Doc("d1", "Alice here")
-    fb = FakeBackend(extra=[RawEnt(0, 5, "martian", 0.9, "Alice"), RawEnt(3, 99, "email", 0.9, None)])
+    preds, rep = Adapter("gliner2_pii", FakeBackend(extra=[RawEnt(3, 99, "email", 0.9, None)])).predict_docs([d])
+    assert rep.dropped_bad_offsets == 1 and [p.label_canonical for p in preds["d1"]] == [PERSON]
+    with pytest.raises(ValueError, match="martian"):
+        Adapter("gliner2_pii", FakeBackend(extra=[RawEnt(0, 5, "martian", 0.9, "Alice")])).predict_docs([d])
+
+
+def test_label_coverage_uniform():
+    from s1pii import taxonomy as tx
+    from s1pii.data.manifest import headline_datasets
+    for sysname in load_config()["systems"]:
+        covered = set(query_labels(sysname).values())
+        for ds in headline_datasets():
+            assert tx.admissible(ds) <= covered, (sysname, ds)
+
+
+class LimitedBackend(FakeBackend):
+    def __init__(self, max_tokens):
+        super().__init__(); self.max_tokens, self.seen = max_tokens, []
+    def fits(self, text, labels):
+        from s1pii.adapters.base import _TOK
+        return len(_TOK.findall(text)) <= self.max_tokens
+    def predict(self, texts, labels, threshold):
+        self.seen.extend(texts)
+        return super().predict(texts, labels, threshold)
+
+
+def test_windows_split_to_fit_json_and_never_truncate():
+    import json as _j
+    text = _j.dumps([{"name": "Alice", "id": i, "tags": ["a", "b"]} for i in range(60)])
+    d = Doc("j", text)
+    fb = LimitedBackend(40)
     preds, rep = Adapter("gliner2_pii", fb).predict_docs([d])
-    assert rep.dropped_unknown_label == 1 and rep.unknown_labels == {"martian": 1}
-    assert rep.dropped_bad_offsets == 1
-    assert [p.label_canonical for p in preds["d1"]] == [PERSON]
+    from s1pii.adapters.base import _TOK
+    assert rep.window_splits > 0 and all(len(_TOK.findall(t)) <= 40 for t in fb.seen)
+    assert len([p for p in preds["j"] if p.label_canonical == PERSON]) == 60
+    from s1pii.adapters.base import fit_windows, WindowTooLong
+    with pytest.raises(WindowTooLong):
+        fit_windows("x" * 50, [(0, 50)], LimitedBackend(0), [])
 
 
 def test_runner_sharded_resume(tmp_path):
@@ -92,7 +127,7 @@ def test_runner_sharded_resume(tmp_path):
     assert R.run("gliner2_pii", dp, tmp_path / "preds", backend=fb, shard_size=10) == out and fb.calls == calls
     # partial shards: delete final and one shard -> only that shard recomputed
     out.unlink()
-    shards = sorted((tmp_path / "preds").glob("*.shards/shard-*.jsonl"))
+    shards = sorted((tmp_path / "preds").glob("*.shards-*/shard-*.jsonl"))
     shards[1].unlink()
     fb2 = FakeBackend()
     R.run("gliner2_pii", dp, tmp_path / "preds", backend=fb2, shard_size=10, batch_size=100)
@@ -126,3 +161,35 @@ def test_dev_slice_stable():
     dev, rest = bench.dev_slice(docs)
     assert 50 < len(dev) < 150 and len(dev) + len(rest) == 5000
     assert bench.dev_slice(list(reversed(docs)))[0][0].doc_id in {d.doc_id for d in dev}
+
+
+def test_calib_test_config_mismatch_rejected(tmp_path, monkeypatch):
+    from s1pii import bench, ledger
+    from s1pii.data import loaders as L
+    monkeypatch.setattr(L, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(ledger, "RESULTS", tmp_path / "results")
+    docs = [Doc(f"d{i:03d}", f"Alice {i}", (Span(f"d{i:03d}", 0, 5, PERSON),), cluster_id=f"c{i}") for i in range(20)]
+    cal, test = L.calib_test_split(docs, 0.25)
+    p = bench.split_paths("pii_trace"); p["calib"].parent.mkdir(parents=True)
+    write_jsonl(cal, p["calib"]); write_jsonl(test, p["test"])
+    class Other(FakeBackend):
+        revision = "other-rev"
+    cpred = R.run("gliner2_pii", p["calib"], tmp_path / "preds", backend=Other())
+    tpred = R.run("gliner2_pii", p["test"], tmp_path / "preds", backend=FakeBackend())
+    with pytest.raises(ValueError, match="revision"):
+        bench.score("gliner2_pii", "pii_trace", cpred, tpred, n_boot_ci=50)
+
+
+def test_materialize_atomic_and_validated(tmp_path, monkeypatch):
+    from s1pii import bench
+    from s1pii.data import loaders as L
+    monkeypatch.setattr(L, "DATA_DIR", tmp_path)
+    calls = []
+    docs = [Doc(f"d{i}", "x", cluster_id=f"c{i}") for i in range(10)]
+    monkeypatch.setattr(bench, "splits", lambda n: (calls.append(n), (docs[:2], docs[2:]))[1])
+    bench.materialize("pii_trace"); bench.materialize("pii_trace")
+    assert len(calls) == 1
+    p = bench.split_paths("pii_trace")["test"]
+    p.write_text(p.read_text()[:10])
+    bench.materialize("pii_trace")
+    assert len(calls) == 2

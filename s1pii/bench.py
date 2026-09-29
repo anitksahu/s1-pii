@@ -50,13 +50,37 @@ def split_paths(name: str) -> dict[str, Path]:
     return {p: base / f"{name}-{p}.jsonl" for p in ("calib", "test")}
 
 
-def materialize(name: str) -> dict[str, str]:
+def _split_meta(name: str) -> Path:
+    return L.DATA_DIR / "splits" / f"{name}.meta.json"
+
+
+def _split_valid(name: str) -> bool:
+    paths, mp = split_paths(name), _split_meta(name)
+    if not (mp.exists() and all(p.exists() for p in paths.values())):
+        return False
+    try:
+        meta = json.loads(mp.read_text())
+        return all(hashlib.sha256(paths[k].read_bytes()).hexdigest() == meta[k]["content_sha256"] for k in paths)
+    except (KeyError, json.JSONDecodeError):
+        return False
+
+
+def materialize(name: str, refresh: bool = False) -> dict[str, str]:
+    """Write calib/test split files atomically (data first, meta with content hashes last);
+    reuse them only if they validate against the meta."""
     paths = split_paths(name)
-    if not all(p.exists() for p in paths.values()):
+    if refresh or not _split_valid(name):
         calib, test = splits(name)
+        mp = _split_meta(name)
+        if mp.exists():
+            mp.unlink()
+        meta = {}
         for part, docs in (("calib", calib), ("test", test)):
-            paths[part].parent.mkdir(parents=True, exist_ok=True)
-            write_jsonl(docs, paths[part])
+            body = "".join(d.to_json() + "\n" for d in docs)
+            L._atomic_write_text(paths[part], body)
+            meta[part] = {"n_docs": len(docs), "dataset_hash": dataset_hash(docs),
+                          "content_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest()}
+        L._atomic_write_text(mp, json.dumps(meta, indent=2))
     return {k: str(v) for k, v in paths.items()}
 
 
@@ -76,6 +100,10 @@ def score(system: str, dataset: str, calib_pred: Path | None, test_pred: Path, *
         calib_docs = read_jsonl(paths["calib"])
         if cmeta.get("dataset_hash") and cmeta["dataset_hash"] != dataset_hash(calib_docs):
             raise ValueError(f"{calib_pred} was produced on different calibration docs")
+        for k in ("system", "revision", "adapter_version", "config"):
+            if cmeta.get(k) != meta.get(k):
+                raise ValueError(f"calibration and test predictions differ in {k!r}: the dev threshold "
+                                 f"must come from the same model run configuration")
         dev_t = tune_threshold(calib_docs, cpreds, dataset, over_budget=0.01)
     res = evaluate(test_docs, preds, dataset=dataset, default_threshold=default_threshold,
                    dev_threshold=dev_t, n_boot_ci=n_boot_ci, seed=seed)
