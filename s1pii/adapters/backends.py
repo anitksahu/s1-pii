@@ -73,12 +73,18 @@ class _Fits:
         self.max_subwords = max_subwords
         self.tokenizer = _find_tokenizer(self.model)
 
+    def prompt_text(self, labels: list[str]) -> str:
+        """Everything sent alongside the window: label names plus descriptions if used."""
+        q = self._query(labels) if hasattr(self, "_query") else labels
+        return " ".join(f"{k} {v}" for k, v in q.items()) if isinstance(q, dict) else " ".join(q)
+
     def fits(self, text: str, labels: list[str]) -> bool:
-        words = len(_TOK.findall(text)) + sum(len(_TOK.findall(l)) + 1 for l in labels)
+        prompt = self.prompt_text(labels)
+        words = len(_TOK.findall(text)) + len(_TOK.findall(prompt)) + len(labels)
         if self.max_words and words > SAFETY * self.max_words:
             return False
         if self.tokenizer is not None and self.max_subwords:
-            n = len(self.tokenizer.encode(text + " " + " ".join(labels), add_special_tokens=True))
+            n = len(self.tokenizer.encode(text + " " + prompt, add_special_tokens=True))
             if n > SAFETY * self.max_subwords:
                 return False
         return True

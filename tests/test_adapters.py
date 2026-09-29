@@ -193,3 +193,19 @@ def test_materialize_atomic_and_validated(tmp_path, monkeypatch):
     p.write_text(p.read_text()[:10])
     bench.materialize("pii_trace")
     assert len(calls) == 2
+
+
+def test_fits_counts_descriptions():
+    from s1pii.adapters.backends import _Fits
+    class T:
+        def encode(self, text, add_special_tokens=True):
+            return text.split()
+    class B(_Fits):
+        def __init__(self, desc):
+            self.model = None; self.descriptions = desc
+            self.max_words, self.max_subwords, self.tokenizer = 1000, 60, T()
+        def _query(self, labels):
+            return {l: self.descriptions.get(l, l) for l in labels} if self.descriptions else labels
+    text = " ".join(["w"] * 30)
+    assert B(None).fits(text, ["email"])
+    assert not B({"email": " ".join(["long"] * 40)}).fits(text, ["email"])
