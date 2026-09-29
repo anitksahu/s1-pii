@@ -7,9 +7,9 @@ tab_direct:   {source: "github:NorskRegnesentral/text-anonymization-benchmark", 
 tab_quasi:    {source: "github:NorskRegnesentral/text-anonymization-benchmark", license: MIT, role: secondary, purposes: [eval], sha256: {test: cd0f0f15f84a8739654c7cf30c6be8ce27b051ef73974d39d792a0cb8c846379, dev: 8c3c7306f46b8d54debeb38ae11d8b0b8bcf4bdccbc3b6f13c12ad7be16893ec}}
 spy_medical:  {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
 spy_legal:    {source: "hf:mks-logic/SPY", license: CC-BY-4.0, role: headline, purposes: [eval]}
-pii_trace:    {source: "hf:perplexity-ai/PII-TRACE", license: MIT, role: headline, purposes: [eval]}
-nemotron:     {source: "hf:nvidia/Nemotron-PII", license: CC-BY-4.0, role: headline, purposes: [eval, train]}
-gretel:       {source: "hf:gretelai/synthetic_pii_finance_multilingual", license: Apache-2.0, role: secondary, purposes: [eval, train]}
+pii_trace:    {source: "hf:perplexity-ai/PII-TRACE", revision: 1c3eb67bbd43e8571b4433a9d3d76271f9970eb9, license: MIT, role: headline, purposes: [eval]}
+nemotron:     {source: "hf:nvidia/Nemotron-PII", revision: b70ffaf5ff39e079776134c5bf4381f00a9fd1ed, license: CC-BY-4.0, role: headline, purposes: [eval, train]}
+gretel:       {source: "hf:gretelai/synthetic_pii_finance_multilingual", revision: 7b844d16738527a04264f50214cb426a4cea0897, license: Apache-2.0, role: secondary, purposes: [eval, train]}
 ai4privacy:   {source: "hf:ai4privacy/pii-masking-400k", license: "ai4privacy custom (verify)", role: secondary, purposes: [eval, train], research_only: true}
 fresh_real:   {source: "local annotation", license: "own", role: headline, purposes: [eval]}
 synthetic_conv: {source: "s1pii.data.synth", license: "own", role: none, purposes: [train]}
