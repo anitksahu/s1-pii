@@ -225,10 +225,24 @@ def consistency(v: DocView, t: float) -> dict:
     return res
 
 
+def _max_matching(pairs: list[tuple[int, int, int]], n_pred: int, n_gold: int) -> tuple[set, set]:
+    """Maximum-cardinality one-to-one matching, ties broken by total overlap. Order independent."""
+    if not pairs:
+        return set(), set()
+    from scipy.optimize import linear_sum_assignment
+    big = 1 + sum(ov for ov, _, _ in pairs)
+    w = np.zeros((n_pred, n_gold))
+    for ov, pi, gi in pairs:
+        w[pi, gi] = max(w[pi, gi], big + ov)
+    rows, cols = linear_sum_assignment(w, maximize=True)
+    keep = [(r, c) for r, c in zip(rows, cols) if w[r, c] > 0]
+    return {r for r, _ in keep}, {c for _, c in keep}
+
+
 def span_prf(views: Sequence[DocView], t: float, *, typed: bool, mode: str) -> dict:
     """Span P/R/F1 at threshold t against merged gold. mode 'strict' (exact offsets) or
-    'partial' (any character overlap). One-to-one matching is global greedy by descending
-    overlap (order-independent). A prediction overlapping only IGNORE gold is neither TP nor FP."""
+    'partial' (any character overlap). One-to-one matching is maximum-cardinality with ties
+    broken by total overlap (order-independent). A prediction overlapping only IGNORE gold is neither TP nor FP."""
     k = k_of(t)
     tp = fp = fn = 0
     for v in views:
@@ -245,11 +259,7 @@ def span_prf(views: Sequence[DocView], t: float, *, typed: bool, mode: str) -> d
                         pairs.append((b - a, pi, gi))
                 else:
                     pairs.append((min(b, p.end) - max(a, p.start), pi, gi))
-        pairs.sort(key=lambda x: (-x[0], x[1], x[2]))
-        up, ug = set(), set()
-        for _, pi, gi in pairs:
-            if pi not in up and gi not in ug:
-                up.add(pi); ug.add(gi)
+        up, ug = _max_matching(pairs, len(pr), len(gold))
         tp += len(up)
         for pi, p in enumerate(pr):
             if pi in up:

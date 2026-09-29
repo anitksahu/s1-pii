@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "${{ matrix.python }}"}
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install ".[dev,model]" faker
+      - run: pip install ".[dev,model]" "faker==40.40.0" scipy
       - name: non-editable install ships the manifest
         run: cd /tmp && python -c "from s1pii.data.manifest import manifest; assert 'nemotron' in manifest()"
       - run: pytest -q

@@ -184,3 +184,10 @@ def test_evaluate_compare_tune_and_completeness():
     assert tune_threshold(docs, {d.doc_id: [P(d.doc_id, 4, 5, score=0.9)] for d in docs}, "pii_trace", 0.0) == pytest.approx(0.901)
     with pytest.raises(IncompletePredictions):
         views(docs, {}, "pii_trace")
+
+
+def test_span_prf_max_cardinality_tie():
+    d = mk("John Smith x", [(0, 4, PERSON), (5, 10, PERSON)])
+    for order in ([P("d", 0, 10), P("d", 5, 10)], [P("d", 5, 10), P("d", 0, 10)]):
+        s = M.span_prf([M.view(d, order)], 0.5, typed=False, mode="partial")
+        assert (s["tp"], s["fp"], s["fn"]) == (2, 0, 0)

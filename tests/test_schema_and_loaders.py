@@ -183,3 +183,23 @@ def test_snapshot_load_roundtrip(tmp_path, monkeypatch):
     b = L.load("tab_direct")
     assert calls == ["test"] and [d.to_json() for d in a] == [d.to_json() for d in b]
     assert L.snapshot_meta("tab_direct", "test")["dataset_hash"]
+
+
+def test_snapshot_invalidation(tmp_path, monkeypatch):
+    monkeypatch.setattr(L, "DATA_DIR", tmp_path)
+    calls = []
+    def recipe(split):
+        calls.append(split)
+        return L.raw_tab(TAB_RECS, split), (lambda r: tx.map_tab(*r.split("/"), tier="direct")), {}
+    monkeypatch.setitem(L.RECIPES, "tab_direct", (recipe, "test"))
+    L.load("tab_direct")
+    snap, meta = L.snapshot_paths("tab_direct", "test")
+    snap.write_text(snap.read_text()[:20])            # truncated snapshot
+    L.load("tab_direct")
+    assert len(calls) == 2
+    monkeypatch.setattr(tx, "MAP_VERSION", "taxonomy-v9")
+    L.load("tab_direct")
+    assert len(calls) == 3
+    meta.unlink()
+    L.load("tab_direct")
+    assert len(calls) == 4

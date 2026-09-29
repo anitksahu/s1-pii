@@ -410,24 +410,56 @@ def snapshot_paths(name: str, split: str) -> tuple[Path, Path]:
     return base.with_suffix(".jsonl"), base.with_suffix(".meta.json")
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".part")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text); f.flush(); os.fsync(f.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _valid_snapshot(snap: Path, meta_path: Path) -> list[Doc] | None:
+    """Return the snapshot's docs only if its meta exists (written last), matches the current
+    taxonomy version and the recomputed dataset hash; otherwise None (rebuild)."""
+    from ..ledger import dataset_hash
+    if not (snap.exists() and meta_path.exists()):
+        return None
+    try:
+        meta = json.loads(meta_path.read_text())
+        if meta.get("taxonomy") != tx.MAP_VERSION:
+            return None
+        docs = read_jsonl(snap)
+        return docs if dataset_hash(docs) == meta.get("dataset_hash") else None
+    except (json.JSONDecodeError, KeyError, TypeError, OffsetError):
+        return None
+
+
 def load(name: str, split: str | None = None, *, purpose: str = "eval", refresh: bool = False,
          strict: bool = True) -> list[Doc]:
     """Licence-gated, snapshotted load. ``split='all'`` datasets ship one split; carve
-    calibration/test with ``calib_test_split``."""
+    calibration/test with ``calib_test_split``. Snapshots are written atomically (data first,
+    meta last) and are reused only if they validate against the meta and taxonomy version."""
     require_allowed(name, purpose=purpose)
     recipe, default = RECIPES[name]
     split = split or default
     snap, meta_path = snapshot_paths(name, split)
-    if snap.exists() and not refresh:
-        return read_jsonl(snap)
+    if not refresh:
+        cached = _valid_snapshot(snap, meta_path)
+        if cached is not None:
+            return cached
     raws, mapper, prov = recipe(split)
     docs, report = build(raws, name, split, mapper, strict=strict)
-    snap.parent.mkdir(parents=True, exist_ok=True)
-    write_jsonl(docs, snap)
     from ..ledger import dataset_hash
+    if meta_path.exists():
+        meta_path.unlink()
+    _atomic_write_text(snap, "".join(d.to_json() + "\n" for d in docs))
     meta = {"name": name, "split": split, "taxonomy": tx.MAP_VERSION, "dataset_hash": dataset_hash(docs),
             "report": report, **prov}
-    meta_path.write_text(json.dumps(meta, indent=2))
+    _atomic_write_text(meta_path, json.dumps(meta, indent=2))
     return docs
 
 
