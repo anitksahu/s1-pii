@@ -173,7 +173,7 @@ def finetune(v1_dir: Path, store: Path, head_dir: Path, docs: list[Doc], out: Pa
         torch.nn.utils.clip_grad_norm_(params + list(head.parameters()), 1.0)
         opt.step(); sched.step()
         if (step + 1) % 100 == 0 or step + 1 == steps:
-            log(json.dumps({"ft_step": step + 1, "of": steps, "loss": round(float(loss), 4), "sec": round(time.time() - t0, 1)}))
+            log(json.dumps({"ft_step": step + 1, "of": steps, "loss": round(float(loss.detach()), 4), "sec": round(time.time() - t0, 1)}))
     head.eval(); enc.eval()
     return export_typing_encoder(enc, tok, head, hcfg, out, {"finetune": asdict(cfg), "v1": man["weights_sha256"],
                                                              "vocab": vocab, "items": stats,

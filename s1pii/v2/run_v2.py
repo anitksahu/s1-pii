@@ -152,62 +152,83 @@ class Chain:
             cache[variant] = select_training_docs(docs, per_label=3000, max_docs=60000, seed=0)
         return cache[variant]
 
+    # ---------------------------------------------------------------- stores (lazy)
+    def done(self, name: str) -> bool:
+        return (self.drive / "done" / f"{name}.json").exists()
+
+    def model_paths(self, tag: str, variant: str, seed: int) -> tuple[Path, Path | None]:
+        """(level-1 model dir, typing encoder dir or None) for a stage."""
+        if tag == "cheap":
+            return self.models / f"{variant}-s{seed}" / "final", None
+        if tag == "B":
+            return self.drive / "level1" / f"{variant}-s{seed}" / "final", None
+        if tag == "A":
+            base = self.state().get("A_base", "cheap")
+            return self.model_paths(base, variant, seed)[0], self.drive / "typing" / f"{variant}-s{seed}"
+        raise ValueError(tag)
+
+    def store(self, kind: str, tag: str, variant: str, seed: int, ds: str | None = None, split: str | None = None) -> Path:
+        """Return a local feature store, rebuilding it (resumable by shard) only when a consumer
+        with pending work asks for it; stores are never rebuilt just because a marker exists."""
+        from .features import FeatureConfig, training_extras
+        key = f"{tag}-{variant}-s{seed}"
+        l1, typing = self.model_paths(tag, variant, seed)
+        root = self.work / "stores"
+        if kind == "train":
+            unit = f"train_store-{key}"
+            def fn():
+                sel = self.selected(variant)
+                ex = training_extras(sel, seed=0, heldout_nodes=LB.heldout_nodes())
+                return self.extract(unit, l1, sel, root, name=f"train-{key}", extras=ex, label_texts=LB.all_texts(),
+                                    cfg=FeatureConfig(store_min_pb=0.05), typing_encoder=typing)
+            kind_ = "train_store"
+        else:
+            name = f"{ds}-{split}-{key}"
+            unit = f"bench_store-{name}"
+            docs_path = bench.split_paths(ds)[split]
+            def fn():
+                return self.extract(unit, l1, list(read_jsonl(docs_path)), root, name=name, label_texts=LB.all_texts(),
+                                    typing_encoder=typing)
+            kind_ = "bench_store"
+        return Path(self.unit(unit, kind_, fn, local=True))
+
     # ---------------------------------------------------------------- one model
-    def build(self, tag: str, variant: str, seed: int, l1_dir: Path, typing: Path | None = None) -> dict:
-        from .features import FeatureConfig, extract, training_extras, write_label_vectors, Extractor
+    def build(self, tag: str, variant: str, seed: int, l1_dir: Path | None = None, typing: Path | None = None) -> dict:
         from .head import HeadConfig, train_head
         from . import infer
         held = LB.heldout_nodes()
         key = f"{tag}-{variant}-s{seed}"
-        texts = LB.all_texts()
-        sel = None
-        store_root = self.work / "stores"
-        train_store_marker = self.drive / "done" / f"train_store-{key}.json"
-
-        def train_store():
-            nonlocal sel
-            sel = sel or self.selected(variant)
-            ex = training_extras(sel, seed=0, heldout_nodes=held)
-            return self.extract(f"train_store-{key}", l1_dir, sel, store_root, name=f"train-{key}", extras=ex,
-                                label_texts=texts, cfg=FeatureConfig(store_min_pb=0.05), typing_encoder=typing)
-        ts = (Path(self.unit(f"train_store-{key}", "train_store", train_store, local=True, stage=tag))
-              if typing is None else None)
+        _, typing = self.model_paths(tag, variant, seed)
         head_dir = self.drive / "heads" / key
         if typing is None:
-            if (ts / "meta.json").exists():
+            if not self.done(f"head-{key}"):
+                ts = self.store("train", tag, variant, seed)
                 zf = ts / "no_negative_zones.json"
                 if not zf.exists():
                     zf.write_text(json.dumps(self.zones(variant)))
-            self.unit(f"head-{key}", "head", lambda: train_head(ts, head_dir, held, HeadConfig(seed=seed), log=self.log))
-        else:
-            if not head_dir.exists():
-                shutil.copytree(typing / "head", head_dir)
-        out = {}
+                self.unit(f"head-{key}", "head", lambda: train_head(ts, head_dir, held, HeadConfig(seed=seed), log=self.log))
+        elif not head_dir.exists():
+            shutil.copytree(typing / "head", head_dir)
         for ds in BENCH[variant]:
             for split in ("calib", "test"):
                 docs_path = bench.split_paths(ds)[split]
                 name = f"{ds}-{split}-{key}"
-                st = Path(self.unit(f"bench_store-{name}", "bench_store",
-                                    lambda: self.extract(f"bench_store-{name}", l1_dir, list(read_jsonl(docs_path)),
-                                                         store_root, name=name, label_texts=texts, typing_encoder=typing),
-                                    local=True, stage=tag))
-                out[(ds, split)] = st
+                jobs = []
                 if ds == "nemotron" and variant == "no-nemotron" or ds != "nemotron":
                     # primary: the canonical strings every baseline received; secondary: benchmark labels
-                    C = LB.canonical_label_set()
-                    self.unit(f"pred-{name}", "pred", lambda: infer.write(st, head_dir, C, docs_path, self.pred_dir,
-                                                                           system(tag, variant, seed), device=self.device))
-                    B = LB.load_benchmark_label_set(ds)
-                    self.unit(f"predbench-{name}", "pred", lambda: infer.write(st, head_dir, B, docs_path, self.pred_dir,
-                                                                                bench_system(tag, variant, seed), device=self.device))
+                    jobs.append((f"pred-{name}", LB.canonical_label_set(), system(tag, variant, seed), "sensitive"))
+                    jobs.append((f"predbench-{name}", LB.load_benchmark_label_set(ds), bench_system(tag, variant, seed), "sensitive"))
                 if ds == "nemotron":            # C3: primary no-nemotron, secondary all-sources; calib for thresholds
                     for desc in (True, False):
-                        sysn = c3_system(tag, variant, seed, desc)
-                        self.unit(f"predc3-{name}-{desc}", "pred",
-                                  lambda: infer.write(st, head_dir, LB.c3_label_set(desc), docs_path, self.pred_dir,
-                                                      sysn, score="typed", device=self.device))
-        # a copy of the benchmark stores on Drive keeps the CPU sweeps reproducible after the runtime ends
-        return {"train_store": str(ts) if ts else None, "head": str(head_dir), "bench": {f"{k[0]}|{k[1]}": str(v) for k, v in out.items()}}
+                        jobs.append((f"predc3-{name}-{desc}", LB.c3_label_set(desc), c3_system(tag, variant, seed, desc), "typed"))
+                pending = [j for j in jobs if not self.done(j[0])]
+                if not pending and not (ds == "nemotron" and split == "calib" and not (self.drive / f"gates-{tag}.json").exists()):
+                    continue
+                st = self.store("bench", tag, variant, seed, ds, split)
+                for uname, L, sysn, score in pending:
+                    self.unit(uname, "pred", lambda: infer.write(st, head_dir, L, docs_path, self.pred_dir, sysn,
+                                                                 score=score, device=self.device))
+        return {"head": str(head_dir)}
 
     # ---------------------------------------------------------------- stages
     def cheap(self):
@@ -296,7 +317,7 @@ class Chain:
             return json.loads(gp.read_text())
         heads = [self.drive / "heads" / f"{tag}-{v}-s{sd}" for v in VARIANTS for sd in SEEDS]
         calib = bench.split_paths("nemotron")["calib"]
-        stores = {f"{v}-s{sd}": (self._store(f"nemotron-calib-{tag}-{v}-s{sd}"), self.drive / "heads" / f"{tag}-{v}-s{sd}")
+        stores = {f"{v}-s{sd}": (self.store("bench", tag, v, sd, "nemotron", "calib"), self.drive / "heads" / f"{tag}-{v}-s{sd}")
                   for v in VARIANTS for sd in SEEDS}
         g = evaluate_gates(heads, stores, calib)
         (self.drive / f"gates-{tag}.json").write_text(json.dumps(g, indent=2, default=str))
@@ -339,7 +360,7 @@ class Chain:
                         self.unit(f"level1-{v}-s{sd}", "level1", run_l1)
                 for v in VARIANTS:
                     for sd in SEEDS:
-                        self.build("B", v, sd, self.drive / "level1" / f"{v}-s{sd}" / "final")
+                        self.build("B", v, sd)
                 self.set_state(headline="B", stages=st["stages"] + ["B"])
                 self.prune("cheap")
                 g = self.gates("B", reuse=True)
@@ -352,16 +373,18 @@ class Chain:
         if g["A_fires"] and "A" not in st["stages"]:
             try:
                 from .finetune import finetune
+                self.set_state(A_base=base)
                 for v in VARIANTS:
-                    sel = self.selected(v)
                     for sd in SEEDS:
                         key = f"{base}-{v}-s{sd}"
-                        l1 = (self.drive / "level1" / f"{v}-s{sd}" / "final") if base == "B" else (self.models / f"{v}-s{sd}" / "final")
-                        ts = self._store(f"train-{key}")
                         out = self.drive / "typing" / f"{v}-s{sd}"
-                        self.unit(f"finetune-{v}-s{sd}", "finetune",
-                                  lambda: finetune(l1, ts, self.drive / "heads" / key, sel, out, LB.heldout_nodes(), log=self.log))
-                        self.build("A", v, sd, l1, typing=out)
+                        if not self.done(f"finetune-{v}-s{sd}"):
+                            l1 = self.model_paths(base, v, sd)[0]
+                            ts = self.store("train", base, v, sd)
+                            sel = self.selected(v)
+                            self.unit(f"finetune-{v}-s{sd}", "finetune",
+                                      lambda: finetune(l1, ts, self.drive / "heads" / key, sel, out, LB.heldout_nodes(), log=self.log))
+                        self.build("A", v, sd)
                 self.set_state(headline="A", stages=self.state()["stages"] + ["A"])
                 self.prune(base)
             except CapReached as e:
@@ -393,22 +416,38 @@ class Chain:
         held = LB.heldout_nodes()
         variants = {"names": dict(p_name_only=1.0, p_paraphrase=0.0), "nonone": dict(hard_neg_ratio=0.0, shift_ratio=0.0)}
         for v in VARIANTS:
-            key = f"cheap-{v}-s1"
-            ts = self._store(f"train-{key}")
             for ab, kw in variants.items():
                 hd = self.drive / "heads" / f"abl{ab}-{v}-s1"
-                self.unit(f"head-abl{ab}-{v}", "head", lambda: train_head(ts, hd, held, HeadConfig(seed=1, **kw), log=self.log))
+                if not self.done(f"head-abl{ab}-{v}"):
+                    ts = self.store("train", "cheap", v, 1)
+                    self.unit(f"head-abl{ab}-{v}", "head", lambda: train_head(ts, hd, held, HeadConfig(seed=1, **kw), log=self.log))
                 for ds in BENCH[v]:
                     if (ds == "nemotron") != (v == "no-nemotron"):
                         continue
                     for split in ("calib", "test"):
-                        st = self._store(f"{ds}-{split}-{key}")
+                        uname = f"pred-abl{ab}-{ds}-{split}-{v}"
+                        if self.done(uname):
+                            continue
+                        st = self.store("bench", "cheap", v, 1, ds, split)
                         L = LB.canonical_label_set()          # as the headline C0' system
                         if ab == "names":
                             L = LB.LabelSet(L.name, L.labels, descriptions=False)
-                        self.unit(f"pred-abl{ab}-{ds}-{split}-{v}", "pred",
-                                  lambda: infer.write(st, hd, L, bench.split_paths(ds)[split], self.pred_dir,
-                                                      f"s1v2abl{ab}_{v}-s1", device=self.device))
+                        self.unit(uname, "pred", lambda: infer.write(st, hd, L, bench.split_paths(ds)[split], self.pred_dir,
+                                                                     f"s1v2abl{ab}_{v}-s1", device=self.device))
+
+    def sweeps(self):
+        """Preregistered sweeps on the headline stage's seed-1 test stores (rebuilt if lost)."""
+        from . import evaluate as EV
+        os.environ["S1PII_V2_STATE"] = str(self.state_path)
+        tag = self.state()["headline"]
+        for ds in EV.C4_SETS:
+            self.store("bench", tag, c0.variant_for(ds), 1, ds, "test")
+        self.phase("CPU")
+        res = EV.sweeps(self.work, self.drive)
+        bad = {k: v for k, v in res.items() if "problem" in v}
+        if bad:
+            raise RuntimeError(f"sweeps incomplete: {bad}")
+        return res
 
     def flat(self, frac: float = 0.3):
         """Ablation C, seed 1 of each variant, on a fixed training subset."""
@@ -444,7 +483,7 @@ class CapReached(RuntimeError):
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("stage", choices=["teacher", "cheap", "gliner_c3", "ablations", "gates", "conditional", "all"])
+    ap.add_argument("stage", choices=["teacher", "cheap", "gliner_c3", "ablations", "gates", "conditional", "sweeps", "all"])
     ap.add_argument("--models", type=Path, required=True)
     ap.add_argument("--work", type=Path, required=True)
     ap.add_argument("--drive", type=Path, required=True)
@@ -467,6 +506,8 @@ def main(argv=None) -> None:
             ch.gates()
         if a.stage in ("conditional", "all"):
             ch.conditional()
+        if a.stage in ("sweeps", "all"):
+            ch.sweeps()
     except CapReached as e:
         print(f"[v2] STOPPED: {e}", flush=True)
         sys.exit(3)

@@ -120,7 +120,17 @@ def test_chain_cheap_ablations_gates_conditional_and_resume(setup):
     assert all(h["hours"] >= 0 for h in hours)
     if "B" in st["stages"]:
         assert "cheap" in st["pruned"] and not list((tmp / "work" / "stores").glob("*-cheap-*"))
-        ch.conditional()                                       # resume after pruning: no rebuild, no crash
+    # runtime lost after the conditional stages: the full chain resumes without crashing and
+    # rebuilds only the stores that pending work needs (here: the headline sweep stores)
+    shutil.rmtree(tmp / "work" / "stores")
+    n_hours = len((tmp / "drive" / "gpu_hours.jsonl").read_text().splitlines())
+    ch2 = run_v2.Chain(models, tmp / "work", tmp / "drive", cap=100, log=lambda *_: None)
+    ch2.cheap(); ch2.ablations(); ch2.conditional()
+    assert len((tmp / "drive" / "gpu_hours.jsonl").read_text().splitlines()) == n_hours   # nothing recomputed
+    sw = ch2.sweeps()
+    assert set(sw) == {"tab_direct", "spy_medical", "spy_legal", "pii_trace", "nemotron"}
+    rebuilt = [p.name for p in (tmp / "work" / "stores").iterdir()]
+    assert all("-test-" in n and "-s1-" in n for n in rebuilt), rebuilt
 
 
 def test_cap_stops_before_a_unit(setup):

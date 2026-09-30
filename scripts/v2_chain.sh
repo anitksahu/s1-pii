@@ -9,7 +9,7 @@ D=/content/drive/MyDrive/s1pii
 export PYTHONUNBUFFERED=1 PYTHONPATH="$PWD" S1PII_EXAMPLE_CACHE="$D/examples"
 L="$D/results/logs"; mkdir -p "$L" "$D/v2"
 CAP=${CAP:-32}
-echo RUNNING > "$D/v2/STATUS"
+echo RUNNING > "$D/v2/STATUS"; echo CPU > "$D/v2/PHASE"
 fail() { echo "FAILED $1 $(date -u +%FT%TZ)" > "$D/v2/STATUS"; exit "$1"; }
 
 # frozen inputs: committed and tagged prereg-v1 by scripts/v2_prep.sh (CPU runtime) before any GPU work
@@ -33,8 +33,5 @@ python -m s1pii.v2.run_v2 all --models "$D/models" --work /content/v2 --drive "$
   --gliner-venv envs/gliner2 >> "$L/v2.log" 2>&1
 rc=$?
 if [ $rc -eq 3 ]; then echo "STOPPED_CAP $(date -u +%FT%TZ)" > "$D/v2/STATUS"; exit 3; fi
-[ $rc -eq 0 ] || fail $rc
-# sweeps read the local feature stores, so they run before the runtime is released
-echo CPU > "$D/v2/PHASE"
-S1PII_V2_STATE="$D/v2/state.json" python -m s1pii.v2.evaluate sweeps --work /content/v2 --drive "$D/v2" >> "$L/v2.log" 2>&1 || fail 20
+[ $rc -eq 0 ] || fail $rc      # "all" ends with the preregistered sweeps (they need the local stores)
 echo "DONE $(date -u +%FT%TZ)" > "$D/v2/STATUS"
