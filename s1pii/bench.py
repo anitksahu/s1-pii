@@ -42,12 +42,33 @@ def dev_slice(train: list[Doc]) -> tuple[list[Doc], list[Doc]]:
     return [d for d in train if in_dev_slice(_group(d))], [d for d in train if not in_dev_slice(_group(d))]
 
 
+NEMOTRON_TEST_DOCS = 10_000   # deviation from prereg v0 (full 100k test): see docs/DEVIATIONS.md
+
+
+def cluster_sample(docs: list[Doc], target: int, salt: str) -> list[Doc]:
+    """Whole clusters in a fixed hash order until at least ``target`` docs: deterministic,
+    independent of doc order, and keeps every cluster complete for the cluster bootstrap."""
+    by: dict[str, list[Doc]] = {}
+    for d in docs:
+        by.setdefault(d.cluster_id or d.doc_id, []).append(d)
+    order = sorted(by, key=lambda c: hashlib.sha256(f"{salt}:{c}".encode()).hexdigest())
+    out: list[Doc] = []
+    for c in order:
+        if len(out) >= target:
+            break
+        out.extend(by[c])
+    return sorted(out, key=lambda d: d.doc_id)
+
+
 def splits(name: str) -> tuple[list[Doc], list[Doc]]:
     """(calibration/dev, test) for a benchmark, per the prereg."""
     if name in ("tab_direct", "tab_quasi"):
         return L.load(name, "dev"), L.load(name, "test")
     if name in ("nemotron", "gretel"):
-        return dev_slice(L.load(name, "train", purpose="eval"))[0], L.load(name, "test")
+        test = L.load(name, "test")
+        if name == "nemotron":
+            test = cluster_sample(test, NEMOTRON_TEST_DOCS, salt="s1pii-nemotron-test-v0")
+        return dev_slice(L.load(name, "train", purpose="eval"))[0], test
     return L.calib_test_split(L.load(name))
 
 

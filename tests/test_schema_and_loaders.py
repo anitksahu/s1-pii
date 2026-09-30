@@ -225,3 +225,15 @@ def test_dev_slice_keeps_locale_twins_together():
     dev, rest = bench.dev_slice(docs)
     dev_u = {d.meta["uid"] for d in dev}
     assert dev and not dev_u & {d.meta["uid"] for d in rest}
+
+
+def test_cluster_sample_is_deterministic_and_keeps_clusters_whole():
+    import random
+    from s1pii import bench
+    from s1pii.schema import Doc
+    docs = [Doc(f"d{c}-{i}", "x", (), cluster_id=f"c{c}") for c in range(300) for i in range(random.Random(c).randint(1, 20))]
+    a = bench.cluster_sample(docs, 1000, "salt")
+    b = bench.cluster_sample(list(reversed(docs)), 1000, "salt")
+    assert [d.doc_id for d in a] == [d.doc_id for d in b] and len(a) >= 1000
+    got = {d.cluster_id for d in a}
+    assert all(sum(d.cluster_id == c for d in a) == sum(d.cluster_id == c for d in docs) for c in got)
