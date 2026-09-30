@@ -106,7 +106,8 @@ class Chain:
         """Extraction callback: stop a unit whose rate over its shards projects past the cap."""
         base = self.used()
         def cb(done: int, total: int, elapsed: float):
-            proj = base + elapsed / done * total / 3600
+            """``done`` shards computed in this call, ``total`` shards this call must compute."""
+            proj = base + elapsed / max(done, 1) * total / 3600
             if proj > self.cap:
                 raise CapReached(f"{name}: projected {proj:.2f} h after {done}/{total} shards > cap {self.cap} h")
         return cb
@@ -192,6 +193,24 @@ class Chain:
             kind_ = "bench_store"
         return Path(self.unit(unit, kind_, fn, local=True))
 
+    def bench_jobs(self, tag: str, variant: str, seed: int, ds: str, split: str) -> list:
+        name = f"{ds}-{split}-{tag}-{variant}-s{seed}"
+        jobs = []
+        if ds == "nemotron" and variant == "no-nemotron" or ds != "nemotron":
+            # primary: the canonical strings every baseline received; secondary: benchmark labels
+            jobs.append((f"pred-{name}", LB.canonical_label_set(), system(tag, variant, seed), "sensitive"))
+            jobs.append((f"predbench-{name}", LB.load_benchmark_label_set(ds), bench_system(tag, variant, seed), "sensitive"))
+        if ds == "nemotron":            # C3: primary no-nemotron, secondary all-sources; calib for thresholds
+            for desc in (True, False):
+                jobs.append((f"predc3-{name}-{desc}", LB.c3_label_set(desc), c3_system(tag, variant, seed, desc), "typed"))
+        return jobs
+
+    def bench_pending(self, tag: str, variant: str, seed: int, ds: str, split: str) -> bool:
+        """Some prediction unit still needs this store, or the gates still need the Nemotron calib store."""
+        if any(not self.done(j[0]) for j in self.bench_jobs(tag, variant, seed, ds, split)):
+            return True
+        return ds == "nemotron" and split == "calib" and not (self.drive / f"gates-{tag}.json").exists()
+
     # ---------------------------------------------------------------- one model
     def build(self, tag: str, variant: str, seed: int, l1_dir: Path | None = None, typing: Path | None = None) -> dict:
         from .head import HeadConfig, train_head
@@ -206,53 +225,57 @@ class Chain:
                 zf = ts / "no_negative_zones.json"
                 if not zf.exists():
                     zf.write_text(json.dumps(self.zones(variant)))
-                self.unit(f"head-{key}", "head", lambda: train_head(ts, head_dir, held, HeadConfig(seed=seed), log=self.log))
+                self.unit(f"head-{key}", "head", lambda: train_head(ts, head_dir, held, HeadConfig(seed=seed), log=self.log),
+                          gpu=False)
         elif not head_dir.exists():
             shutil.copytree(typing / "head", head_dir)
         for ds in BENCH[variant]:
             for split in ("calib", "test"):
                 docs_path = bench.split_paths(ds)[split]
                 name = f"{ds}-{split}-{key}"
-                jobs = []
-                if ds == "nemotron" and variant == "no-nemotron" or ds != "nemotron":
-                    # primary: the canonical strings every baseline received; secondary: benchmark labels
-                    jobs.append((f"pred-{name}", LB.canonical_label_set(), system(tag, variant, seed), "sensitive"))
-                    jobs.append((f"predbench-{name}", LB.load_benchmark_label_set(ds), bench_system(tag, variant, seed), "sensitive"))
-                if ds == "nemotron":            # C3: primary no-nemotron, secondary all-sources; calib for thresholds
-                    for desc in (True, False):
-                        jobs.append((f"predc3-{name}-{desc}", LB.c3_label_set(desc), c3_system(tag, variant, seed, desc), "typed"))
-                pending = [j for j in jobs if not self.done(j[0])]
-                if not pending and not (ds == "nemotron" and split == "calib" and not (self.drive / f"gates-{tag}.json").exists()):
+                pending = [j for j in self.bench_jobs(tag, variant, seed, ds, split) if not self.done(j[0])]
+                if not self.bench_pending(tag, variant, seed, ds, split):
                     continue
                 st = self.store("bench", tag, variant, seed, ds, split)
                 for uname, L, sysn, score in pending:
                     self.unit(uname, "pred", lambda: infer.write(st, head_dir, L, docs_path, self.pred_dir, sysn,
-                                                                 score=score, device=self.device))
+                                                                 score=score, device=self.device), gpu=False)
         return {"head": str(head_dir)}
 
     # ---------------------------------------------------------------- stages
     def cheap(self):
         LB.load_heldout()
         res = {}
+        # GPU first: every store the pending cheap work needs (the CPU teacher finishes meanwhile)
         for v in VARIANTS:
             for sd in SEEDS:
-                res[f"{v}-s{sd}"] = self.build("cheap", v, sd, self.models / f"{v}-s{sd}" / "final")
+                key = f"cheap-{v}-s{sd}"
+                if not self.done(f"head-{key}"):
+                    self.store("train", "cheap", v, sd)
+                for ds in BENCH[v]:
+                    for split in ("calib", "test"):
+                        if self.bench_pending("cheap", v, sd, ds, split):
+                            self.store("bench", "cheap", v, sd, ds, split)
+        for v in VARIANTS:
+            for sd in SEEDS:
+                res[f"{v}-s{sd}"] = self.build("cheap", v, sd)
         (self.drive / "cheap.json").write_text(json.dumps(res, indent=2))
         return res
 
     def gliner_c3(self, venv: Path):
-        # the chain script builds the venv in the background: wait for its ready/failed marker
+        # the chain script builds the venv in the background; wait only on its markers
         ready, failed = venv.parent / f"{venv.name}.ready", venv.parent / f"{venv.name}.failed"
-        building = not ready.exists() and not failed.exists() and not (venv / "bin" / "python").exists()
         t0 = time.time()
-        while not ready.exists() and (building or not (venv / "bin" / "python").exists()):
+        if not ready.exists() and not failed.exists() and (venv / ".complete").exists():
+            ready.touch()                        # built by an earlier session on this runtime
+        while not ready.exists():
             if failed.exists():
                 raise RuntimeError("gliner2 venv build failed (see results/logs/v2-env.log)")
             if time.time() - t0 > 1800:
                 raise TimeoutError("gliner2 venv not ready after 30 min")
             self.phase("CPU")
             time.sleep(10)
-            building = not ready.exists() and not failed.exists()
+        self.meter("wait_venv", t0)
         def run(split: str, names: bool):
             docs = bench.split_paths("nemotron")[split]
             cmd = [str(venv / "bin" / "python"), "-m", "s1pii.v2.gliner_c3", "--system", "gliner25_base_zeroshot",
@@ -272,11 +295,25 @@ class Chain:
         start of the chain so the GPU does not wait for it."""
         from .level1 import teacher_for
         p = self.teacher_path(variant)
+        if p.exists():
+            try:
+                return {k: [tuple(x) for x in v] for k, v in json.loads(p.read_text()).items()}
+            except ValueError:
+                p.unlink()                      # truncated by a dead runtime: recompute
         if not p.exists():
             try:
                 docs, _ = self.training_docs(variant, 1)
+                src = self._sources(variant)
+                other = self.teacher_path("all-sources")
+                if variant == "no-nemotron" and other.exists():
+                    # same Gretel and synthetic docs, same per-source inventories: reuse
+                    t_all = json.loads(other.read_text())
+                    ids = {d.doc_id for d in docs}
+                    t = {k: v for k, v in t_all.items() if k in ids}
+                else:
+                    t = teacher_for(docs, src)
                 tmp = p.with_suffix(".part")
-                tmp.write_text(json.dumps(teacher_for(docs, self._sources(variant))))
+                tmp.write_text(json.dumps(t))
                 os.replace(tmp, p)
             except BaseException:
                 import traceback
@@ -284,7 +321,20 @@ class Chain:
                 raise
         return {k: [tuple(x) for x in v] for k, v in json.loads(p.read_text()).items()}
 
-    def wait_teacher(self, variant: str, timeout: float = 1800) -> dict:
+    def wait_teacher(self, variant: str, timeout: float = 3 * 3600) -> dict:
+        t0 = time.time()
+        try:
+            return self._wait_teacher(variant, timeout)
+        finally:
+            self.meter(f"wait_teacher-{variant}", t0)
+
+    def meter(self, name: str, t0: float) -> None:
+        """Runtime spent outside units (waits, gates, sweeps) still counts against the cap."""
+        with open(self.hours_path, "a") as f:
+            f.write(json.dumps({"unit": name, "kind": "overhead", "hours": round((time.time() - t0) / 3600, 4),
+                                "ok": True, "t": time.time()}) + "\n")
+
+    def _wait_teacher(self, variant: str, timeout: float) -> dict:
         """Wait for the background teacher; fail fast on its .failed file or a dead process.
         With no background process (pid file absent) the teacher runs here."""
         p = self.teacher_path(variant)
@@ -331,7 +381,9 @@ class Chain:
         calib = bench.split_paths("nemotron")["calib"]
         stores = {f"{v}-s{sd}": (self.store("bench", tag, v, sd, "nemotron", "calib"), self.drive / "heads" / f"{tag}-{v}-s{sd}")
                   for v in VARIANTS for sd in SEEDS}
+        t0 = time.time()
         g = evaluate_gates(heads, stores, calib)
+        self.meter(f"gates-{tag}", t0)
         (self.drive / f"gates-{tag}.json").write_text(json.dumps(g, indent=2, default=str))
         ledger.append({"kind": "v2_gates", "tag": tag, **g})
         self.log(json.dumps({k: g[k] for k in ("head_val_acc_min", "heldout_typing_mean", "level1_recall_mean", "A_fires", "B_fires")}))
@@ -432,7 +484,8 @@ class Chain:
                 hd = self.drive / "heads" / f"abl{ab}-{v}-s1"
                 if not self.done(f"head-abl{ab}-{v}"):
                     ts = self.store("train", "cheap", v, 1)
-                    self.unit(f"head-abl{ab}-{v}", "head", lambda: train_head(ts, hd, held, HeadConfig(seed=1, **kw), log=self.log))
+                    self.unit(f"head-abl{ab}-{v}", "head", lambda: train_head(ts, hd, held, HeadConfig(seed=1, **kw), log=self.log),
+                              gpu=False)
                 for ds in BENCH[v]:
                     if (ds == "nemotron") != (v == "no-nemotron"):
                         continue
@@ -445,7 +498,7 @@ class Chain:
                         if ab == "names":
                             L = LB.LabelSet(L.name, L.labels, descriptions=False)
                         self.unit(uname, "pred", lambda: infer.write(st, hd, L, bench.split_paths(ds)[split], self.pred_dir,
-                                                                     f"s1v2abl{ab}_{v}-s1", device=self.device))
+                                                                     f"s1v2abl{ab}_{v}-s1", device=self.device), gpu=False)
 
     def sweeps(self):
         """Preregistered sweeps on the headline stage's seed-1 test stores (rebuilt if lost)."""
@@ -455,7 +508,9 @@ class Chain:
         for ds in EV.C4_SETS:
             self.store("bench", tag, c0.variant_for(ds), 1, ds, "test")
         self.phase("CPU")
+        t0 = time.time()
         res = EV.sweeps(self.work, self.drive)
+        self.meter("sweeps", t0)
         bad = {k: v for k, v in res.items() if "problem" in v}
         if bad:
             raise RuntimeError(f"sweeps incomplete: {bad}")
@@ -511,7 +566,13 @@ def main(argv=None) -> None:
         if a.stage in ("cheap", "all"):
             ch.cheap()
         if a.stage in ("gliner_c3", "all"):
-            ch.gliner_c3(a.gliner_venv)
+            try:
+                ch.gliner_c3(a.gliner_venv)
+            except (subprocess.CalledProcessError, RuntimeError, TimeoutError) as e:
+                if a.stage == "gliner_c3":
+                    raise
+                ch.log(f"[v2] GLiNER C3 stage failed, continuing with the headline stages: {e}")
+                ch.set_state(gliner_c3_failed=str(e)[-500:])
         if a.stage in ("ablations", "all"):
             ch.ablations()
         if a.stage == "gates":

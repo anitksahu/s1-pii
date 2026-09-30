@@ -5,6 +5,9 @@
 
 Output spans keep the queried raw label in ``label_raw`` (C3 scores typed matches on it).
 GLiNER2 models receive name -> description; ``--names-only`` passes names (secondary).
+The 55-label C3 prompt does not fit the model context with a text window, so labels are
+queried in fixed chunks of ``CHUNK`` (sorted order) and the spans are merged; the chunking
+is part of the adapter config (and the cache key).
 """
 from __future__ import annotations
 
@@ -18,7 +21,36 @@ from ..adapters.run import run
 from .labels import c3_label_set
 
 
-def adapter(system: str, descriptions: bool = True) -> Adapter:
+CHUNK = 12
+
+
+class Chunked:
+    """Runs one Adapter per label chunk and merges the spans (``predict_docs`` interface)."""
+
+    def __init__(self, adapters: list[Adapter]):
+        self.adapters = adapters
+        self.revision = adapters[0].revision
+        self.versions = {**adapters[0].versions, "label_chunk": CHUNK}
+
+    def config(self) -> dict:
+        return {"chunks": [a.config() for a in self.adapters]}
+
+    def predict_docs(self, docs, batch_size: int = 16):
+        merged, rep = {d.doc_id: [] for d in docs}, None
+        for a in self.adapters:
+            preds, r = a.predict_docs(docs, batch_size)
+            for k, v in preds.items():
+                merged[k].extend(v)
+            if rep is None:
+                rep = r
+            else:
+                rep.merge(r)
+        for k in merged:
+            merged[k].sort(key=lambda s: (s.start, s.end, s.label_raw))
+        return merged, rep
+
+
+def adapter(system: str, descriptions: bool = True):
     from ..adapters.backends import Gliner2Backend, GlinerBackend
     cfg = load_config()["systems"][system]
     L = c3_label_set(descriptions)
@@ -27,11 +59,14 @@ def adapter(system: str, descriptions: bool = True) -> Adapter:
                             {l.name: (l.description if descriptions else l.name.replace("_", " ")) for l in L.labels})
     else:
         be = GlinerBackend(cfg["model_id"], cfg.get("revision"))
-    ad = Adapter(system, be)
-    ad.labels = {l.name: l.resolved_canonical() for l in L.labels}
-    ad.revision = getattr(be, "revision", "unknown")
-    ad.versions = {**getattr(be, "versions", {}), "c3_labels": L.hash()}
-    return ad
+    out = []
+    for i in range(0, len(L.labels), CHUNK):
+        ad = Adapter(system, be)
+        ad.labels = {l.name: l.resolved_canonical() for l in L.labels[i:i + CHUNK]}
+        ad.revision = getattr(be, "revision", "unknown")
+        ad.versions = {**getattr(be, "versions", {}), "c3_labels": L.hash()}
+        out.append(ad)
+    return Chunked(out)
 
 
 def main(argv=None) -> None:

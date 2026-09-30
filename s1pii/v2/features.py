@@ -310,6 +310,8 @@ def extract(model_dir: Path, docs: list[Doc], out_root: Path, *, name: str, extr
     root.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     nshards = (len(docs) + shard_size - 1) // shard_size
+    todo = sum(1 for si in range(nshards) if not (root / f"shard-{si:05d}.npz").exists())
+    computed = 0
     for si in range(nshards):
         p = root / f"shard-{si:05d}.npz"
         if p.exists():
@@ -321,8 +323,9 @@ def extract(model_dir: Path, docs: list[Doc], out_root: Path, *, name: str, extr
         np.savez(tmp, **_concat(feats))
         os.replace(tmp, p)
         print(f"[features {name}] shard {si + 1}/{nshards} {ex.report} {time.time() - t0:.0f}s", flush=True)
+        computed += 1
         if progress is not None:
-            progress(si + 1, nshards, time.time() - t0)
+            progress(computed, todo, time.time() - t0)
     if label_texts:
         write_label_vectors(root, ex, label_texts)
     meta = {"identity": ex.identity(), "docs_hash": dh, "extras_hash": eh, "n_docs": len(docs), "name": name,

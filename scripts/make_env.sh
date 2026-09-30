@@ -9,6 +9,7 @@ set -euo pipefail
 NAME=${1:?usage: make_env.sh gliner|gliner2|s1}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ENV="$ROOT/envs/$NAME"
+rm -f "$ENV/.complete"
 python3 -m venv --system-site-packages --without-pip "$ENV"
 PY="$ENV/bin/python"
 if [ -f "$ROOT/envs/$NAME.lock" ]; then
@@ -24,3 +25,4 @@ else
 fi
 "$PY" -m pip install -q --no-deps -e "$ROOT"
 "$PY" -c "import s1pii; print('env', '$NAME', 'ok')"
+touch "$ENV/.complete"      # written last: a venv without it is incomplete

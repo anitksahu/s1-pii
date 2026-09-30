@@ -34,8 +34,15 @@ def release(msg):
 
 
 low = 0
+T0 = time.time()
 while True:
     st, ph, u = read(V2 / "STATUS"), read(V2 / "PHASE"), gpu_util()
+    try:
+        fresh = (V2 / "STATUS").stat().st_mtime >= T0 - 5
+    except OSError:
+        fresh = False
+    if not fresh:                    # a STATUS left by an earlier attempt: the chain has not written yet
+        st = "STARTING"
     tail = read(LOG).splitlines()[-1:] if LOG.exists() else []
     print(time.strftime("%H:%M:%S"), st.split(" ")[0] or "-", ph or "-", f"gpu {u}%", (tail[0][:120] if tail else ""), flush=True)
     if st.startswith(("DONE", "FAILED", "STOPPED_CAP")):
