@@ -21,7 +21,7 @@ from ..adapters.run import run
 from .labels import c3_label_set
 
 
-CHUNK = 12
+CHUNK = 20
 
 
 class Chunked:

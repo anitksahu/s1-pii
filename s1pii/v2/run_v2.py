@@ -33,7 +33,7 @@ VARIANTS = ("all-sources", "no-nemotron")
 BENCH = {"all-sources": ["pii_trace", "tab_direct", "spy_legal", "spy_medical", "nemotron"],
          "no-nemotron": ["nemotron"]}
 # per-unit estimates (A100 hours); extraction units also project from their first shard and stop early
-EST_H = {"train_store": 0.5, "head": 0.1, "bench_store": 0.15, "pred": 0.02, "gliner_c3": 1.0, "level1": 2.0,
+EST_H = {"train_store": 0.5, "head": 0.1, "bench_store": 0.15, "pred": 0.02, "gliner_c3": 2.0, "level1": 2.0,
          "finetune": 1.2, "flat": 1.5}
 MIN_FREE_GB = 25.0
 
@@ -246,16 +246,23 @@ class Chain:
     def cheap(self):
         LB.load_heldout()
         res = {}
-        # GPU first: every store the pending cheap work needs (the CPU teacher finishes meanwhile)
+        # smoke first when the teacher is ready: one full model (stores, head, predictions) so a
+        # failure in zones, head or inference surfaces within the first hour
+        if self.teacher_ready("all-sources"):
+            res["all-sources-s1"] = self.build("cheap", "all-sources", 1)
+        # then every remaining store (GPU) while a still-running CPU teacher finishes; the teacher
+        # is checked after each store so its failure stops the chain early
         for v in VARIANTS:
             for sd in SEEDS:
                 key = f"cheap-{v}-s{sd}"
                 if not self.done(f"head-{key}"):
                     self.store("train", "cheap", v, sd)
+                    self.check_teacher()
                 for ds in BENCH[v]:
                     for split in ("calib", "test"):
                         if self.bench_pending("cheap", v, sd, ds, split):
                             self.store("bench", "cheap", v, sd, ds, split)
+                            self.check_teacher()
         for v in VARIANTS:
             for sd in SEEDS:
                 res[f"{v}-s{sd}"] = self.build("cheap", v, sd)
@@ -280,7 +287,14 @@ class Chain:
             docs = bench.split_paths("nemotron")[split]
             cmd = [str(venv / "bin" / "python"), "-m", "s1pii.v2.gliner_c3", "--system", "gliner25_base_zeroshot",
                    "--docs", str(docs), "--out", str(self.pred_dir)] + (["--names-only"] if names else [])
-            subprocess.run(cmd, check=True, env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[2])})
+            left = self.cap - self.used()
+            if left <= 0:
+                raise CapReached("GLiNER C3: cap reached")
+            try:           # the GLiNER runner is sharded and resumable: a timeout loses at most one shard
+                subprocess.run(cmd, check=True, timeout=left * 3600,
+                               env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[2])})
+            except subprocess.TimeoutExpired:
+                raise CapReached(f"GLiNER C3 {split}: stopped at the cap (resumable)")
         for split in ("test", "calib"):
             self.unit(f"gliner_c3-{split}-desc", "gliner_c3", lambda: run(split, False))
         self.unit("gliner_c3-test-names", "gliner_c3", lambda: run("test", True))
@@ -327,6 +341,29 @@ class Chain:
             return self._wait_teacher(variant, timeout)
         finally:
             self.meter(f"wait_teacher-{variant}", t0)
+
+    def teacher_ready(self, variant: str) -> bool:
+        p = self.teacher_path(variant)
+        if not p.exists():
+            return False
+        try:
+            json.loads(p.read_text()); return True
+        except ValueError:
+            return False
+
+    def check_teacher(self) -> None:
+        """Raise early if the background teacher failed or died without output."""
+        for v in VARIANTS:
+            f = self.teacher_path(v).with_suffix(".failed")
+            if f.exists():
+                raise RuntimeError(f"teacher failed:\n{f.read_text()[-2000:]}")
+        pidf = self.drive / "teacher.pid"
+        if pidf.exists() and not all(self.teacher_ready(v) for v in VARIANTS):
+            try:
+                os.kill(int(pidf.read_text().strip()), 0)
+            except (OSError, ValueError):
+                if not all(self.teacher_ready(v) for v in VARIANTS):
+                    raise RuntimeError("teacher process ended without writing valid outputs")
 
     def meter(self, name: str, t0: float) -> None:
         """Runtime spent outside units (waits, gates, sweeps) still counts against the cap."""
@@ -565,14 +602,6 @@ def main(argv=None) -> None:
             return
         if a.stage in ("cheap", "all"):
             ch.cheap()
-        if a.stage in ("gliner_c3", "all"):
-            try:
-                ch.gliner_c3(a.gliner_venv)
-            except (subprocess.CalledProcessError, RuntimeError, TimeoutError) as e:
-                if a.stage == "gliner_c3":
-                    raise
-                ch.log(f"[v2] GLiNER C3 stage failed, continuing with the headline stages: {e}")
-                ch.set_state(gliner_c3_failed=str(e)[-500:])
         if a.stage in ("ablations", "all"):
             ch.ablations()
         if a.stage == "gates":
@@ -581,6 +610,15 @@ def main(argv=None) -> None:
             ch.conditional()
         if a.stage in ("sweeps", "all"):
             ch.sweeps()
+        # the GLiNER comparator runs last, so its cost can never decide which stages run
+        if a.stage in ("gliner_c3", "all"):
+            try:
+                ch.gliner_c3(a.gliner_venv)
+            except (subprocess.CalledProcessError, RuntimeError, TimeoutError) as e:
+                if a.stage == "gliner_c3":
+                    raise
+                ch.log(f"[v2] GLiNER C3 stage failed: {e}")
+                ch.set_state(gliner_c3_failed=str(e)[-500:])
     except CapReached as e:
         print(f"[v2] STOPPED: {e}", flush=True)
         sys.exit(3)

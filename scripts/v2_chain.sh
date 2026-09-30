@@ -20,11 +20,11 @@ sha256sum -c docs/frozen_inputs.sha256 >> "$L/v2.log" 2>&1 || fail 13
 
 # gliner2 venv builds in the background (needed only at the GLiNER C3 stage, which waits for it)
 rm -f envs/gliner2.ready envs/gliner2.failed
-pkill -f "make_env.sh gliner2" 2>/dev/null || true
+pkill -f "make_env.sh gliner2" 2>/dev/null || true; pkill -f "envs/gliner2/bin/python -m pip" 2>/dev/null || true
 ( if [ -f envs/gliner2/.complete ] || bash scripts/make_env.sh gliner2 >> "$L/v2-env.log" 2>&1; then touch envs/gliner2.ready
   else touch envs/gliner2.failed; fi ) &
 # spaCy only if the teacher outputs are missing (normally computed earlier on a CPU runtime)
-if [ ! -f "$D/v2/teacher-all-sources.json" ] || [ ! -f "$D/v2/teacher-no-nemotron.json" ]; then
+if ! python -c "import json,sys; [json.load(open(f'$D/v2/teacher-{v}.json')) for v in ('all-sources','no-nemotron')]" 2>/dev/null; then
   python -c "import spacy" 2>/dev/null || pip install -q "spacy==3.8.*" >> "$L/v2.log" 2>&1 || fail 15
   python -c "import en_core_web_lg" 2>/dev/null || pip install -q \
     https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl \

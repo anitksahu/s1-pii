@@ -76,7 +76,8 @@ not a claim). v1 C0 is re-reported.
 **C3 (class flexibility).** Primary: the no-nemotron variant (never saw Nemotron text or labels), 3 seeds,
 on Nemotron test with L = every Nemotron raw label (name + description; names-only secondary). Strict typed
 micro and macro F1 on held-out labels at threshold 0.5 after non-overlapping decoding. Comparator: GLiNER2.5
-zero-shot with the same strings. Win rule: paired cluster bootstrap, Holm over micro and macro; C3 holds if
+zero-shot with the same strings, queried in fixed chunks of 20 labels (sorted order) with spans merged,
+because the 55-label prompt does not fit its context next to a text window (recorded in the config). Win rule: paired cluster bootstrap, Holm over micro and macro; C3 holds if
 both are significant wins. Secondary: threshold-free typing accuracy on gold held-out spans, and per-system
 thresholds tuned on Nemotron calibration using seen labels only (GLiNER2.5 is also run on calibration).
 All-sources is reported as secondary with the caveat that it was trained on Nemotron train (same generator
@@ -107,8 +108,10 @@ cheap vs B vs A where they ran.
 ## Budget
 Hard cap 32 A100-hours for all v2 GPU work, enforced per unit (`gpu_hours.jsonl`; a unit does not start if
 used + estimate > cap; the chain then stops and records why). Estimates: cheap path about 5 h (6 training
-stores 2.1, 6 heads 0.6, benchmark stores 2.6), GLiNER2.5 C3 about 2.3 h (test, test names-only, calibration), ablations 0.2, B about 11 h (6 level-1 runs plus re-extraction), A about 9 h,
-C about 3 h. Order: cheap, GLiNER C3, ablations, gates, B, A, C. If the cap stops a conditional stage, the
+stores 2.1, 6 heads 0.6, benchmark stores 2.6), GLiNER2.5 C3 about 6 h (3 label chunks; test, test names-only, calibration; last, bounded by the cap), ablations 0.2, B about 11 h (6 level-1 runs plus re-extraction), A about 9 h,
+C about 3 h. Order: cheap (one full model first as a smoke test when the teacher is ready),
+ablations, gates, B, A, C, sweeps, then the GLiNER C3 comparator bounded by the remaining cap, so a
+comparator's cost never decides which stages run. If the cap stops a conditional stage, the
 headline is the last completed stage and the stop is recorded in state.json and the ledger.
 
 ## Colab operation

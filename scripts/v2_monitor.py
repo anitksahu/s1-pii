@@ -43,6 +43,9 @@ while True:
         fresh = False
     if not fresh:                    # a STATUS left by an earlier attempt: the chain has not written yet
         st = "STARTING"
+        if time.time() - T0 > 600:
+            release("the chain never wrote STATUS within 10 minutes; releasing the runtime")
+            break
     tail = read(LOG).splitlines()[-1:] if LOG.exists() else []
     print(time.strftime("%H:%M:%S"), st.split(" ")[0] or "-", ph or "-", f"gpu {u}%", (tail[0][:120] if tail else ""), flush=True)
     if st.startswith(("DONE", "FAILED", "STOPPED_CAP")):
