@@ -84,7 +84,7 @@ def audit_path(dataset: str) -> Path:
 def run_audit(models_dir: Path, datasets: list[str] | None = None) -> dict:
     """``models_dir`` holds ``<variant>-s<seed>/final/s1_manifest.json``; seed 1 of each
     variant defines the training sources (all seeds share data by construction)."""
-    out, index = {}, {}
+    out, index, seed_hashes = {}, {}, {}
     for ds in datasets or HEADLINE:
         test_path = bench.split_paths(ds)["test"]
         if not test_path.exists():
@@ -92,14 +92,23 @@ def run_audit(models_dir: Path, datasets: list[str] | None = None) -> dict:
         v = variant_for(ds)
         if v not in index:
             man = json.loads((models_dir / f"{v}-s1" / "final" / "s1_manifest.json").read_text())
-            for sd in SEEDS[1:]:
+            hashes = {}
+            for sd in SEEDS:
                 mp = models_dir / f"{v}-s{sd}" / "final" / "s1_manifest.json"
-                if mp.exists() and json.loads(mp.read_text()).get("data") != man.get("data"):
-                    raise ValueError(f"{v}-s{sd} was trained on different data than {v}-s1")
+                if not mp.exists():
+                    continue
+                d = json.loads(mp.read_text()).get("data", {})
+                if d.get("source_counts") != man.get("data", {}).get("source_counts"):
+                    raise ValueError(f"{v}-s{sd} was trained on different sources than {v}-s1")
+                hashes[f"s{sd}"] = d.get("examples_hash")
+            # synth-v0.1 drew dates of birth relative to the run date, so runs started on a
+            # different UTC day have different DOB strings (same sources and counts): reported
+            seed_hashes[v] = hashes
             index[v] = AuditIndex(training_sources_from_manifest(man))
         test = read_jsonl(test_path)
         rep = index[v].query(test)
-        rep.update({"dataset": ds, "variant": v, "test_hash": dataset_hash(test)})
+        rep.update({"dataset": ds, "variant": v, "test_hash": dataset_hash(test),
+                    "training_examples_hash_per_seed": seed_hashes.get(v)})
         p = audit_path(ds); p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(rep, indent=2))
         out[ds] = {k: rep[k] for k in ("n_test", "n_flagged", "dropped_doc_frac", "dropped_cluster_frac")}

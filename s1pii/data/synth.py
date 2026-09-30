@@ -7,11 +7,12 @@ entity is inserted through ``Builder.pii`` so its offsets are exact by construct
 from __future__ import annotations
 
 import random
+from datetime import date as _date
 
 from ..schema import (Doc, Span, PERSON, ADDRESS, EMAIL, PHONE, URL, DATE, ACCOUNT_NUMBER,
                       SECRET, OTHER_PII, validate_doc)
 
-SYNTH_VERSION = "synth-v0.1"
+SYNTH_VERSION = "synth-v0.2"   # v0.2: dates of birth from a fixed range (v0.1 was relative to the run date)
 _DIG = "zero one two three four five six seven eight nine".split()
 
 
@@ -79,7 +80,7 @@ def conversation(i: int, fk, rng: random.Random) -> Doc:
         b.text(" and I tried ").pii(fk.password(length=10), SECRET).text(".\n")
         b.text("Agent: I see logins from ").pii(fk.ipv4(), OTHER_PII).text(".\n")
     elif kind == "dob":
-        dob = fk.date_of_birth().strftime(rng.choice(["%B %d, %Y", "%m/%d/%Y", "%d %b %Y"]))
+        dob = fk.date_between_dates(_date(1940, 1, 1), _date(2006, 12, 31)).strftime(rng.choice(["%B %d, %Y", "%m/%d/%Y", "%d %b %Y"]))
         b.text("Agent: To verify, what's your date of birth?\nUser: ").pii(dob, DATE).text("\n")
         b.text("Agent: Thank you, ").pii(first, PERSON).text(".\n")
     return b.doc(f"synth:{kind}:{'asr' if asr else 'chat'}")
