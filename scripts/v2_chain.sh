@@ -18,11 +18,17 @@ git ls-files --error-unmatch s1pii/configs/heldout_labels.yaml >/dev/null 2>&1 |
 [ -z "$(git status --porcelain -- s1pii docs scripts)" ] || { git status --porcelain >> "$L/v2.log"; fail 12; }
 sha256sum -c docs/frozen_inputs.sha256 >> "$L/v2.log" 2>&1 || fail 13
 
-[ -x envs/gliner2/bin/python ] || bash scripts/make_env.sh gliner2 >> "$L/v2.log" 2>&1 || fail 14
-python -c "import spacy" 2>/dev/null || pip install -q "spacy==3.8.*" >> "$L/v2.log" 2>&1 || fail 15
-python -c "import en_core_web_lg" 2>/dev/null || pip install -q \
-  https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl \
-  >> "$L/v2.log" 2>&1 || fail 16
+# gliner2 venv builds in the background (needed only at the GLiNER C3 stage, which waits for it)
+rm -f envs/gliner2.ready envs/gliner2.failed
+( if [ -x envs/gliner2/bin/python ] || bash scripts/make_env.sh gliner2 >> "$L/v2-env.log" 2>&1; then touch envs/gliner2.ready
+  else touch envs/gliner2.failed; fi ) &
+# spaCy only if the teacher outputs are missing (normally computed earlier on a CPU runtime)
+if [ ! -f "$D/v2/teacher-all-sources.json" ] || [ ! -f "$D/v2/teacher-no-nemotron.json" ]; then
+  python -c "import spacy" 2>/dev/null || pip install -q "spacy==3.8.*" >> "$L/v2.log" 2>&1 || fail 15
+  python -c "import en_core_web_lg" 2>/dev/null || pip install -q \
+    https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl \
+    >> "$L/v2.log" 2>&1 || fail 16
+fi
 
 # spaCy teacher on CPU in the background (only sources that do not annotate a family; never Nemotron);
 # the GPU starts on feature extraction meanwhile and head training waits for the teacher file

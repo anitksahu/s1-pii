@@ -241,6 +241,18 @@ class Chain:
         return res
 
     def gliner_c3(self, venv: Path):
+        # the chain script builds the venv in the background: wait for its ready/failed marker
+        ready, failed = venv.parent / f"{venv.name}.ready", venv.parent / f"{venv.name}.failed"
+        building = not ready.exists() and not failed.exists() and not (venv / "bin" / "python").exists()
+        t0 = time.time()
+        while not ready.exists() and (building or not (venv / "bin" / "python").exists()):
+            if failed.exists():
+                raise RuntimeError("gliner2 venv build failed (see results/logs/v2-env.log)")
+            if time.time() - t0 > 1800:
+                raise TimeoutError("gliner2 venv not ready after 30 min")
+            self.phase("CPU")
+            time.sleep(10)
+            building = not ready.exists() and not failed.exists()
         def run(split: str, names: bool):
             docs = bench.split_paths("nemotron")[split]
             cmd = [str(venv / "bin" / "python"), "-m", "s1pii.v2.gliner_c3", "--system", "gliner25_base_zeroshot",

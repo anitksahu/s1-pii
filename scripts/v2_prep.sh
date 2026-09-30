@@ -12,6 +12,10 @@ git diff --quiet -- s1pii/configs/benchmark_labels || { echo "benchmark label se
 D=/content/drive/MyDrive/s1pii; mkdir -p "$D/v2"
 if [ ! -f s1pii/configs/heldout_labels.yaml ]; then
   if [ -f "$D/v2/heldout_labels.yaml" ]; then cp "$D/v2/heldout_labels.yaml" s1pii/configs/heldout_labels.yaml   # selected earlier: frozen
+    # manual review (veto only; the next label in the stored ranking replaces it)
+    grep -q "veto: url" s1pii/configs/heldout_labels.yaml || python -m s1pii.v2.labels veto s1pii/configs/heldout_labels.yaml \
+      --veto "url=core PII type in every benchmark and in the canonical label set the baselines received; holding it out would remove URL typing from C0'"
+    cp s1pii/configs/heldout_labels.yaml "$D/v2/heldout_labels.yaml"
   else python -m s1pii.v2.labels heldout && cp s1pii/configs/heldout_labels.yaml "$D/v2/heldout_labels.yaml"; fi
 fi
 sha256sum s1pii/configs/heldout_labels.yaml s1pii/configs/benchmark_labels/*.yaml s1pii/v2/labels.py > docs/frozen_inputs.sha256

@@ -385,17 +385,43 @@ def select_heldout(span_counts: dict[str, int], embed, *, k: int = 10, min_spans
             "ranking": log}
 
 
+def apply_vetoes(h: dict, vetoes: dict[str, str], k: int = 10) -> dict:
+    """Re-apply the frozen rule to a stored selection with manual vetoes: walk the stored
+    ranking in order, skip vetoed labels (reason logged), take the first ``k`` eligible."""
+    ranking = [dict(r) for r in h["ranking"]]
+    chosen = []
+    for r in ranking:
+        r.pop("chosen", None)
+        if r["label"] in vetoes and "skipped" not in r:
+            r["skipped"] = f"veto: {vetoes[r['label']]}"
+        if "skipped" not in r and len(chosen) < k:
+            chosen.append(r["label"]); r["chosen"] = True
+    nodes = sorted({node_of(r) for r in chosen})
+    return {**h, "labels": chosen, "nodes": nodes, "synonyms_all_sources": sorted(x for x in NATIVE if node_of(x) in nodes),
+            "vetoes": {**h.get("vetoes", {}), **vetoes}, "ranking": ranking}
+
+
 def main(argv=None) -> None:
     import argparse
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("freeze")
+    v = sub.add_parser("veto")
+    v.add_argument("path", type=Path)
+    v.add_argument("--veto", action="append", required=True, help="label=reason")
     h = sub.add_parser("heldout")
     h.add_argument("--encoder", default="sentence-transformers/all-MiniLM-L6-v2")
     h.add_argument("--veto", action="append", default=[], help="label=reason")
     a = ap.parse_args(argv)
     if a.cmd == "freeze":
         print(json.dumps(write_benchmark_label_sets(), indent=2))
+        return
+    if a.cmd == "veto":
+        import yaml
+        h = yaml.safe_load(a.path.read_text())
+        out = apply_vetoes(h, dict(x.split("=", 1) for x in a.veto))
+        a.path.write_text(yaml.safe_dump(out, sort_keys=False))
+        print(json.dumps({"labels": out["labels"], "vetoes": out["vetoes"]}, indent=2))
         return
     import yaml
     import torch
