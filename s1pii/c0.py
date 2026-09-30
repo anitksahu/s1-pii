@@ -128,12 +128,13 @@ def audited_test_docs(dataset: str) -> list[Doc]:
 
 # ------------------------------------------------------------------ prediction files
 
-def prediction_index(pred_dir: Path | None = None) -> dict[tuple[str, str], Path]:
+def prediction_index(pred_dir: Path | list[Path] | None = None) -> dict[tuple[str, str], Path]:
     """(system, resolved docs_path) -> the single merged prediction file. Raises if a key has
     more than one file (stale predictions from an older environment): delete or archive the
-    stale ones explicitly."""
+    stale ones explicitly. ``pred_dir`` may be a list of directories (v2 + v1 baselines)."""
     groups: dict[tuple[str, str], list[Path]] = {}
-    for p in sorted((pred_dir or ledger.RESULTS / "predictions").glob("*.jsonl")):
+    dirs = pred_dir if isinstance(pred_dir, list) else [pred_dir or ledger.RESULTS / "predictions"]
+    for p in sorted(q for d in dirs for q in d.glob("*.jsonl")):
         with open(p, encoding="utf-8") as f:
             meta = json.loads(f.readline()).get("_meta", {})
         if meta.get("system") and meta.get("docs_path"):
@@ -215,9 +216,16 @@ def _check_s1_meta(meta: dict, variant: str, seed: int, propagation: bool) -> li
     return errs
 
 
-def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False, pred_dir: Path | None = None) -> dict:
+def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False, pred_dir: Path | list[Path] | None = None,
+           system_fn=None, meta_check=None, kind: str = "c0") -> dict:
+    """``system_fn(variant, seed)`` names the S1 system (default v1); ``meta_check(meta,
+    variant, seed, dataset)`` returns problems for an S1 prediction file (default: the v1
+    headline config and the C2 decision)."""
+    system_fn = system_fn or s1_system
     problems: list[str] = []
-    if not c2_path().exists():
+    if meta_check is not None:
+        propagation = None
+    elif not c2_path().exists():
         problems.append("C2 decision missing (run `python -m s1pii.c0 c2` on PII-TRACE calibration)")
         propagation = None
     else:
@@ -239,11 +247,13 @@ def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False,
         v = variant_for(ds)
         s1 = []
         for sd in SEEDS:
-            key = (s1_system(v, sd), tp)
+            key = (system_fn(v, sd), tp)
             if key not in idx:
                 problems.append(f"{ds}: missing {key[0]}"); continue
             meta, preds = _load_checked(idx[key], all_docs, keep)
-            if propagation is not None:
+            if meta_check is not None:
+                problems += [f"{ds}/{key[0]}: {e}" for e in meta_check(meta, v, sd, ds)]
+            elif propagation is not None:
                 problems += [f"{ds}/{key[0]}: {e}" for e in _check_s1_meta(meta, v, sd, propagation)]
             s1.append(preds)
         for b in BASELINES:
@@ -268,7 +278,7 @@ def decide(n_boot: int = 10_000, seed: int = 0, fresh_real_absent: bool = False,
         decision["c0_holds"] = None
     out = {"sets": sets, "fresh_real_absent": fresh_real_absent, "expected_family": expected,
            "problems": problems, "comparisons": results, "decision": decision}
-    append({"kind": "c0", **out}, headline=not problems)
+    append({"kind": kind, **out}, headline=not problems)
     return out
 
 

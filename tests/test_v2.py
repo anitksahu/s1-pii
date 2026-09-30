@@ -1,0 +1,221 @@
+"""CPU tests for v2 (labels at inference, hierarchy, abstention) with a tiny BERT."""
+import json
+
+import numpy as np
+import pytest
+
+torch = pytest.importorskip("torch")
+pytest.importorskip("transformers")
+
+from s1pii.schema import Doc, Span, write_jsonl, PERSON, EMAIL
+from s1pii.data.synth import generate
+from s1pii.model.encode import train_examples
+from s1pii.model.train import TrainConfig, train
+from s1pii.v2 import labels as LB
+from s1pii.v2.features import (FeatureConfig, extract, training_extras, load_store, select_training_docs,
+                               KIND_EXTRA, Extractor)
+from s1pii.v2.head import HeadConfig, train_head, load_head
+from s1pii.v2 import infer
+from tests.test_model import tok, tiny_model  # noqa: F401  (fixture)
+
+
+@pytest.fixture(scope="module")
+def v1_dir(tok, tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("v1")
+    docs = generate(80, seed=13)
+    ex = train_examples(docs, tok, max_len=128)
+    cfg = TrainConfig(backbone="tiny", seed=0, token_budget=4096, grad_accum=1, lr_encoder=5e-3, lr_head=5e-2,
+                      ckpt_every=1000, log_every=50, gradient_checkpointing=False, bf16=False)
+    return train(cfg, tmp / "run", model=tiny_model(tok), tokenizer=tok, examples=ex, max_steps=40, device="cpu",
+                 resume=False)
+
+
+@pytest.fixture(scope="module")
+def heldout(tmp_path_factory):
+    # hold out the synthetic "url" family for the tests
+    return {"labels": ["url"], "nodes": ["url"], "synonyms_all_sources": sorted(x for x in LB.NATIVE if LB.node_of(x) == "url")}
+
+
+FC = FeatureConfig(max_len=128, validators=False)
+
+
+@pytest.fixture(scope="module")
+def trained(v1_dir, heldout, tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("v2")
+    docs = generate(120, seed=21)
+    ex = training_extras(docs, seed=0, heldout_nodes=set(heldout["nodes"]))
+    store = extract(v1_dir, docs, tmp / "stores", name="train", extras=ex, label_texts=LB.all_texts(),
+                    cfg=FeatureConfig(max_len=128, validators=False, store_min_pb=0.05))
+    head = train_head(store, tmp / "head", set(heldout["nodes"]), HeadConfig(epochs=30, batch=128, dim=64), device="cpu",
+                      log=lambda *_: None)
+    return tmp, store, head, docs
+
+
+def test_label_hierarchy_and_sets():
+    assert LB.compatible("ssn", "unique_id") and not LB.compatible("ssn", "employee_id")
+    assert LB.compatible("first_name", "name") and not LB.compatible("first_name", "last_name")
+    assert LB.canonical_of("iban") == "ACCOUNT_NUMBER" and LB.canonical_of("my_custom_thing") == "OTHER_PII"
+    ls = LB.benchmark_label_set("pii_trace")
+    assert {l.name for l in ls.labels} >= {"private_person", "secret"} and all(l.sensitive for l in ls.labels)
+    adhoc = LB.LabelSet.from_names(["employee_id", "badge number: staff badge code"])
+    assert adhoc.labels[1].description == "staff badge code" and adhoc.hash() != ls.hash()
+
+
+def test_select_heldout_rule_is_deterministic_and_vetoable():
+    rng = np.random.default_rng(0)
+    cache = {}
+    def embed(xs):
+        return np.stack([cache.setdefault(x, rng.normal(size=16)) for x in xs])
+    counts = {r.lower(): 100 for r in LB.tx.NEMOTRON}
+    a = LB.select_heldout(counts, embed, k=3)
+    b = LB.select_heldout(counts, embed, k=3)
+    assert a["labels"] == b["labels"] and len(a["labels"]) == 3
+    v = LB.select_heldout(counts, embed, k=3, vetoes={a["labels"][0]: "test"})
+    assert a["labels"][0] not in v["labels"]
+
+
+def test_store_candidates_and_pb_exact(v1_dir, tmp_path):
+    docs = generate(5, seed=3)
+    store = extract(v1_dir, docs, tmp_path, name="t", cfg=FC, label_texts=["email"])
+    z = load_store(store)
+    assert len(z["doc_ids"]) == 5 and z["offsets"][-1] == len(z["pb"])
+    assert (z["pb"] >= FC.floor - 1e-9).all() and (z["pb"] <= 1.0 + 1e-6).all()
+    assert z["rep"].shape[1] == 3 * 32 and z["rep"].dtype == np.float16
+    # P_b equals the sum over types of the v1 span marginals
+    assert np.allclose(z["pb"], np.minimum(1.0, z["v1"].sum(1)), atol=1e-5)
+    again = extract(v1_dir, docs, tmp_path, name="t", cfg=FC, label_texts=["email"])
+    assert again == store                                      # cached by identity
+
+
+def test_head_trains_and_types_seen_labels(trained, heldout):
+    tmp, store, head, docs = trained
+    man = json.loads((head / "head_manifest.json").read_text())
+    assert "url" not in man["vocab"] and man["items"]["gold"] > 0 and man["items"]["hard_neg"] >= 0
+    assert man["val"]["desc"]["typing_acc"] is not None
+
+
+def test_decisions_formula_and_spans(trained, v1_dir, tmp_path):
+    tmp, store, head, docs = trained
+    test = generate(8, seed=77)
+    st = extract(v1_dir, test, tmp_path, name="bench", cfg=FC, label_texts=LB.all_texts())
+    L = LB.LabelSet("t", [LB.native_label("person"), LB.native_label("email"), LB.native_label("city", sensitive=False)])
+    D = infer.decide(st, head, L)
+    assert np.allclose(D.probs.sum(1), 1.0, atol=1e-5)
+    manual = D.pb * D.probs[:, :2].sum(1)                          # city is not sensitive
+    assert np.allclose(D.p_sens, manual)
+    preds = infer.to_spans(D, L, "s", {d.doc_id: d.text for d in test})
+    for d in test:
+        for s in preds[d.doc_id]:
+            assert d.text[s.start:s.end] == s.surface and s.score >= infer.FLOOR
+            assert s.label_raw in {"person", "email", "city"}
+    # hierarchical decision backs off to the parent when mass is split between siblings
+    L2 = LB.LabelSet("h", [LB.native_label("first_name"), LB.native_label("last_name")])
+    assert infer.hier_decide(np.array([0.45, 0.45, 0.10]), L2, 0.5) == "person_name"
+    assert infer.hier_decide(np.array([0.8, 0.1, 0.1]), L2, 0.5) == "first_name"
+
+
+def test_write_predictions_roundtrip(trained, v1_dir, tmp_path):
+    tmp, store, head, _ = trained
+    test = generate(6, seed=78)
+    p = tmp_path / "docs.jsonl"
+    write_jsonl(test, p)
+    st = extract(v1_dir, test, tmp_path / "s", name="b", cfg=FC, label_texts=LB.all_texts())
+    L = LB.benchmark_label_set("pii_trace")
+    path = infer.write(st, head, L, p, tmp_path / "pred", "s1v2-cheap_all-sources-s1")
+    from s1pii.ledger import read_predictions
+    meta, preds = read_predictions(path)
+    assert meta["config"]["labels_hash"] == L.hash() and set(preds) == {d.doc_id for d in test}
+    typed = infer.write(st, head, LB.c3_label_set(), p, tmp_path / "pred", "c3", score="typed")
+    assert read_predictions(typed)[0]["config"]["score"] == "typed"
+
+
+def test_c4_band_and_selective_counts():
+    from s1pii.v2.evaluate import selective_hist, sel_leak, sel_over
+    from s1pii.eval import metrics as M
+    d = Doc("d1", "Alice Smith paid 42", (Span("d1", 0, 11, PERSON),), cluster_id="c1")
+    preds = {"d1": [Span("d1", 0, 5, PERSON, score=0.9), Span("d1", 6, 11, PERSON, score=0.3),
+                    Span("d1", 17, 19, PERSON, score=0.95)]}
+    vs = [M.view(d, preds["d1"])]
+    lo, hi = 1 + M.k_of(0.2), 1 + M.k_of(0.5)
+    hp, hn = selective_hist(vs, lo, hi, ["c1"])
+    # "Smith" (0.3) is deferred; "Alice" masked; "42" (non-PII) masked -> over-redacted
+    assert hp[0].tolist() == [5, 0, 10] and hn[0].tolist() == [6, 2, 6]
+    assert sel_leak(hp.sum(0), hn.sum(0)) == 0 and sel_over(hp.sum(0), hn.sum(0)) == pytest.approx(2 / 6)
+
+
+def test_c3_typed_prf_and_bootstrap():
+    from s1pii.v2.evaluate import typed_prf, _f1_bootstrap
+    docs = [Doc(f"d{i}", "mac 00:11:22 here", (Span(f"d{i}", 4, 12, "OTHER_PII", label_raw="mac_address"),),
+                cluster_id=f"c{i}") for i in range(6)]
+    good = {d.doc_id: [Span(d.doc_id, 4, 12, "OTHER_PII", label_raw="mac_address", score=0.9)] for d in docs}
+    bad = {d.doc_id: [Span(d.doc_id, 4, 12, "OTHER_PII", label_raw="ipv4", score=0.9)] for d in docs}
+    assert typed_prf(docs, good, {"mac_address"}, 0.5)["micro_f1"] == 1.0
+    assert typed_prf(docs, bad, {"mac_address"}, 0.5)["micro_f1"] == 0.0
+    r = _f1_bootstrap(docs, [good, good, good], bad, ["mac_address"], 0.5, "macro", 200, 0)
+    assert r["diff"] == pytest.approx(1.0) and r["p_value"] < 0.05
+
+
+def test_level1_targets_any_for_heldout_and_teacher(tok):
+    from s1pii.v2.level1 import l1_target, any_mask_spans, source_inventory
+    from s1pii.model.encode import ANY
+    d = Doc("x", "Bob lives in Paris near www.a.com", (Span("x", 0, 3, PERSON, label_raw="person"),
+                                                     Span("x", 24, 33, "URL", label_raw="url")))
+    inv = source_inventory([d], {"x": "synthetic_conv"})
+    anys = any_mask_spans(d, [(13, 18, "GPE")], inv["synthetic_conv"])
+    assert anys == [(13, 18)]
+    ids, target, _ = l1_target(d, tok, {"url"}, anys)
+    enc = tok(d.text, add_special_tokens=False, return_offsets_mapping=True)
+    offs = enc["offset_mapping"]
+    for k, (a, b) in enumerate(offs):
+        if a >= 24:
+            assert target[k] == ANY                 # held-out: unknown at level 1
+        if 13 <= a < 18:
+            assert target[k] == ANY                 # teacher family not annotated by the source
+        if a == 0:
+            assert target[k] in (1, 4)              # B or S of the single entity type
+
+
+def test_level1_trains_nt1_and_extracts(v1_dir, tok, tmp_path):
+    from s1pii.v2.level1 import train_level1
+    docs = generate(30, seed=4)
+    out = train_level1(v1_dir, docs, {d.doc_id: "synthetic_conv" for d in docs}, tmp_path / "l1", {"url"}, seed=1,
+                       teacher={}, max_steps=3, max_len=128, device="cpu", gradient_checkpointing=False, bf16=False,
+                       token_budget=4096, grad_accum=1)
+    ex = Extractor(out, FC, "cpu")
+    assert ex.crf.nt == 1
+    f = ex.doc_features(generate(2, seed=9)[0])
+    assert f["v1"].shape[1] == 1
+
+
+def test_finetune_and_typing_encoder_extraction(trained, v1_dir, tmp_path, heldout):
+    from s1pii.v2.finetune import finetune, FinetuneConfig
+    tmp, store, head, docs = trained
+    out = finetune(v1_dir, store, head, docs, tmp_path / "ft", set(heldout["nodes"]),
+                   FinetuneConfig(n_layers=1, context=64, batch=16, max_steps=2), device="cpu", log=lambda *_: None)
+    ex = Extractor(v1_dir, FC, "cpu", typing_encoder=out)
+    assert ex.identity()["typing_encoder"]
+    f = ex.doc_features(generate(2, seed=9)[1])
+    assert f["rep"].shape[1] == 96
+    h, man = load_head(out / "head")
+    assert man["finetuned"]
+
+
+def test_flat_ablation_trains_and_predicts(v1_dir, tmp_path):
+    from s1pii.v2.flat import train_flat, predict_flat
+    docs = generate(40, seed=6)
+    out = train_flat(v1_dir, docs, tmp_path / "flat", {"url"}, steps=3, batch=4, max_len=64, device="cpu", log=lambda *_: None)
+    L = LB.LabelSet("t", [LB.native_label("person"), LB.native_label("email")])
+    preds = predict_flat(v1_dir, out, generate(3, seed=5), L, system="flat", max_len=128, device="cpu")
+    for sp in (s for v in preds.values() for s in v):
+        assert 0.01 <= sp.score <= 1.0 and sp.label_raw in {"person", "email"}
+
+
+def test_batched_extraction_equals_one_doc_at_a_time(v1_dir):
+    docs = generate(7, seed=31)
+    a = Extractor(v1_dir, FeatureConfig(max_len=128, validators=True, batch_size=32), "cpu").docs_features(docs)
+    ex1 = Extractor(v1_dir, FeatureConfig(max_len=128, validators=True, batch_size=1), "cpu")
+    b = [ex1.doc_features(d) for d in docs]
+    for x, y in zip(a, b):
+        kx = sorted(zip(x["start"], x["end"], np.round(x["pb"], 5)))
+        ky = sorted(zip(y["start"], y["end"], np.round(y["pb"], 5)))
+        assert kx == ky

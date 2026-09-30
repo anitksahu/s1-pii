@@ -38,10 +38,11 @@ def tag_kind(k: int) -> tuple[str, int]:
     return "BIES"[(k - 1) % 4], (k - 1) // 4
 
 
-def constraint_masks() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """(allowed_trans (K,K) prev->cur, allowed_start (K,), allowed_end (K,)) as bool."""
+def constraint_masks(nt: int = NT) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """(allowed_trans (K,K) prev->cur, allowed_start (K,), allowed_end (K,)) as bool, K = 1 + 4 nt."""
+    K = 1 + 4 * nt
     tr = torch.zeros(K, K, dtype=torch.bool)
-    begin_like = [0] + [tag("B", t) for t in range(NT)] + [tag("S", t) for t in range(NT)]
+    begin_like = [0] + [tag("B", t) for t in range(nt)] + [tag("S", t) for t in range(nt)]
     for prev in range(K):
         kp, tp = tag_kind(prev)
         if kp in ("O", "E", "S"):
@@ -53,17 +54,21 @@ def constraint_masks() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     start = torch.zeros(K, dtype=torch.bool)
     start[begin_like] = True
     end = torch.zeros(K, dtype=torch.bool)
-    end[[0] + [tag("E", t) for t in range(NT)] + [tag("S", t) for t in range(NT)]] = True
+    end[[0] + [tag("E", t) for t in range(nt)] + [tag("S", t) for t in range(nt)]] = True
     return tr, start, end
 
 
 class CRF(nn.Module):
-    def __init__(self):
+    """``nt`` entity types (default: the 9 canonical types; v2 level 1 uses nt = 1)."""
+
+    def __init__(self, nt: int = NT):
         super().__init__()
+        self.nt, self.k = nt, 1 + 4 * nt
+        K = self.k
         self.trans = nn.Parameter(torch.zeros(K, K))
         self.start = nn.Parameter(torch.zeros(K))
         self.end = nn.Parameter(torch.zeros(K))
-        tr, st, en = constraint_masks()
+        tr, st, en = constraint_masks(nt)
         self.register_buffer("tr_mask", tr, persistent=False)
         self.register_buffer("st_mask", st, persistent=False)
         self.register_buffer("en_mask", en, persistent=False)
@@ -74,8 +79,8 @@ class CRF(nn.Module):
         S = torch.where(self.st_mask, self.start, torch.full_like(self.start, NEG))
         E = torch.where(self.en_mask, self.end, torch.full_like(self.end, NEG))
         if self.o_exit_bias:
-            ent = torch.zeros(K, dtype=torch.bool, device=T.device)
-            ent[[tag("B", t) for t in range(NT)] + [tag("S", t) for t in range(NT)]] = True
+            ent = torch.zeros(self.k, dtype=torch.bool, device=T.device)
+            ent[[tag("B", t) for t in range(self.nt)] + [tag("S", t) for t in range(self.nt)]] = True
             T = T.clone(); S = S.clone()
             T[0, ent] += self.o_exit_bias
             S[ent] += self.o_exit_bias
@@ -99,6 +104,7 @@ class CRF(nn.Module):
         T, S, E = self.potentials()
         B, L, _ = em.shape
         betas = [None] * L
+        K = self.k
         betas[L - 1] = E.expand(B, K)
         for t in range(L - 2, -1, -1):
             nxt = torch.logsumexp(T.unsqueeze(0) + (em[:, t + 1] + betas[t + 1]).unsqueeze(1), dim=2)
@@ -132,7 +138,7 @@ class CRF(nn.Module):
             nxt = best + em[:, t]
             m = mask[:, t:t + 1]
             score = torch.where(m, nxt, score)
-            back.append(torch.where(m, idx, torch.arange(K, device=em.device).expand(B, K)))
+            back.append(torch.where(m, idx, torch.arange(self.k, device=em.device).expand(B, self.k)))
         lengths = mask.long().sum(1).tolist()
         out = []
         for b in range(B):
@@ -154,7 +160,7 @@ def span_logprobs(crf: CRF, em: np.ndarray, alpha: np.ndarray, beta: np.ndarray,
     T, _, _ = (x.detach().double().cpu().numpy() for x in crf.potentials())
     lf = np.log(floor)
     out = []
-    for t in range(NT):
+    for t in range(crf.nt):
         b, i_, e, s = tag("B", t), tag("I", t), tag("E", t), tag("S", t)
         ps = alpha[:n, s] + beta[:n, s] - logz
         for i in np.nonzero(ps >= lf)[0]:

@@ -5,17 +5,17 @@ import numpy as np
 import torch
 from torch import nn
 
-from .crf import CRF, K
+from .crf import CRF, K, NT
 from .encode import Example, allowed_matrix
 
 
 class S1Model(nn.Module):
-    def __init__(self, encoder: nn.Module, hidden: int, dropout: float = 0.1):
+    def __init__(self, encoder: nn.Module, hidden: int, dropout: float = 0.1, num_types: int = NT):
         super().__init__()
         self.encoder = encoder
         self.dropout = nn.Dropout(dropout)
-        self.head = nn.Linear(hidden, K)
-        self.crf = CRF()
+        self.head = nn.Linear(hidden, 1 + 4 * num_types)
+        self.crf = CRF(num_types)
 
     @classmethod
     def from_pretrained_encoder(cls, name_or_path: str, revision: str | None = None, dropout: float = 0.1,
@@ -29,10 +29,15 @@ class S1Model(nn.Module):
             enc.gradient_checkpointing_enable()
         return cls(enc, enc.config.hidden_size, dropout)
 
-    def emissions(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
-        h = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+    def hidden(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        return self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+
+    def emissions_from_hidden(self, h: torch.Tensor) -> torch.Tensor:
         with torch.autocast(device_type=h.device.type, enabled=False):   # head and CRF in fp32
             return self.head(self.dropout(h.float()))
+
+    def emissions(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        return self.emissions_from_hidden(self.hidden(input_ids, attention_mask))
 
     def forward(self, batch: dict) -> torch.Tensor:
         em = self.emissions(batch["input_ids"], batch["attention_mask"])
@@ -48,20 +53,20 @@ def gather_tokens(em: torch.Tensor, n_prefix: torch.Tensor, L: int) -> torch.Ten
     return em.gather(1, idx.unsqueeze(-1).expand(B, L, em.shape[-1]))
 
 
-def collate(examples: list[Example], pad_id: int, with_targets: bool = True) -> dict:
+def collate(examples: list[Example], pad_id: int, with_targets: bool = True, k: int = K) -> dict:
     B = len(examples)
     Lin = max(len(e.input_ids) for e in examples)
     Lt = max(e.n_tok for e in examples)
     ids = torch.full((B, Lin), pad_id, dtype=torch.long)
     att = torch.zeros((B, Lin), dtype=torch.long)
     tok_mask = torch.zeros((B, Lt), dtype=torch.bool)
-    allowed = torch.ones((B, Lt, K), dtype=torch.bool)
+    allowed = torch.ones((B, Lt, k), dtype=torch.bool)
     for i, e in enumerate(examples):
         ids[i, :len(e.input_ids)] = torch.as_tensor(np.asarray(e.input_ids, dtype=np.int64))
         att[i, :len(e.input_ids)] = 1
         tok_mask[i, :e.n_tok] = True
         if with_targets:
-            allowed[i, :e.n_tok] = torch.from_numpy(allowed_matrix(e.target))
+            allowed[i, :e.n_tok] = torch.from_numpy(allowed_matrix(e.target, k))
     return {"input_ids": ids, "attention_mask": att, "tok_mask": tok_mask, "allowed": allowed,
             "n_prefix": torch.tensor([e.n_prefix for e in examples]),
             "tok_len": torch.tensor([e.n_tok for e in examples])}

@@ -42,7 +42,7 @@ def dev_slice(train: list[Doc]) -> tuple[list[Doc], list[Doc]]:
     return [d for d in train if in_dev_slice(_group(d))], [d for d in train if not in_dev_slice(_group(d))]
 
 
-NEMOTRON_TEST_DOCS = 10_000   # deviation from prereg v0 (full 100k test): see docs/DEVIATIONS.md
+NEMOTRON_TEST_DOCS = 10_000   # fixed 10k-doc cluster sample of the 100k test split
 
 
 def cluster_sample(docs: list[Doc], target: int, salt: str) -> list[Doc]:

@@ -321,7 +321,7 @@ def train(cfg: TrainConfig, out: Path, *, mirror: Path | None = None, resume: bo
         opt.zero_grad(set_to_none=True)
         loss_acc = 0.0
         for _ in range(cfg.grad_accum):
-            batch = collate([examples[i] for i in sampler.next()], pad)
+            batch = collate([examples[i] for i in sampler.next()], pad, k=model.crf.k)
             batch = {k: v.to(device) for k, v in batch.items()}
             ctx = torch.autocast("cuda", dtype=torch.bfloat16) if use_bf16 else torch.autocast("cpu", enabled=False)
             with ctx:
@@ -362,6 +362,7 @@ def export(model: S1Model, tokenizer, cfg: TrainConfig, path: Path, data_manifes
     if hasattr(model.encoder, "config"):
         model.encoder.config.save_pretrained(path / "encoder_config")
     manifest = {"train_version": TRAIN_VERSION, "config": asdict(cfg), "steps": step, "code_sha": git_sha(),
+                "num_types": model.crf.nt,
                 "data": data_manifest, "weights_sha256": weights_sha256(path), "torch": torch.__version__}
     (path / "s1_manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     shutil.rmtree(final_path, ignore_errors=True)
@@ -376,7 +377,9 @@ def load_exported(path: str | Path, device: str | None = None):
     path = Path(path)
     manifest = json.loads((path / "s1_manifest.json").read_text())
     enc = AutoModel.from_config(AutoConfig.from_pretrained(path / "encoder_config"))
-    model = S1Model(enc, enc.config.hidden_size, manifest["config"].get("dropout", 0.1))
+    from .crf import NT
+    model = S1Model(enc, enc.config.hidden_size, manifest["config"].get("dropout", 0.1),
+                    num_types=manifest.get("num_types", NT))
     res = model.load_state_dict(load_file(str(path / "model.safetensors")), strict=False)
     bad_missing = [k for k in res.missing_keys if ".pooler." not in k]   # unused pooler heads only
     if bad_missing or res.unexpected_keys:

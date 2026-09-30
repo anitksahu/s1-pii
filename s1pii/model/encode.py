@@ -88,8 +88,8 @@ def window_target(td: TokDoc, a: int, b: int) -> np.ndarray:
     return t
 
 
-def allowed_matrix(target: np.ndarray) -> np.ndarray:
-    m = np.zeros((len(target), K), dtype=bool)
+def allowed_matrix(target: np.ndarray, k: int = K) -> np.ndarray:
+    m = np.zeros((len(target), k), dtype=bool)
     known = target >= 0
     m[np.nonzero(known)[0], target[known]] = True
     m[~known] = True
@@ -114,11 +114,12 @@ class Example:
     tok_start: int                # window start in doc tokens
 
 
-def target_is_valid(target: np.ndarray) -> bool:
+def target_is_valid(target: np.ndarray, nt: int | None = None) -> bool:
     """True iff some valid BIOES path agrees with every known tag (ANY is a wildcard)."""
-    from .crf import constraint_masks
-    tr, st, en = (m.numpy() for m in constraint_masks())
-    allowed = allowed_matrix(target)
+    from .crf import constraint_masks, NT
+    nt = nt or NT
+    tr, st, en = (m.numpy() for m in constraint_masks(nt))
+    allowed = allowed_matrix(target, 1 + 4 * nt)
     reach = st & allowed[0]
     for i in range(1, len(target)):
         reach = (reach[:, None] & tr).any(0) & allowed[i]

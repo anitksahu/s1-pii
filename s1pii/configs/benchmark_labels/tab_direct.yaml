@@ -1,0 +1,43 @@
+name: tab_direct
+descriptions: true
+labels:
+- name: code
+  description: code or number identifying a person, case or record
+  sensitive: true
+  canonical: OTHER_PII
+  node: ''
+- name: datetime
+  description: date or time expression
+  sensitive: true
+  canonical: DATE
+  node: ''
+- name: dem
+  description: demographic attribute such as nationality, age or profession
+  sensitive: true
+  canonical: OTHER_PII
+  node: ''
+- name: loc
+  description: location such as an address, city or country
+  sensitive: true
+  canonical: ADDRESS
+  node: ''
+- name: misc
+  description: other identifying information
+  sensitive: true
+  canonical: OTHER_PII
+  node: ''
+- name: org
+  description: name of an organization
+  sensitive: true
+  canonical: OTHER_PII
+  node: ''
+- name: person
+  description: name of a specific person
+  sensitive: true
+  canonical: PERSON
+  node: ''
+- name: quantity
+  description: quantity that could identify a person
+  sensitive: true
+  canonical: OTHER_PII
+  node: ''

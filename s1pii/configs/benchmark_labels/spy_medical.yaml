@@ -1,0 +1,43 @@
+name: spy_medical
+descriptions: true
+labels:
+- name: address
+  description: postal address or part of one
+  sensitive: true
+  canonical: ADDRESS
+  node: location
+- name: email
+  description: email address
+  sensitive: true
+  canonical: EMAIL
+  node: email
+- name: id_num
+  description: identification number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: identifier
+- name: name
+  description: full or partial name of a person
+  sensitive: true
+  canonical: PERSON
+  node: person_name
+- name: phone_num
+  description: telephone number
+  sensitive: true
+  canonical: PHONE
+  node: phone
+- name: phone_number
+  description: telephone number
+  sensitive: true
+  canonical: PHONE
+  node: phone
+- name: url
+  description: web address or link
+  sensitive: true
+  canonical: URL
+  node: url
+- name: username
+  description: account user name
+  sensitive: true
+  canonical: OTHER_PII
+  node: user_name

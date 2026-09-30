@@ -1,0 +1,173 @@
+name: nemotron
+descriptions: true
+labels:
+- name: account_number
+  description: bank or financial account number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: bank_account
+- name: api_key
+  description: API key or access token
+  sensitive: true
+  canonical: SECRET
+  node: api_key
+- name: bank_routing_number
+  description: bank routing number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: routing_number
+- name: biometric_identifier
+  description: biometric data such as fingerprint or face template
+  sensitive: true
+  canonical: OTHER_PII
+  node: biometric_identifier
+- name: certificate_license_number
+  description: number of a professional license or certificate
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: certificate_license_number
+- name: credit_debit_card
+  description: credit or debit card number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: payment_card
+- name: customer_id
+  description: customer identifier
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: customer_id
+- name: cvv
+  description: card verification value
+  sensitive: true
+  canonical: SECRET
+  node: card_security_code
+- name: date_of_birth
+  description: date on which a person was born
+  sensitive: true
+  canonical: DATE
+  node: date_of_birth
+- name: device_identifier
+  description: identifier of a device such as IMEI or serial number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: device_identifier
+- name: email
+  description: email address
+  sensitive: true
+  canonical: EMAIL
+  node: email
+- name: employee_id
+  description: employee identifier
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: employee_id
+- name: fax_number
+  description: fax number
+  sensitive: true
+  canonical: PHONE
+  node: fax
+- name: first_name
+  description: given name of a person
+  sensitive: true
+  canonical: PERSON
+  node: first_name
+- name: health_plan_beneficiary_number
+  description: health insurance member number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: health_plan_beneficiary_number
+- name: http_cookie
+  description: HTTP cookie value
+  sensitive: true
+  canonical: SECRET
+  node: http_cookie
+- name: ipv4
+  description: IPv4 address
+  sensitive: true
+  canonical: OTHER_PII
+  node: ipv4
+- name: ipv6
+  description: IPv6 address
+  sensitive: true
+  canonical: OTHER_PII
+  node: ipv6
+- name: last_name
+  description: family name of a person
+  sensitive: true
+  canonical: PERSON
+  node: last_name
+- name: license_plate
+  description: vehicle license plate
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: license_plate
+- name: mac_address
+  description: MAC hardware address
+  sensitive: true
+  canonical: OTHER_PII
+  node: mac_address
+- name: medical_record_number
+  description: medical record number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: medical_record_number
+- name: national_id
+  description: national identity card number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: national_id
+- name: password
+  description: account password
+  sensitive: true
+  canonical: SECRET
+  node: password
+- name: phone_number
+  description: telephone number
+  sensitive: true
+  canonical: PHONE
+  node: phone
+- name: pin
+  description: personal identification number
+  sensitive: true
+  canonical: SECRET
+  node: pin
+- name: ssn
+  description: US social security number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: ssn
+- name: street_address
+  description: street name and house number
+  sensitive: true
+  canonical: ADDRESS
+  node: street_address
+- name: swift_bic
+  description: SWIFT or BIC bank code
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: swift_bic
+- name: tax_id
+  description: tax identification number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: tax_id
+- name: unique_id
+  description: unique identifier assigned to a person or record
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: identifier
+- name: url
+  description: web address or link
+  sensitive: true
+  canonical: URL
+  node: url
+- name: user_name
+  description: account user name
+  sensitive: true
+  canonical: OTHER_PII
+  node: user_name
+- name: vehicle_identifier
+  description: vehicle identification number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: vehicle_identifier

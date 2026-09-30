@@ -1,0 +1,48 @@
+name: pii_trace
+descriptions: true
+labels:
+- name: account_number
+  description: bank or financial account number
+  sensitive: true
+  canonical: ACCOUNT_NUMBER
+  node: bank_account
+- name: other_pii
+  description: other personally identifying information
+  sensitive: true
+  canonical: OTHER_PII
+  node: pii
+- name: private_address
+  description: address of a private individual
+  sensitive: true
+  canonical: ADDRESS
+  node: location
+- name: private_date
+  description: date tied to a private individual
+  sensitive: true
+  canonical: DATE
+  node: date
+- name: private_email
+  description: email address of a private individual
+  sensitive: true
+  canonical: EMAIL
+  node: email
+- name: private_person
+  description: name of a private individual
+  sensitive: true
+  canonical: PERSON
+  node: person_name
+- name: private_phone
+  description: telephone number of a private individual
+  sensitive: true
+  canonical: PHONE
+  node: phone
+- name: private_url
+  description: web address tied to a private individual
+  sensitive: true
+  canonical: URL
+  node: url
+- name: secret
+  description: password, key or other secret credential
+  sensitive: true
+  canonical: SECRET
+  node: secret
