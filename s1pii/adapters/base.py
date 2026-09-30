@@ -143,7 +143,15 @@ def fit_windows(text: str, spans: list[tuple[int, int]], backend, labels: list[s
             out.append((a, b)); continue
         toks = [(a + m.start(), a + m.end()) for m in _TOK.finditer(text[a:b])]
         if len(toks) <= min_tokens:
-            raise WindowTooLong(f"window [{a},{b}) exceeds the model context even at {len(toks)} tokens")
+            # a few very long "words" (cookies, keys, base64 blobs) overflow the subword limit:
+            # fall back to overlapping character halves. Only windows that previously raised
+            # take this path, so every earlier prediction is unchanged.
+            if b - a < 32:
+                raise WindowTooLong(f"window [{a},{b}) exceeds the model context even at {b - a} characters")
+            mid, q = (a + b) // 2, max(1, (b - a) // 8)
+            splits += 1
+            stack.extend([(max(a, mid - q), b), (a, min(b, mid + q))])
+            continue
         half, quarter = len(toks) // 2, len(toks) // 4
         left = (a, toks[half - 1][1])
         right = (toks[max(0, half - quarter)][0], b)

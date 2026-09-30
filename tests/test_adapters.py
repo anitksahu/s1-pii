@@ -217,3 +217,17 @@ def test_nvidia_native_labels_match_nemotron_taxonomy():
     from s1pii.adapters.base import load_config
     native = load_config()["systems"]["nvidia_gliner_pii"]["labels"]
     assert native == {k: v for k, v in tx.NEMOTRON.items() if v in CANONICAL_TYPES}
+
+
+def test_fit_windows_splits_a_single_huge_word_by_characters():
+    from s1pii.adapters.base import fit_windows
+    text = "cookie: " + "A" * 3000 + " end"
+    class B:
+        def fits(self, t, labels):
+            return len(t) <= 500
+    wins, n = fit_windows(text, [(0, len(text))], B(), ["x"])
+    assert n > 0 and all(b - a <= 500 for a, b in wins)
+    cov = set()
+    for a, b in wins:
+        cov.update(range(a, b))
+    assert cov == set(range(len(text)))
