@@ -491,11 +491,7 @@ class Chain:
             except CapReached as e:
                 self.log(f"[v2] stage A stopped: {e}")
                 self.set_state(stage_A_stopped=str(e))
-        try:
-            self.flat()
-        except CapReached as e:
-            self.log(f"[v2] ablation C skipped: {e}")
-            self.set_state(stage_C_skipped=str(e))
+
 
     def _sources(self, variant: str) -> dict[str, str]:
         from ..data import loaders as L
@@ -587,7 +583,7 @@ class CapReached(RuntimeError):
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("stage", choices=["teacher", "cheap", "gliner_c3", "ablations", "gates", "conditional", "sweeps", "all"])
+    ap.add_argument("stage", choices=["teacher", "cheap", "gliner_c3", "ablations", "gates", "conditional", "sweeps", "flat", "all"])
     ap.add_argument("--models", type=Path, required=True)
     ap.add_argument("--work", type=Path, required=True)
     ap.add_argument("--drive", type=Path, required=True)
@@ -614,11 +610,20 @@ def main(argv=None) -> None:
         if a.stage in ("gliner_c3", "all"):
             try:
                 ch.gliner_c3(a.gliner_venv)
+            except CapReached:
+                raise
             except (subprocess.CalledProcessError, RuntimeError, TimeoutError) as e:
                 if a.stage == "gliner_c3":
                     raise
                 ch.log(f"[v2] GLiNER C3 stage failed: {e}")
                 ch.set_state(gliner_c3_failed=str(e)[-500:])
+        # ablation C (flat CRF) only with whatever cap is left after every claim's runs
+        if a.stage in ("flat", "all"):
+            try:
+                ch.flat()
+            except CapReached as e:
+                ch.log(f"[v2] ablation C skipped: {e}")
+                ch.set_state(stage_C_skipped=str(e))
     except CapReached as e:
         print(f"[v2] STOPPED: {e}", flush=True)
         sys.exit(3)

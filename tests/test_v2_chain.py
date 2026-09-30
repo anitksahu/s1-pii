@@ -85,6 +85,7 @@ def test_chain_cheap_ablations_gates_conditional_and_resume(setup):
     g = ch.gates("cheap")
     assert set(g) >= {"A_fires", "B_fires", "level1_recall_mean"}
     ch.conditional()
+    ch.flat()
     st = ch.state()
     assert "cheap" in st["gates"]
     if g["B_fires"]:

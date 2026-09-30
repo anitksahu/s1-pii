@@ -110,8 +110,8 @@ Hard cap 32 A100-hours for all v2 GPU work, enforced per unit (`gpu_hours.jsonl`
 used + estimate > cap; the chain then stops and records why). Estimates: cheap path about 5 h (6 training
 stores 2.1, 6 heads 0.6, benchmark stores 2.6), GLiNER2.5 C3 about 6 h (3 label chunks; test, test names-only, calibration; last, bounded by the cap), ablations 0.2, B about 11 h (6 level-1 runs plus re-extraction), A about 9 h,
 C about 3 h. Order: cheap (one full model first as a smoke test when the teacher is ready),
-ablations, gates, B, A, C, sweeps, then the GLiNER C3 comparator bounded by the remaining cap, so a
-comparator's cost never decides which stages run. If the cap stops a conditional stage, the
+ablations, gates, B, A, sweeps, the GLiNER C3 comparator bounded by the remaining cap, and ablation C last
+with whatever cap is left; neither a comparator's nor an ablation's cost decides which stages run. If the cap stops a conditional stage, the
 headline is the last completed stage and the stop is recorded in state.json and the ledger.
 
 ## Colab operation
