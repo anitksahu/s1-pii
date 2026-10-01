@@ -1,0 +1,250 @@
+version: 1
+seed: 20261001
+rule: sample 5 dev then 10 test names without replacement from sorted eligible names
+pool_sha256: 9729f99fe5697e258bf5cd23b418dbb4d7f5d25f3b69f5e8ccbc349ea2c6569a
+pool_size: 45
+dev_labels:
+- date_time
+- first_name
+- ipv4
+- postcode
+- street_address
+test_labels:
+- last_name
+- coordinate
+- county
+- cvv
+- certificate_license_number
+- country
+- api_key
+- customer_id
+- occupation
+- state
+replication_labels:
+- blood_type
+- language
+- fax_number
+- http_cookie
+- political_view
+- religious_belief
+- education_level
+- medical_record_number
+- race_ethnicity
+- bank_routing_number
+frozen:
+  date_time:
+    description: date together with a time
+    paraphrases:
+    - timestamp
+    - date and time
+  first_name:
+    description: given name of a person
+    paraphrases:
+    - given name
+    - forename
+  ipv4:
+    description: IPv4 address
+    paraphrases:
+    - IP address
+    - internet protocol address
+  postcode:
+    description: postal or zip code
+    paraphrases:
+    - zip code
+    - postal code
+  street_address:
+    description: street name and house number
+    paraphrases:
+    - street
+    - house address
+  last_name:
+    description: family name of a person
+    paraphrases:
+    - surname
+    - family name
+  coordinate:
+    description: geographic coordinates
+    paraphrases:
+    - latitude and longitude
+    - gps position
+  county:
+    description: county or district
+    paraphrases:
+    - district
+    - administrative area
+  cvv:
+    description: card verification value
+    paraphrases:
+    - CVV
+    - security code
+  certificate_license_number:
+    description: number of a professional license or certificate
+    paraphrases:
+    - license number
+    - certificate number
+  country:
+    description: name of a country
+    paraphrases:
+    - nation
+    - country name
+  api_key:
+    description: API key or access token
+    paraphrases:
+    - access token
+    - secret key
+  customer_id:
+    description: customer identifier
+    paraphrases:
+    - client id
+    - customer number
+  occupation:
+    description: job title or occupation
+    paraphrases:
+    - profession
+    - job
+  state:
+    description: state or province
+    paraphrases:
+    - province
+    - region
+exclusions:
+  names:
+  - api_key
+  - card_security_code
+  - certificate_license_number
+  - coordinate
+  - country
+  - county
+  - credit_card_security_code
+  - customer_id
+  - cvv
+  - date
+  - date_time
+  - datetime
+  - first_name
+  - ipv4
+  - last_name
+  - local_latlng
+  - occupation
+  - postcode
+  - private_date
+  - state
+  - street_address
+  paraphrases:
+  - CVC
+  - CVV
+  - IP address
+  - access token
+  - administrative area
+  - card verification code
+  - certificate number
+  - client id
+  - country name
+  - customer number
+  - date
+  - date and time
+  - date value
+  - day
+  - district
+  - family name
+  - forename
+  - given name
+  - gps coordinates
+  - gps position
+  - house address
+  - internet protocol address
+  - job
+  - lat long
+  - latitude and longitude
+  - license number
+  - nation
+  - personal date
+  - postal code
+  - profession
+  - province
+  - region
+  - secret key
+  - security code
+  - street
+  - surname
+  - time expression
+  - timestamp
+  - zip code
+  nodes:
+  - api_key
+  - card_security_code
+  - certificate_license_number
+  - coordinate
+  - country
+  - county
+  - customer_id
+  - date
+  - first_name
+  - ipv4
+  - last_name
+  - occupation
+  - postcode
+  - state
+  - street_address
+  synonyms_all_sources:
+  - api_key
+  - certificate_license_number
+  - coordinate
+  - country
+  - county
+  - credit_card_security_code
+  - customer_id
+  - cvv
+  - date
+  - date_time
+  - datetime
+  - first_name
+  - ipv4
+  - last_name
+  - local_latlng
+  - occupation
+  - postcode
+  - private_date
+  - state
+  - street_address
+  canonical_mappings:
+  - ACCOUNT_NUMBER
+  - ADDRESS
+  - DATE
+  - OTHER_PII
+  - PERSON
+  - SECRET
+never_train_native_sets:
+- spy_legal
+- spy_medical
+- tab_direct
+- pii_trace
+never_train_native_names:
+- account_number
+- address
+- code
+- datetime
+- dem
+- email
+- id_num
+- loc
+- misc
+- name
+- org
+- other_pii
+- person
+- phone_num
+- phone_number
+- private_address
+- private_date
+- private_email
+- private_person
+- private_phone
+- private_url
+- quantity
+- secret
+- url
+- username
+min_spans: 300
+fallback_min_spans: 150
+draw_sha256: abb74d614cf445c3da78e64243418142799cb9da60e8c18e2a5adddcebf34407

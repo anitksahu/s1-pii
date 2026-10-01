@@ -88,7 +88,8 @@ def window_target(td: TokDoc, a: int, b: int) -> np.ndarray:
     return t
 
 
-def allowed_matrix(target: np.ndarray, k: int = K) -> np.ndarray:
+def allowed_matrix(target: np.ndarray, k: int | None = None, num_types: int | None = None) -> np.ndarray:
+    k = k or (1 + 4 * num_types if num_types is not None else K)
     m = np.zeros((len(target), k), dtype=bool)
     known = target >= 0
     m[np.nonzero(known)[0], target[known]] = True
@@ -132,7 +133,8 @@ class InvalidTarget(ValueError):
     pass
 
 
-def train_examples(docs: list[Doc], tokenizer, max_len: int = 1024, stride: int | None = None) -> list[Example]:
+def train_examples(docs: list[Doc], tokenizer, max_len: int = 1024, stride: int | None = None,
+                   num_types: int | None = None) -> list[Example]:
     pre, suf = special_ids(tokenizer)
     size = max_len - len(pre) - len(suf)
     stride = stride or size
@@ -143,7 +145,7 @@ def train_examples(docs: list[Doc], tokenizer, max_len: int = 1024, stride: int 
             continue
         for a, b in token_windows(len(td.ids), size, stride):
             tgt = window_target(td, a, b)
-            if not target_is_valid(tgt):
+            if not target_is_valid(tgt, nt=num_types):
                 bad.append(d.doc_id)
                 continue
             out.append(Example(d.doc_id, np.asarray(pre + td.ids[a:b] + suf, dtype=np.int32), len(pre), b - a, tgt, a))

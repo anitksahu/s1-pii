@@ -13,5 +13,7 @@ jobs:
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install ".[dev,model]" "faker==40.40.0" scipy
       - name: non-editable install ships the manifest
-        run: cd /tmp && python -c "from s1pii.data.manifest import manifest; assert 'nemotron' in manifest()"
+        run: cd /tmp && python -c "from s1pii.data.manifest import manifest; from s1pii.s1d.labels import load; assert 'nemotron' in manifest(); assert len(load()['test_labels']) == 10"
       - run: pytest -q
+      - if: matrix.python != '3.10'
+        run: python -P -m pytest -q

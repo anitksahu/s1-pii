@@ -53,7 +53,11 @@ def gather_tokens(em: torch.Tensor, n_prefix: torch.Tensor, L: int) -> torch.Ten
     return em.gather(1, idx.unsqueeze(-1).expand(B, L, em.shape[-1]))
 
 
-def collate(examples: list[Example], pad_id: int, with_targets: bool = True, k: int = K) -> dict:
+def collate(examples: list[Example], pad_id: int, with_targets: bool = True, k: int | None = None,
+            num_types: int | None = None) -> dict:
+    # ``k`` remains accepted for byte-for-byte v1 call compatibility. New callers can
+    # express the proposer intent directly as ``num_types=1``.
+    k = k or (1 + 4 * num_types if num_types is not None else K)
     B = len(examples)
     Lin = max(len(e.input_ids) for e in examples)
     Lt = max(e.n_tok for e in examples)

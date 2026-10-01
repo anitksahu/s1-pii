@@ -1,0 +1,1 @@
+{"ts": "2026-10-01T21:06:26.303476+00:00", "git_sha": "4b0e9217335ba4fdfb13d4ed896df09e685d4776-dirty", "harness_version": "0.1.0", "headline": false, "unit": "s1d_label_draw", "seed": 20261001, "rule": "sample 5 dev then 10 test names without replacement from sorted eligible names", "config_sha": "abb74d614cf445c3da78e64243418142799cb9da60e8c18e2a5adddcebf34407"}

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Resumable S1-D chain. Every unit caches under Drive and the monitor owns release.
+set -u
+cd "$(dirname "$0")/.."
+D=${DRIVE:-/content/drive/MyDrive/s1pii}
+R="$D/s1d"; L="$R/logs"; mkdir -p "$L" "$R/models" "$R/stores" "$R/eval"
+STAGE=${1:-stage0}; LOG="$L/$STAGE.log"
+PYTHON=${PYTHON:-python}
+status() { echo "$1 $(date -u +%FT%TZ)" > "$R/STATUS"; }
+fail() { status "FAILED $1"; exit "${2:-1}"; }
+status "RUNNING $STAGE"; echo CPU > "$R/PHASE"
+
+if [ "${S1D_SKIP_INSTALL:-0}" != 1 ]; then
+  pip install -q -r envs/requirements-s1d.txt -e ".[data,model]" "faker==40.40.0" >> "$LOG" 2>&1 || fail deps 17
+fi
+"$PYTHON" -c "import torch, transformers, peft; import s1pii.s1d" >> "$LOG" 2>&1 || fail deps 18
+
+if [ -f "$R/CONTROL" ] && [ "$(tr '[:lower:]' '[:upper:]' < "$R/CONTROL")" = STOP ]; then status STOPPED_USER; exit 4; fi
+echo GPU > "$R/PHASE"
+"$PYTHON" -m s1pii.s1d.run "$STAGE" --root "$R" >> "$LOG" 2>&1
+rc=$?
+if [ "$rc" -eq 3 ]; then status STOPPED_CAP; exit "$rc"; fi
+if [ "$rc" -eq 4 ]; then status STOPPED_USER; exit "$rc"; fi
+if [ "$rc" -eq 5 ]; then status STOPPED_RULE; exit "$rc"; fi
+[ "$rc" -eq 0 ] || fail "$STAGE" "$rc"
+status DONE
