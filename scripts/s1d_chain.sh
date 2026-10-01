@@ -16,7 +16,7 @@ fi
 "$PYTHON" -c "import torch, transformers, peft; import s1pii.s1d" >> "$LOG" 2>&1 || fail deps 18
 
 if [ -f "$R/CONTROL" ] && [ "$(tr '[:lower:]' '[:upper:]' < "$R/CONTROL")" = STOP ]; then status STOPPED_USER; exit 4; fi
-echo GPU > "$R/PHASE"
+echo CPU > "$R/PHASE"
 "$PYTHON" -m s1pii.s1d.run "$STAGE" --root "$R" >> "$LOG" 2>&1
 rc=$?
 if [ "$rc" -eq 3 ]; then status STOPPED_CAP; exit "$rc"; fi

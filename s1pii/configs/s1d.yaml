@@ -3,12 +3,33 @@ models:
   Qwen/Qwen3-0.6B: {revision: c1899de289a04d12100db370d81485cdf75e47ca}
   Qwen/Qwen3-1.7B: {revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e}
   Qwen/Qwen3-4B: {revision: 1cfa9a7208912126459214e8b04321603b3df60c}
+external:
+  kev:
+    git_revision: 952ce9d053f6c958d1447c57c36cc9cb3369aef4
+    model_id: jaredpalmer/kev-0.5b
+    revision: 9ce2fd39db3a397c89733f94af948e3d1fdfffcd
+    base_id: Qwen/Qwen2.5-0.5B
+    base_revision: 060db6499f32faf8b98477b0a26969ef7d8b9987
+    state_tokens: 384
+  proposer:
+    model_id: answerdotai/ModernBERT-large
+    revision: 45bb4654a4d5aaff24dd11d4781fa46d39bf8c13
+  sentence_encoder:
+    model_id: sentence-transformers/all-MiniLM-L6-v2
+    revision: 1110a243fdf4706b3f48f1d95db1a4f5529b4d41
 attention_implementation: flex_attention
 lora_rank: 32
 state_tokens: 512
 max_branches: 64
 max_options: 56
 stages:
-  stage0: {cap_a100_hours: 5}
-  stage1: {cap_a100_hours: 12, requires_approval: true}
-  stage2: {cap_a100_hours: 23, requires_approval: true}
+  stage0:
+    cap_a100_hours: 5
+    unit_estimates:
+      proposer_all: 1.2
+      proposer_no_nemotron: 1.2
+      prompted_probe: 0.7
+      kev_baseline: 0.4
+      latency: 0.4
+  stage1: {cap_a100_hours: 12, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
+  stage2: {cap_a100_hours: 23, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

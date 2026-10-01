@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import time
+import urllib.request
 from pathlib import Path
 
 import torch
@@ -47,7 +48,8 @@ def _unit_label_draw(ctx, out):
     cfg = labels.load(src)
     append({"unit": "s1d_label_draw", "seed": cfg["seed"], "rule": cfg["rule"],
             "config_sha": cfg["draw_sha256"]}, path=ctx["root"] / "ledger.jsonl")
-    labels.record_nearest_trained_neighbours(ctx["root"] / "ledger.jsonl", cfg)
+    if not ctx["dry"]:
+        labels.record_nearest_trained_neighbours(ctx["root"] / "ledger.jsonl", cfg)
     return {"sha": cfg["draw_sha256"]}
 
 
@@ -67,18 +69,29 @@ def _unit_census(ctx, out):
 
 def _unit_revisions(ctx, out):
     models = ("Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B", "Qwen/Qwen3-4B")
-    if ctx["dry"]: return {m: "local-dry" for m in models}
+    external = ctx["config"]["external"]
+    if ctx["dry"]:
+        return {"implementation_version": 2,
+                "models": {m: "local-dry" for m in models}, "external": "local-dry"}
     from huggingface_hub import HfApi
     pinned = {m: ctx["config"]["models"][m]["revision"] for m in models}
+    pinned.update({external["kev"]["model_id"]: external["kev"]["revision"],
+                   external["kev"]["base_id"]: external["kev"]["base_revision"],
+                   external["proposer"]["model_id"]: external["proposer"]["revision"],
+                   external["sentence_encoder"]["model_id"]: external["sentence_encoder"]["revision"]})
     resolved = {}
-    for model in models:
-        if not pinned[model]:
-            pinned[model] = HfApi().model_info(model).sha
+    for model in pinned:
         resolved[model] = HfApi().model_info(model, revision=pinned[model]).sha
         if resolved[model] != pinned[model]:
-            raise RuntimeError(f"Qwen revision did not resolve exactly: {model}@{pinned[model]}")
-    append({"unit": "s1d_revisions", "models": resolved}, path=ctx["root"] / "ledger.jsonl")
-    return resolved
+            raise RuntimeError(f"revision did not resolve exactly: {model}@{pinned[model]}")
+    kev_sha = external["kev"]["git_revision"]
+    with urllib.request.urlopen(f"https://api.github.com/repos/jaredpalmer/kev/commits/{kev_sha}") as response:
+        github_sha = json.loads(response.read())["sha"]
+    if github_sha != kev_sha:
+        raise RuntimeError("Kev git revision did not resolve exactly")
+    result = {"implementation_version": 2, "models": resolved, "kev_git": github_sha}
+    append({"unit": "s1d_revisions", **result}, path=ctx["root"] / "ledger.jsonl")
+    return result
 
 
 def _unit_proposer(ctx, out, variant):
@@ -86,7 +99,7 @@ def _unit_proposer(ctx, out, variant):
     if not ctx["dry"]:
         from .proposer import train_and_gate
         return train_and_gate(variant, ctx["root"], cap_hours=ctx["config"]["stages"]["stage0"]["cap_a100_hours"],
-                              control_path=ctx["root"] / "CONTROL")
+                              control_path=ctx["root"] / "CONTROL", config=ctx["config"])
     # Verify the one-type path really optimizes for one step without a pretrained model.
     from ..model.s1 import S1Model
     class Encoder(torch.nn.Module):
@@ -101,7 +114,8 @@ def _unit_proposer(ctx, out, variant):
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3); loss = model(batch); loss.backward(); opt.step()
     from .proposer import gate_g1
     gate = gate_g1({"dry": [(0, 1)]}, {"dry": [(0, 1, 0.9)]})
-    return {"variant": variant, "docs": len(docs), "one_step_loss": float(loss.detach()), "gate_g1": gate}
+    return {"implementation_version": 2, "variant": variant, "docs": len(docs),
+            "one_step_loss": float(loss.detach()), "gate_g1": gate}
 
 
 def _unit_questions(ctx, out, name):
@@ -119,20 +133,78 @@ def _unit_questions(ctx, out, name):
     choice = [row for row in q if row.question.type == "choice"]
     option_count = len(choice[0].question.options) if choice else 0
     chance = 1 / option_count if option_count else 0.0
-    return {"unit": name, "questions": len(q), "options": option_count, "chance": chance,
-            "accuracy": chance * 2.1, "status": "dry-complete"}
+    score = chance * 2.1
+    return {"implementation_version": 2, "unit": name, "questions": len(q),
+            "options": option_count, "chance": chance,
+            "accuracy": score, "macro_accuracy": score, "per_label_accuracy": {},
+            "majority_class_baseline": chance, "status": "dry-complete"}
 
 
 def _unit_latency(ctx, out):
     if not ctx["dry"]:
         from .stage0 import latency_benchmark
         return latency_benchmark(ctx["root"], ctx["config"], ctx["root"] / "CONTROL")
-    return {"branches": 64, "options": 56, "mask_prebuilt": True, "dry": ctx["dry"]}
+    from .latency import benchmark
+    return benchmark(ctx["config"], dry=True)
+
+
+def _unimplemented(ctx, _out, name):
+    if ctx["dry"]:
+        return {"status": "dry-complete", "unit": name}
+    raise NotImplementedError(f"{name} is intentionally unavailable until its approved stage is implemented")
+
+
+def _append_stop_rule_once(root: Path) -> None:
+    path = root / "ledger.jsonl"
+    if path.exists():
+        for line in path.read_text().splitlines():
+            row = json.loads(line)
+            if row.get("unit") == "s1d_stage0_stop_rule" and row.get("version") == 1:
+                return
+    append({"unit": "s1d_stage0_stop_rule", "version": 1,
+            "statistic": "macro_accuracy_over_dev_labels", "threshold": "2 * chance",
+            "chance": "1 / len(options)",
+            "fires_when": "both_prompted_and_kev_are_strictly_below_threshold"}, path=path)
+
+
+def _stage0_should_stop(stores: Path, dry: bool) -> bool:
+    probe = json.loads((stores / "stage0-prompted_probe.json").read_text())
+    kev = json.loads((stores / "stage0-kev_baseline.json").read_text())
+    chance = probe.get("chance", kev.get("chance"))
+    return (not dry and chance is not None and
+            probe.get("macro_accuracy") is not None and kev.get("macro_accuracy") is not None and
+            probe["macro_accuracy"] < 2 * chance and kev["macro_accuracy"] < 2 * chance)
+
+
+def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool) -> bool:
+    result_path = stores / f"{stage}-{unit}.json"
+    if not (stores / f"{stage}-{unit}.done").exists() or not result_path.exists():
+        return False
+    if stage != "stage0":
+        # No production implementation exists yet, so never accept a legacy
+        # placeholder marker as completion. Dry runs may resume their stubs.
+        return dry
+    if unit == "census":
+        return True
+    if unit == "label_draw":
+        if dry:
+            return True
+        ledger = root / "ledger.jsonl"
+        return ledger.exists() and any(
+            json.loads(line).get("unit") == "s1d_label_neighbours"
+            for line in ledger.read_text().splitlines() if line.strip())
+    try:
+        return json.loads(result_path.read_text()).get("implementation_version") == 2
+    except (OSError, ValueError):
+        return False
 
 
 def run(stage: str, root: Path, dry: bool = False) -> int:
     cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "s1d.yaml").read_text())
     root.mkdir(parents=True, exist_ok=True)
+    (root / "PHASE").write_text("CPU")
+    if stage == "stage0":
+        _append_stop_rule_once(root)
     if cfg["stages"][stage].get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
     ctx = {"root": root, "dry": dry, "config": cfg}
@@ -148,20 +220,24 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "prompted_probe": lambda c, o: _unit_questions(c, o, "prompted_probe"),
         "kev_baseline": lambda c, o: _unit_questions(c, o, "kev_baseline"),
         "latency": _unit_latency,
-        "train_sizes": lambda c, o: {"status": "entrypoint-ready"},
-        "layout_ablation": lambda c, o: {"status": "entrypoint-ready"},
-        "dev_eval": lambda c, o: {"stage1_stop_rule": "trained model compared with prompted base"},
-        "train_final": lambda c, o: {"status": "entrypoint-ready"},
-        "test_inference": lambda c, o: {"status": "entrypoint-ready"},
-        "comparators": lambda c, o: {"status": "entrypoint-ready"},
+        "train_sizes": lambda c, o: _unimplemented(c, o, "train_sizes"),
+        "layout_ablation": lambda c, o: _unimplemented(c, o, "layout_ablation"),
+        "dev_eval": lambda c, o: _unimplemented(c, o, "dev_eval"),
+        "train_final": lambda c, o: _unimplemented(c, o, "train_final"),
+        "test_inference": lambda c, o: _unimplemented(c, o, "test_inference"),
+        "comparators": lambda c, o: _unimplemented(c, o, "comparators"),
     }
     stores = root / "stores"; stores.mkdir(exist_ok=True)
     try:
         for unit in UNITS[stage]:
+            (root / "PHASE").write_text("CPU")
             if (root / "CONTROL").exists() and (root / "CONTROL").read_text().strip().upper() == "STOP":
                 return 4
+            if stage == "stage0" and unit == "latency" and _stage0_should_stop(stores, dry):
+                return 5
             done = stores / f"{stage}-{unit}.done"
-            if done.exists(): continue
+            if _cache_is_current(root, stores, stage, unit, dry):
+                continue
             if not dry and unit not in ("label_draw", "census", "revisions"):
                 meter.reserve(float(cfg["stages"][stage].get("unit_estimates", {}).get(unit, 0)))
             result = handlers[unit](ctx, stores / f"{stage}-{unit}.json")
@@ -173,13 +249,6 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         return 3
     except InterruptedError:
         return 4
-    if stage == "stage0":
-        probe = json.loads((stores / "stage0-prompted_probe.json").read_text())
-        kev = json.loads((stores / "stage0-kev_baseline.json").read_text())
-        pacc, kacc = probe.get("accuracy"), kev.get("accuracy")
-        chance = probe.get("chance", kev.get("chance"))
-        if not dry and None not in (pacc, kacc, chance) and pacc < 2 * chance and kacc < 2 * chance:
-            return 5
     if stage == "stage1":
         result = json.loads((stores / "stage1-dev_eval.json").read_text())
         trained, prompted = result.get("trained_accuracy"), result.get("prompted_accuracy")

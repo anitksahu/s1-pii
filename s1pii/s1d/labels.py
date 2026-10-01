@@ -8,9 +8,8 @@ from __future__ import annotations
 import hashlib
 import json
 import random
-from difflib import SequenceMatcher
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 import yaml
 
@@ -20,6 +19,7 @@ from ..v2 import labels as v2
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "s1d_heldout.yaml"
 V21_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "heldout_labels.yaml"
+MODEL_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "s1d.yaml"
 DEFAULT_SEED = 20261001
 NOT_PII = "not personal information"
 OOD_DATASETS = ("spy_legal", "spy_medical", "tab_direct", "pii_trace")
@@ -152,28 +152,61 @@ def training_vocabulary(config: dict | None = None, *, remove_parents: bool = Fa
     return names
 
 
-def nearest_trained_neighbours(config: dict | None = None, *, remove_parents: bool = False) -> dict[str, dict]:
-    """Audit nearest trainable label by separately comparing names and descriptions."""
+def _sentence_embedder(model_id: str, revision: str) -> Callable[[list[str]], object]:
+    """Frozen, normalized mean-pooled sentence embeddings at an immutable revision."""
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
+    model = AutoModel.from_pretrained(model_id, revision=revision).eval()
+
+    @torch.no_grad()
+    def encode(texts: list[str]):
+        chunks = []
+        for first in range(0, len(texts), 32):
+            batch = tokenizer(texts[first:first + 32], padding=True, truncation=True,
+                              max_length=256, return_tensors="pt")
+            hidden = model(**batch).last_hidden_state
+            mask = batch["attention_mask"].unsqueeze(-1)
+            pooled = (hidden * mask).sum(1) / mask.sum(1).clamp_min(1)
+            chunks.append(torch.nn.functional.normalize(pooled.float(), dim=-1).cpu())
+        return torch.cat(chunks)
+    return encode
+
+
+def nearest_trained_neighbours(config: dict | None = None, *, remove_parents: bool = False,
+                               embedder: Callable[[list[str]], object] | None = None) -> dict[str, dict]:
+    """Audit top semantic neighbours for label wording and descriptions separately."""
+    import torch
     c = config or load(); trained = training_vocabulary(c, remove_parents=remove_parents)
+    model_cfg = yaml.safe_load(MODEL_CONFIG.read_text())["external"]["sentence_encoder"]
+    encode = embedder or _sentence_embedder(model_cfg["model_id"], model_cfg["revision"])
+    labels = list(c["test_labels"])
+    all_names = labels + trained
+    name_text = ["; ".join((name.replace("_", " "), *v2.paraphrases(name))) for name in all_names]
+    desc_text = [v2.NATIVE[name][1] for name in all_names]
+    name_vectors = torch.as_tensor(encode(name_text), dtype=torch.float32)
+    desc_vectors = torch.as_tensor(encode(desc_text), dtype=torch.float32)
+    name_vectors = torch.nn.functional.normalize(name_vectors, dim=-1)
+    desc_vectors = torch.nn.functional.normalize(desc_vectors, dim=-1)
+    split = len(labels)
     result = {}
-    for test in c["test_labels"]:
-        test_name = test.replace("_", " "); test_desc = v2.NATIVE[test][1]
-        rows = []
-        for candidate in trained:
-            name_sim = SequenceMatcher(None, test_name, candidate.replace("_", " ")).ratio()
-            desc_sim = SequenceMatcher(None, test_desc, v2.NATIVE[candidate][1]).ratio()
-            rows.append(((name_sim + desc_sim) / 2, candidate, name_sim, desc_sim))
-        score, neighbour, name_sim, desc_sim = max(rows)
-        result[test] = {"label": neighbour, "name_similarity": round(name_sim, 6),
-                        "description_similarity": round(desc_sim, 6), "mean_similarity": round(score, 6)}
+    for i, test in enumerate(labels):
+        def top(vectors):
+            scores = vectors[i] @ vectors[split:].T
+            indices = torch.argsort(scores, descending=True)[:3].tolist()
+            return [{"label": trained[j], "similarity": round(float(scores[j]), 6)} for j in indices]
+        result[test] = {"name_and_paraphrases": top(name_vectors), "description": top(desc_vectors)}
+    result["_encoder"] = {"model_id": model_cfg["model_id"], "revision": model_cfg["revision"]}
     return result
 
 
 def record_nearest_trained_neighbours(ledger_path: Path, config: dict | None = None,
-                                      *, remove_parents: bool = False) -> dict[str, dict]:
-    c = config or load(); rows = nearest_trained_neighbours(c, remove_parents=remove_parents)
+                                      *, remove_parents: bool = False,
+                                      embedder: Callable[[list[str]], object] | None = None) -> dict[str, dict]:
+    c = config or load(); rows = nearest_trained_neighbours(c, remove_parents=remove_parents, embedder=embedder)
+    encoder = rows.pop("_encoder")
     append({"unit": "s1d_label_neighbours", "config_sha": c["draw_sha256"],
-            "parent_labels_removed": remove_parents, "test_labels": rows}, path=ledger_path)
+            "parent_labels_removed": remove_parents, "encoder": encoder, "test_labels": rows}, path=ledger_path)
     return rows
 
 

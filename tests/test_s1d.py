@@ -92,9 +92,16 @@ def test_trainable_c3_vocabulary_and_ood_only_names_are_pinned():
 
 
 def test_nearest_trained_neighbours_are_complete_and_ledgered(tmp_path):
-    rows = HL.record_nearest_trained_neighbours(tmp_path / "ledger.jsonl")
+    def local_embeddings(texts):
+        return torch.tensor([[1.0 + (sum(map(ord, text)) % 17), float(i + 1), 0.5]
+                             for i, text in enumerate(texts)])
+    rows = HL.record_nearest_trained_neighbours(tmp_path / "ledger.jsonl", embedder=local_embeddings)
     assert set(rows) == set(HL.load()["test_labels"])
-    assert all(row["label"] in HL.training_vocabulary() for row in rows.values())
+    assert all(set(row) == {"name_and_paraphrases", "description"} for row in rows.values())
+    assert all(len(row[kind]) == 3 for row in rows.values()
+               for kind in ("name_and_paraphrases", "description"))
+    assert all(item["label"] in HL.training_vocabulary() for row in rows.values()
+               for kind in ("name_and_paraphrases", "description") for item in row[kind])
     ledger = json.loads((tmp_path / "ledger.jsonl").read_text().splitlines()[-1])
     assert ledger["test_labels"] == rows
 
@@ -272,10 +279,70 @@ def test_proposer_nt1_trains_one_step():
     assert torch.isfinite(loss)
 
 
+def test_proposer_fp32_master_weights_under_autocast():
+    from s1pii.s1d.proposer import proposer_model
+    class Encoder(torch.nn.Module):
+        def __init__(self): super().__init__(); self.e = torch.nn.Embedding(16, 8)
+        def forward(self, input_ids, attention_mask): return type("O", (), {"last_hidden_state": self.e(input_ids)})
+    model = proposer_model(Encoder(), 8, dropout=0)
+    ids = torch.tensor([[1, 2, 3]]); allowed = torch.ones(1, 3, 5, dtype=torch.bool)
+    batch = {"input_ids": ids, "attention_mask": torch.ones_like(ids),
+             "tok_mask": torch.ones(1, 3, dtype=torch.bool), "allowed": allowed,
+             "n_prefix": torch.tensor([0]), "tok_len": torch.tensor([3])}
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        assert torch.isfinite(model(batch))
+    assert {p.dtype for p in model.parameters()} == {torch.float32}
+
+
+def test_gate_g1_caps_candidates_and_is_non_blocking():
+    from s1pii.s1d.proposer import gate_g1
+    candidates = [(i, i + 1, float(100 - i)) for i in range(70)]
+    got = gate_g1({"w": [(0, 1), (63, 64), (64, 65)]}, {"w": candidates})
+    assert got == {"exact_boundary_recall": pytest.approx(2 / 3), "hits": 2,
+                   "gold": 3, "candidate_cap": 64, "blocking": False}
+
+
+def test_long_probe_window_keeps_options_assistant_and_final_letter_scores():
+    from s1pii.s1d.stage0 import _prompt, restricted_letter_log_probs, span_window
+    class ChatTokenizer(StubTokenizer):
+        def apply_chat_template(self, messages, **kwargs):
+            assert kwargs["add_generation_prompt"] and not kwargs["enable_thinking"]
+            return messages[0]["content"] + "\n<assistant>"
+    tok = ChatTokenizer(); cfg = HL.load(); names = cfg["dev_labels"][:2]
+    state = "x" * 800 + "TARGET" + "y" * 800
+    row = {"doc_id": "long", "state": state, "start": 800, "end": 806,
+           "surface": "TARGET", "label": names[0], "options": names, "target": 0}
+    window = span_window(tok, row, 512); prompt = _prompt(tok, window)
+    assert "TARGET" in window["state"] and "Options:" in prompt
+    assert all(name.replace("_", " ") in prompt for name in names)
+    assert prompt.endswith("<assistant>")
+    logits = torch.zeros(1, 3, 12); logits[0, 0, 2] = 100; logits[0, -1, 3] = 5
+    assert restricted_letter_log_probs(logits, [2, 3]).argmax(-1).item() == 1
+
+
+def test_kev_scoring_uses_probability_argmax_and_validates_keys():
+    from s1pii.s1d.stage0 import accuracy_summary, predictions_from_probabilities
+    rows = [{"label": "a", "options": ["a", "none"], "target": 0},
+            {"label": "b", "options": ["b", "none"], "target": 1}]
+    predictions, vectors = predictions_from_probabilities(
+        rows, [{"a": 0.9, "none": 0.1}, {"b": 0.2, "none": 0.8}])
+    assert predictions == [0, 1] and vectors[1] == [0.2, 0.8]
+    assert accuracy_summary(rows, predictions)["macro_accuracy"] == 1
+    with pytest.raises(ValueError):
+        predictions_from_probabilities(rows[:1], [{"wrong": 1.0}])
+
+
 def test_64_branch_56_option_latency_smoke(tiny):
     p = pack_window(StubTokenizer(), "state", [f"o{i}" for i in range(56)], [f"q{i}" for i in range(64)])
     y = tiny(p).probabilities
     assert y.shape == (64, 56)
+
+
+def test_latency_harness_tiny_cpu_dry():
+    from s1pii.s1d.latency import benchmark
+    result = benchmark({}, dry=True, warmup=0, repeats=1)
+    assert result["branches"] == 64 and result["options"] == 56
+    assert result["models"]["tiny-random"]["p95_ms_per_window"] > 0
 
 
 def test_stage0_dry_chain(tmp_path):
@@ -297,6 +364,40 @@ def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
     with pytest.raises(NotImplementedError):
         runner.run("stage0", tmp_path, dry=False)
     assert not (tmp_path / "stores" / "stage0-proposer_all.done").exists()
+
+
+@pytest.mark.parametrize("stage", ["stage1", "stage2"])
+def test_future_stage_placeholders_never_write_done(tmp_path, stage):
+    from s1pii.s1d.run import run
+    (tmp_path / f"APPROVED_{stage}").write_text("approved")
+    stores = tmp_path / "stores"; stores.mkdir()
+    first = {"stage1": "train_sizes", "stage2": "train_final"}[stage]
+    (stores / f"{stage}-{first}.json").write_text(json.dumps({"status": "entrypoint-ready"}))
+    (stores / f"{stage}-{first}.done").write_text("legacy")
+    with pytest.raises(NotImplementedError):
+        run(stage, tmp_path, dry=False)
+    assert {p.name for p in stores.glob(f"{stage}-*.done")} == {f"{stage}-{first}.done"}
+
+
+def test_stage0_macro_stop_rule_fires_before_latency(tmp_path, monkeypatch):
+    from s1pii.s1d import run as runner
+    monkeypatch.setattr(runner, "_unit_label_draw", lambda c, o: {"ok": True})
+    monkeypatch.setattr(runner, "_unit_census", lambda c, o: {"passed": True})
+    monkeypatch.setattr(runner, "_unit_revisions", lambda c, o: {"ok": True})
+    monkeypatch.setattr(runner, "_unit_proposer", lambda c, o, v: {"variant": v})
+    def questions(_ctx, _out, name):
+        return {"chance": 0.2, "accuracy": 0.9, "macro_accuracy": 0.1,
+                "unit": name}
+    called = []
+    monkeypatch.setattr(runner, "_unit_questions", questions)
+    monkeypatch.setattr(runner, "_unit_latency", lambda c, o: called.append(True) or {"ok": True})
+    assert runner.run("stage0", tmp_path, dry=False) == 5
+    assert not called
+    assert (tmp_path / "stores" / "stage0-kev_baseline.done").exists()
+    assert not (tmp_path / "stores" / "stage0-latency.done").exists()
+    rule_rows = [json.loads(line) for line in (tmp_path / "ledger.jsonl").read_text().splitlines()
+                 if json.loads(line).get("unit") == "s1d_stage0_stop_rule"]
+    assert len(rule_rows) == 1 and rule_rows[0]["statistic"] == "macro_accuracy_over_dev_labels"
 
 
 def test_stage_cap_returns_exit_code_three(tmp_path):
