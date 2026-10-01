@@ -266,3 +266,71 @@ def test_control_stop(tmp_path):
     import pytest
     with pytest.raises(run_v2.StopRequested):
         ch.check_control()
+
+
+def test_flat_v21_sampled_texts_typed_scores_and_legacy_manifest(v1_dir, tmp_path):
+    import json
+    from s1pii.v2.flat import train_flat, predict_flat, label_text_choices
+    c = label_text_choices("person")
+    assert c["name"] and c["other"] and not set(c["name"]) & set(c["other"])
+    docs = generate(40, seed=6)
+    out = train_flat(v1_dir, docs, tmp_path / "flat", {"url"}, steps=3, batch=4, max_len=64, device="cpu",
+                     text_mode="sample", label_linear=True, max_labels=8, log=lambda *_: None)
+    man = json.loads((out / "flat_manifest.json").read_text())
+    assert man["label_encoder"]["kind"] == "v1" and man["text_mode"] == "sample" and "skipped_steps" in man
+    # a non-sensitive label (IGNORE quasi-identifier) is decoded in typed mode, dropped in sensitive mode
+    L = LB.LabelSet("t", [LB.native_label("person"), LB.native_label("email"), LB.native_label("occupation", sensitive=False)])
+    assert L.sensitive_mask() == [True, True, False]
+    docs2 = generate(3, seed=5)
+    typed = predict_flat(v1_dir, out, docs2, L, system="flat", max_len=128, device="cpu", score="typed",
+                         floor=1e-6, label_floor=1e-6)
+    t_labels = {s.label_raw for v in typed.values() for s in v}
+    assert "occupation" in t_labels
+    assert (out / "train_log.jsonl").exists()
+    from s1pii.v2.flat import _mentions
+    for n in LB.NATIVE:                              # name dropout never shows the name
+        assert not any(_mentions(t, n) for t in label_text_choices(n)["other"])
+    deny = {"http_cookie": "cookie", "fax_number": "fax", "private_email": "email", "swift_bic": "swift",
+            "bank_routing_number": "routing"}                # fixed denylist, independent of _mentions
+    for n, w in deny.items():
+        if n in LB.NATIVE:
+            assert not any(w in t.lower() for t in label_text_choices(n)["other"]), (n, label_text_choices(n))
+    # a v2 manifest (no label_encoder / label_linear fields) still loads as the v1-label MLP model
+    out2 = train_flat(v1_dir, docs, tmp_path / "flat2", {"url"}, steps=2, batch=4, max_len=64, device="cpu", log=lambda *_: None)
+    m2 = json.loads((out2 / "flat_manifest.json").read_text())
+    for k in ("label_encoder", "label_linear", "text_mode"):
+        m2.pop(k)
+    (out2 / "flat_manifest.json").write_text(json.dumps(m2))
+    predict_flat(v1_dir, out2, docs2[:1], L, system="flat", max_len=128, device="cpu")
+
+
+def test_label_encoder_v1_matches_v2_pooling(v1_dir):
+    import torch
+    from s1pii.model.train import load_exported
+    from s1pii.v2.flat import LabelEncoder
+    m, tok, _ = load_exported(v1_dir)
+    enc = m.encoder.eval()
+    texts = ["person name", "email: an e-mail address"]
+    with torch.no_grad():                         # the v2 inline embed() of flat.py
+        e = tok(texts, padding=True, return_tensors="pt", return_special_tokens_mask=True, truncation=True, max_length=64)
+        sp = e.pop("special_tokens_mask")
+        h = enc(input_ids=e["input_ids"], attention_mask=e["attention_mask"]).last_hidden_state.float()
+        mk = (e["attention_mask"].bool() & ~sp.bool()).unsqueeze(-1).float()
+        ref = (h * mk).sum(1) / mk.sum(1).clamp(min=1)
+    le = LabelEncoder("v1", enc, tok, "cpu")
+    assert torch.allclose(le(texts), ref, atol=1e-6)
+    n = LabelEncoder("v1", enc, tok, "cpu", normalize=True, max_length=128)(texts)
+    assert torch.allclose(n.norm(dim=-1), torch.ones(2), atol=1e-5) and n.shape == ref.shape
+
+
+def test_gonogo_decision_statistics():
+    import importlib.util, pathlib
+    spec = importlib.util.spec_from_file_location("gng", pathlib.Path(__file__).parents[1] / "scripts" / "v21_gonogo.py")
+    g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+    rows = ([{"doc": f"d{i}", "label": "a", "grp": "heldout", "match": True, "correct": i < 15} for i in range(20)]
+            + [{"doc": f"e{i}", "label": "b", "grp": "heldout", "match": i < 10, "correct": i < 5} for i in range(20)]
+            + [{"doc": "f", "label": "c", "grp": "heldout", "match": True, "correct": True}]
+            + [{"doc": "s", "label": "x", "grp": "seen", "match": True, "correct": True}])
+    s = g.summarize(rows)
+    assert abs(s["heldout"]["macro_acc"] - (0.75 + 0.25) / 2) < 1e-9          # label c (n=1) excluded
+    assert s["seen"]["acc"] == 1.0 and abs(g._macro(rows, ["a"]) - 0.75) < 1e-9
