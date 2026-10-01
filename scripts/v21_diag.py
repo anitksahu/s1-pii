@@ -69,6 +69,15 @@ def span_scores(em: np.ndarray, i: int, j: int, nt: int) -> np.ndarray:
 
 
 def run():
+    """Grad mode is process-global; restore it so callers (tests) are unaffected."""
+    prev = torch.is_grad_enabled()
+    try:
+        return _run()
+    finally:
+        torch.set_grad_enabled(prev)
+
+
+def _run():
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from s1pii.schema import read_jsonl
     from s1pii.v2 import labels as LB

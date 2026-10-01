@@ -216,9 +216,13 @@ def test_batched_extraction_equals_one_doc_at_a_time(v1_dir):
     ex1 = Extractor(v1_dir, FeatureConfig(max_len=128, validators=True, batch_size=1), "cpu")
     b = [ex1.doc_features(d) for d in docs]
     for x, y in zip(a, b):
-        kx = sorted(zip(x["start"], x["end"], np.round(x["pb"], 5)))
-        ky = sorted(zip(y["start"], y["end"], np.round(y["pb"], 5)))
-        assert kx == ky
+        # padding changes float32 encoder summation order (observed gap ~1e-7, a few ulps);
+        # compare spans exactly and P_b tightly. Rounding both to 5 decimals flaked in CI
+        # when a value sat on the rounding boundary.
+        kx = sorted(zip(x["start"].tolist(), x["end"].tolist(), x["pb"].tolist()))
+        ky = sorted(zip(y["start"].tolist(), y["end"].tolist(), y["pb"].tolist()))
+        assert [k[:2] for k in kx] == [k[:2] for k in ky]
+        np.testing.assert_allclose([k[2] for k in kx], [k[2] for k in ky], rtol=1e-5, atol=1e-7)
 
 
 # ------------------------------------------------------------------ v2.1 fixes
@@ -434,7 +438,10 @@ def test_v21_diag_end_to_end_on_fixtures(v1_dir, tmp_path, monkeypatch):
     monkeypatch.setattr(g, "D", D); monkeypatch.setattr(g, "G", G)
     monkeypatch.setattr(LB, "load_heldout", lambda: {"labels": sorted(held), "nodes": sorted(held)})
     monkeypatch.setattr(LB, "c3_label_set", lambda desc=True: LB.LabelSet("t", [LB.native_label(x) for x in labs], desc))
+    import torch
+    assert torch.is_grad_enabled()
     g.run()
+    assert torch.is_grad_enabled(), "v21_diag.run leaked grad mode"
     res = json.loads((G / "diag.json").read_text())
     assert res["exploratory"] is True and res["c3_reopenable"] is False
     assert res["n_heldout"] > 0 and set(res["models"]) == set(g.models())
