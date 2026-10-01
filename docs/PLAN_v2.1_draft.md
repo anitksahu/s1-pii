@@ -65,3 +65,23 @@ Name dropout uses only texts containing none of the label name's distinctive wor
 http_cookie, swift_bic, private_email, and get no dropout); loss traces are saved with each model. A GO supports sentence-encoder labels only with
 a frozen encoder at 30% data; the full run keeps a v1-label arm in the fine-tuned setting. Calibration docs read here are
 also used for thresholds in the full plan; Nemotron test is untouched.
+
+## Go/no-go outcome and failure analysis (fixed before running the analysis)
+Outcome: NO-GO (sanity checks passed). Held-out typed macro acc M1 0.085 / 0.041, M2 0.009 / 0.010; CI of M2 - M1
+below zero on both seeds; held-out spans proposed 0.81-0.85 (M0 0.69). C3 stays a preregistered negative.
+Failure analysis: scripts/v21_diag.py on the go/no-go eval sample (Nemotron calibration), exploratory, CPU only;
+`c3_reopenable: false`. Sections: A label rank at forced gold boundaries (softmax of emission sums equals the CRF
+segment conditional, tested); B restricted label sets (held-out only, chance 0.1; gold + 4 seen, chance 0.2); C prior
+correction on doc halves (none / one offset on labels outside the training vocabulary / per-label biases = ORACLE,
+uses held-out gold); D label-map collapse (held-out->nearest seen minus seen->nearest other seen, raw vs mapped;
+paraphrase top-1 held-out and seen); E supervised probe on frozen v1 span features (balanced accuracy, doc-grouped CV,
+doc-bootstrap CI); F hybrid: v2 headline spans typed by the most-overlapping GLiNER2.5 span vs GLiNER2.5 alone.
+Interpretation (held-out; P = probe balanced acc, R = held-out-only acc, A55 = 55-way top-1):
+| Result | Implies | Next step |
+| P < 0.6 | frozen v1 features cannot separate held-out types | stop zero-shot flat typing; go to F |
+| P >= 0.6, R >= 0.5, A55 < 0.15, unseen offset gives held-out 55-way acc >= 0.3 (absolute) | prior toward seen labels | seen/unseen calibration or abstention |
+| P >= 0.6, 0.3 <= R < 0.5 | partial signal, no single cause | report; no further GPU on flat typing |
+| P >= 0.6, R < 0.3, collapse gap grows after the map | the label map collapses held-out labels | fixed label space / linear map near identity |
+| P >= 0.6, R < 0.3, no collapse | training objective failure | rethink the label-conditioned head |
+| F hybrid >= GLiNER + 0.10 | boundaries and typing separable | hybrid as a v2.2 candidate (system claim, fresh labels/test) |
+| only the oracle C recovers | needs held-out supervision | not zero-shot; report, do not pursue |

@@ -355,3 +355,92 @@ def test_predict_flat_skips_whitespace_only_spans(v1_dir, tmp_path, monkeypatch)
     L = LB.LabelSet("t", [LB.native_label("person")])
     pr = FL.predict_flat(v1_dir, out, [d], L, system="t", max_len=128, device="cpu", score="typed")
     assert pr["ws"] and all(s.end > s.start for s in pr["ws"])
+
+
+def test_flatcrf_transitions_are_label_independent():
+    """v21_diag ranks labels at a forced segment by emission sums; valid only if every
+    transition/start/end potential is shared across labels (kind-level parameters)."""
+    from s1pii.model.crf import tag
+    from s1pii.v2.flat import FlatModel
+    fm = FlatModel(8, dim=4)
+    with torch.no_grad():
+        fm.theta.normal_(); fm.start.normal_(); fm.end.normal_()
+    T, S, E = fm.crf(5).potentials()
+    for k in range(1, 5):
+        for a, b in (("B", "I"), ("B", "E"), ("I", "I"), ("I", "E")):
+            assert T[tag(a, k), tag(b, k)] == T[tag(a, 0), tag(b, 0)]
+        for a in "BS":
+            assert T[0, tag(a, k)] == T[0, tag(a, 0)] and S[tag(a, k)] == S[tag(a, 0)]
+        for a in "ES":
+            assert T[tag(a, k), 0] == T[tag(a, 0), 0] and E[tag(a, k)] == E[tag(a, 0)]
+        for a, b in (("E", "B"), ("S", "S"), ("E", "S"), ("S", "B")):       # cross-label moves
+            assert T[tag(a, k), tag(b, 0)] == T[tag(a, 0), tag(b, k)] == T[tag(a, 1 if k != 1 else 2), tag(b, k)]
+
+
+def test_span_score_softmax_equals_crf_segment_conditional():
+    """softmax over labels of v21_diag.span_scores == the CRF's exact segment marginals for that
+    segment, normalized over labels (forward-backward via span_logprobs)."""
+    import importlib.util, pathlib
+    from s1pii.model.crf import span_logprobs
+    from s1pii.v2.flat import FlatModel, FlatCRF
+    spec = importlib.util.spec_from_file_location("v21diag", pathlib.Path(__file__).parents[1] / "scripts" / "v21_diag.py")
+    g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+    torch.manual_seed(0)
+    nt, n = 3, 7
+    fm = FlatModel(8, dim=4)
+    with torch.no_grad():
+        fm.theta.normal_(); fm.start.normal_(); fm.end.normal_()
+    em = torch.randn(1, n, 1 + 4 * nt, dtype=torch.float64)
+    c = FlatCRF(nt, fm.theta.double(), fm.start.double(), fm.end.double())
+    msk = torch.ones(1, n, dtype=torch.bool)
+    alpha, logz = c._forward(em, msk); beta = c._backward(em, msk)
+    segs = span_logprobs(c, em[0].numpy(), alpha[0].detach().numpy(), beta[0].detach().numpy(), float(logz[0]), n,
+                         floor=1e-300, max_len=n)
+    for i, j in ((2, 2), (1, 4), (0, 6)):
+        p = np.array([sum(q for a, b, t, q in segs if (a, b, t) == (i, j, k)) for k in range(nt)])
+        sc = g.span_scores(em[0].numpy(), i, j, nt)
+        assert np.allclose(p / p.sum(), np.exp(sc - sc.max()) / np.exp(sc - sc.max()).sum(), atol=1e-8)
+
+
+def test_v21_diag_end_to_end_on_fixtures(v1_dir, tmp_path, monkeypatch):
+    import importlib.util, pathlib, shutil
+    from s1pii import bench
+    from s1pii.ledger import write_predictions, dataset_hash
+    from s1pii.v2.flat import train_flat
+    spec = importlib.util.spec_from_file_location("v21diag", pathlib.Path(__file__).parents[1] / "scripts" / "v21_diag.py")
+    g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+    D = tmp_path / "drive"; G = D / "v21" / "gonogo"
+    shutil.copytree(v1_dir, D / "models" / "no-nemotron-s1" / "final")
+    docs = generate(40, seed=6)
+    held = {"phone", "email"}
+    for d in (D / "v2" / "flat" / "no-nemotron-s1", *(G / f"{m}-s{s}" for m in ("M1_v1labels", "M2_bgelabels") for s in (1, 2))):
+        train_flat(D / "models" / "no-nemotron-s1" / "final", docs, d, held, steps=2, batch=4, max_len=64, device="cpu",
+                   text_mode="sample", log=lambda *_: None)
+    ev = generate(12, seed=8)
+    write_jsonl(ev, G / "eval_docs.jsonl")
+    calib = tmp_path / "nemotron-calib.jsonl"; write_jsonl(ev, calib)
+    R = tmp_path / "r"
+    # hybrid fixture: S1 finds every held-out span (label wrong), GLiNER types them correctly
+    s1 = {d.doc_id: [Span(d.doc_id, x.start, x.end, "OTHER_PII", label_raw="person", score=0.9, source="s1")
+                     for x in d.spans if x.label_raw in held] for d in ev}
+    gl = {d.doc_id: [Span(d.doc_id, x.start, x.end, "OTHER_PII", label_raw=x.label_raw, score=0.9, source="gl")
+                     for x in d.spans if x.label_raw in held] for d in ev}
+    for sysn, pr in (("s1v2c3-A_no-nemotron-s1", s1), ("gliner25_base_zeroshot_c3", gl)):
+        write_predictions(pr, R / "predictions_v2" / f"{sysn}.jsonl", {"system": sysn, "docs_path": str(calib),
+                                                                     "dataset_hash": dataset_hash(ev)})
+    monkeypatch.setenv("S1PII_RESULTS", str(R)); monkeypatch.setenv("S1PII_DATA", str(tmp_path))
+    monkeypatch.setattr(bench, "split_paths", lambda name: {"calib": calib, "test": calib})
+    labs = ["person", "account_number", "phone", "email", "date", "address", "url", "secret"]
+    monkeypatch.setattr(g, "D", D); monkeypatch.setattr(g, "G", G)
+    monkeypatch.setattr(LB, "load_heldout", lambda: {"labels": sorted(held), "nodes": sorted(held)})
+    monkeypatch.setattr(LB, "c3_label_set", lambda desc=True: LB.LabelSet("t", [LB.native_label(x) for x in labs], desc))
+    g.run()
+    res = json.loads((G / "diag.json").read_text())
+    assert res["exploratory"] is True and res["c3_reopenable"] is False
+    assert res["n_heldout"] > 0 and set(res["models"]) == set(g.models())
+    m = res["models"]["M1_v1labels-s1"]
+    assert 0 <= m["heldout"]["top1"] <= 1 and m["heldout"]["median_rank"] >= 1
+    assert set(m["prior_correction_acc"]) == {"none", "unseen_offset", "per_label_oracle"}
+    assert "gap" in m["collapse"]["projected"] and "raw_heldout" in m["collapse"]["paraphrase_top1"]
+    h = res["hybrid"]
+    assert h["s1_match"] == 1.0 and h["hybrid_acc"] == 1.0 and h["gliner_acc"] == 1.0, h
