@@ -1,0 +1,16 @@
+{
+ "A_base": "B",
+ "gates": {
+  "B": "c667b4806210e4746a04b1be611a27aa62bd794529fad9697545025e37120c45",
+  "cheap": "4a43c5642cd193d55297b321e7637328bd064932285586155abb489821b52de8"
+ },
+ "headline": "A",
+ "pruned": [
+  "cheap",
+  "B"
+ ],
+ "stages": [
+  "B",
+  "A"
+ ]
+}

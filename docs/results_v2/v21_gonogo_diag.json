@@ -1,0 +1,757 @@
+{
+ "c3_reopenable": false,
+ "data": "Nemotron calibration (go/no-go eval sample)",
+ "exploratory": true,
+ "hybrid": {
+  "gliner_acc": 0.7283950617283951,
+  "gliner_match": 0.7870370370370371,
+  "hybrid_acc": 0.2716049382716049,
+  "hybrid_typed_frac": 0.2932098765432099,
+  "n": 324,
+  "note": "S1 = v2 headline (stage A) typed C3 spans after the 0.01 floor; flat-model spans were not saved",
+  "s1_match": 0.2932098765432099
+ },
+ "models": {
+  "M0_v2flat_3000": {
+   "collapse": {
+    "paraphrase_top1": {
+     "projected_heldout": 0.23333333333333334,
+     "projected_seen": 0.18518518518518517,
+     "raw_heldout": 0.26666666666666666,
+     "raw_seen": 0.2
+    },
+    "projected": {
+     "gap": 0.01085805892944336,
+     "heldout_nearest_seen": 0.9099195599555969,
+     "seen_nearest_other_seen": 0.8990615010261536
+    },
+    "raw": {
+     "gap": 0.0014313459396362305,
+     "heldout_nearest_seen": 0.9253052473068237,
+     "seen_nearest_other_seen": 0.9238739013671875
+    }
+   },
+   "heldout": {
+    "acc_among_heldout_only": 0.2777777777777778,
+    "acc_gold_plus_4_seen": 0.3271604938271605,
+    "chance_gold_plus_4": 0.2,
+    "chance_heldout_only": 0.1,
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 13.0,
+    "n": 324,
+    "per_label_median_rank": {
+     "bank_routing_number": 8.0,
+     "blood_type": 15.0,
+     "education_level": 6.0,
+     "fax_number": 2.0,
+     "http_cookie": 9.0,
+     "language": 48.0,
+     "medical_record_number": 9.0,
+     "political_view": 35.0,
+     "race_ethnicity": 38.5,
+     "religious_belief": 36.0
+    },
+    "top1": 0.012345679012345678,
+    "top5": 0.20679012345679013,
+    "top_confusions": [
+     [
+      "date",
+      70
+     ],
+     [
+      "company_name",
+      51
+     ],
+     [
+      "password",
+      28
+     ],
+     [
+      "phone_number",
+      27
+     ],
+     [
+      "employee_id",
+      22
+     ],
+     [
+      "first_name",
+      15
+     ],
+     [
+      "national_id",
+      15
+     ],
+     [
+      "postcode",
+      13
+     ]
+    ]
+   },
+   "prior_correction_acc": {
+    "none": {
+     "heldout": 0.012345679012345678,
+     "seen": 0.6551282051282051
+    },
+    "per_label_oracle": {
+     "heldout": 0.07098765432098765,
+     "seen": 0.6858974358974359
+    },
+    "unseen_offset": {
+     "heldout": 0.006172839506172839,
+     "seen": 0.6679487179487179
+    }
+   },
+   "seen": {
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 1.0,
+    "n": 780,
+    "top1": 0.6551282051282051,
+    "top5": 0.8628205128205129,
+    "top_confusions": [
+     [
+      "first_name",
+      113
+     ],
+     [
+      "employment_status",
+      41
+     ],
+     [
+      "county",
+      21
+     ],
+     [
+      "company_name",
+      14
+     ],
+     [
+      "employee_id",
+      10
+     ],
+     [
+      "national_id",
+      9
+     ],
+     [
+      "tax_id",
+      6
+     ],
+     [
+      "email",
+      6
+     ]
+    ]
+   }
+  },
+  "M1_v1labels-s1": {
+   "collapse": {
+    "paraphrase_top1": {
+     "projected_heldout": 0.3,
+     "projected_seen": 0.31851851851851853,
+     "raw_heldout": 0.26666666666666666,
+     "raw_seen": 0.2
+    },
+    "projected": {
+     "gap": 0.0007451176643371582,
+     "heldout_nearest_seen": 0.9462838172912598,
+     "seen_nearest_other_seen": 0.9455386996269226
+    },
+    "raw": {
+     "gap": 0.0014314651489257812,
+     "heldout_nearest_seen": 0.9253053665161133,
+     "seen_nearest_other_seen": 0.9238739013671875
+    }
+   },
+   "heldout": {
+    "acc_among_heldout_only": 0.2623456790123457,
+    "acc_gold_plus_4_seen": 0.41358024691358025,
+    "chance_gold_plus_4": 0.2,
+    "chance_heldout_only": 0.1,
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 16.0,
+    "n": 324,
+    "per_label_median_rank": {
+     "bank_routing_number": 3.0,
+     "blood_type": 16.0,
+     "education_level": 10.0,
+     "fax_number": 1.0,
+     "http_cookie": 34.0,
+     "language": 34.0,
+     "medical_record_number": 6.0,
+     "political_view": 24.0,
+     "race_ethnicity": 51.0,
+     "religious_belief": 20.0
+    },
+    "top1": 0.08950617283950617,
+    "top5": 0.21604938271604937,
+    "top_confusions": [
+     [
+      "date",
+      133
+     ],
+     [
+      "company_name",
+      37
+     ],
+     [
+      "account_number",
+      33
+     ],
+     [
+      "tax_id",
+      12
+     ],
+     [
+      "phone_number",
+      11
+     ],
+     [
+      "health_plan_beneficiary_number",
+      9
+     ],
+     [
+      "time",
+      9
+     ],
+     [
+      "postcode",
+      9
+     ]
+    ]
+   },
+   "prior_correction_acc": {
+    "none": {
+     "heldout": 0.08950617283950617,
+     "seen": 0.5153846153846153
+    },
+    "per_label_oracle": {
+     "heldout": 0.12037037037037036,
+     "seen": 0.5564102564102564
+    },
+    "unseen_offset": {
+     "heldout": 0.0,
+     "seen": 0.5717948717948718
+    }
+   },
+   "seen": {
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 1.0,
+    "n": 780,
+    "top1": 0.5153846153846153,
+    "top5": 0.7294871794871794,
+    "top_confusions": [
+     [
+      "time",
+      86
+     ],
+     [
+      "first_name",
+      67
+     ],
+     [
+      "company_name",
+      57
+     ],
+     [
+      "age",
+      29
+     ],
+     [
+      "date",
+      24
+     ],
+     [
+      "ipv4",
+      12
+     ],
+     [
+      "tax_id",
+      12
+     ],
+     [
+      "fax_number",
+      12
+     ]
+    ]
+   }
+  },
+  "M1_v1labels-s2": {
+   "collapse": {
+    "paraphrase_top1": {
+     "projected_heldout": 0.2,
+     "projected_seen": 0.35555555555555557,
+     "raw_heldout": 0.26666666666666666,
+     "raw_seen": 0.2
+    },
+    "projected": {
+     "gap": 0.0033518075942993164,
+     "heldout_nearest_seen": 0.9537434577941895,
+     "seen_nearest_other_seen": 0.9503916501998901
+    },
+    "raw": {
+     "gap": 0.0014314651489257812,
+     "heldout_nearest_seen": 0.9253053665161133,
+     "seen_nearest_other_seen": 0.9238739013671875
+    }
+   },
+   "heldout": {
+    "acc_among_heldout_only": 0.30864197530864196,
+    "acc_gold_plus_4_seen": 0.37962962962962965,
+    "chance_gold_plus_4": 0.2,
+    "chance_heldout_only": 0.1,
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 16.0,
+    "n": 324,
+    "per_label_median_rank": {
+     "bank_routing_number": 4.0,
+     "blood_type": 22.5,
+     "education_level": 12.0,
+     "fax_number": 2.0,
+     "http_cookie": 15.5,
+     "language": 27.0,
+     "medical_record_number": 5.0,
+     "political_view": 17.0,
+     "race_ethnicity": 33.5,
+     "religious_belief": 25.0
+    },
+    "top1": 0.040123456790123455,
+    "top5": 0.27469135802469136,
+    "top_confusions": [
+     [
+      "date",
+      83
+     ],
+     [
+      "account_number",
+      34
+     ],
+     [
+      "phone_number",
+      28
+     ],
+     [
+      "company_name",
+      27
+     ],
+     [
+      "user_name",
+      15
+     ],
+     [
+      "country",
+      12
+     ],
+     [
+      "date_time",
+      12
+     ],
+     [
+      "password",
+      9
+     ]
+    ]
+   },
+   "prior_correction_acc": {
+    "none": {
+     "heldout": 0.040123456790123455,
+     "seen": 0.5358974358974359
+    },
+    "per_label_oracle": {
+     "heldout": 0.09876543209876543,
+     "seen": 0.6076923076923076
+    },
+    "unseen_offset": {
+     "heldout": 0.0,
+     "seen": 0.5666666666666667
+    }
+   },
+   "seen": {
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 1.0,
+    "n": 780,
+    "top1": 0.5358974358974359,
+    "top5": 0.8,
+    "top_confusions": [
+     [
+      "first_name",
+      111
+     ],
+     [
+      "time",
+      61
+     ],
+     [
+      "date_time",
+      39
+     ],
+     [
+      "age",
+      15
+     ],
+     [
+      "swift_bic",
+      12
+     ],
+     [
+      "pin",
+      12
+     ],
+     [
+      "ipv4",
+      9
+     ],
+     [
+      "api_key",
+      9
+     ]
+    ]
+   }
+  },
+  "M2_bgelabels-s1": {
+   "collapse": {
+    "paraphrase_top1": {
+     "projected_heldout": 0.4666666666666667,
+     "projected_seen": 0.6666666666666666,
+     "raw_heldout": 0.9333333333333333,
+     "raw_seen": 0.8814814814814815
+    },
+    "projected": {
+     "gap": -0.020068585872650146,
+     "heldout_nearest_seen": 0.9097572565078735,
+     "seen_nearest_other_seen": 0.9298258423805237
+    },
+    "raw": {
+     "gap": -0.13705843687057495,
+     "heldout_nearest_seen": 0.6225992441177368,
+     "seen_nearest_other_seen": 0.7596576809883118
+    }
+   },
+   "heldout": {
+    "acc_among_heldout_only": 0.16049382716049382,
+    "acc_gold_plus_4_seen": 0.24382716049382716,
+    "chance_gold_plus_4": 0.2,
+    "chance_heldout_only": 0.1,
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 24.0,
+    "n": 324,
+    "per_label_median_rank": {
+     "bank_routing_number": 23.0,
+     "blood_type": 21.0,
+     "education_level": 49.5,
+     "fax_number": 2.0,
+     "http_cookie": 15.5,
+     "language": 44.0,
+     "medical_record_number": 16.0,
+     "political_view": 37.0,
+     "race_ethnicity": 27.0,
+     "religious_belief": 28.5
+    },
+    "top1": 0.009259259259259259,
+    "top5": 0.1111111111111111,
+    "top_confusions": [
+     [
+      "date",
+      113
+     ],
+     [
+      "company_name",
+      68
+     ],
+     [
+      "phone_number",
+      28
+     ],
+     [
+      "health_plan_beneficiary_number",
+      19
+     ],
+     [
+      "account_number",
+      17
+     ],
+     [
+      "cvv",
+      16
+     ],
+     [
+      "time",
+      10
+     ],
+     [
+      "sexuality",
+      9
+     ]
+    ]
+   },
+   "prior_correction_acc": {
+    "none": {
+     "heldout": 0.009259259259259259,
+     "seen": 0.5371794871794872
+    },
+    "per_label_oracle": {
+     "heldout": 0.030864197530864196,
+     "seen": 0.5987179487179487
+    },
+    "unseen_offset": {
+     "heldout": 0.0,
+     "seen": 0.5858974358974359
+    }
+   },
+   "seen": {
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 1.0,
+    "n": 780,
+    "top1": 0.5371794871794872,
+    "top5": 0.8282051282051283,
+    "top_confusions": [
+     [
+      "company_name",
+      137
+     ],
+     [
+      "first_name",
+      43
+     ],
+     [
+      "time",
+      31
+     ],
+     [
+      "date",
+      30
+     ],
+     [
+      "health_plan_beneficiary_number",
+      14
+     ],
+     [
+      "ipv6",
+      12
+     ],
+     [
+      "password",
+      11
+     ],
+     [
+      "swift_bic",
+      11
+     ]
+    ]
+   }
+  },
+  "M2_bgelabels-s2": {
+   "collapse": {
+    "paraphrase_top1": {
+     "projected_heldout": 0.36666666666666664,
+     "projected_seen": 0.6814814814814815,
+     "raw_heldout": 0.9333333333333333,
+     "raw_seen": 0.8814814814814815
+    },
+    "projected": {
+     "gap": -0.017773330211639404,
+     "heldout_nearest_seen": 0.9010788202285767,
+     "seen_nearest_other_seen": 0.9188521504402161
+    },
+    "raw": {
+     "gap": -0.13705843687057495,
+     "heldout_nearest_seen": 0.6225992441177368,
+     "seen_nearest_other_seen": 0.7596576809883118
+    }
+   },
+   "heldout": {
+    "acc_among_heldout_only": 0.20987654320987653,
+    "acc_gold_plus_4_seen": 0.25925925925925924,
+    "chance_gold_plus_4": 0.2,
+    "chance_heldout_only": 0.1,
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 25.0,
+    "n": 324,
+    "per_label_median_rank": {
+     "bank_routing_number": 25.0,
+     "blood_type": 23.5,
+     "education_level": 42.0,
+     "fax_number": 2.0,
+     "http_cookie": 11.5,
+     "language": 44.0,
+     "medical_record_number": 16.0,
+     "political_view": 45.0,
+     "race_ethnicity": 27.0,
+     "religious_belief": 29.5
+    },
+    "top1": 0.009259259259259259,
+    "top5": 0.14506172839506173,
+    "top_confusions": [
+     [
+      "date",
+      79
+     ],
+     [
+      "company_name",
+      50
+     ],
+     [
+      "phone_number",
+      27
+     ],
+     [
+      "swift_bic",
+      22
+     ],
+     [
+      "sexuality",
+      19
+     ],
+     [
+      "credit_debit_card",
+      15
+     ],
+     [
+      "last_name",
+      15
+     ],
+     [
+      "employee_id",
+      12
+     ]
+    ]
+   },
+   "prior_correction_acc": {
+    "none": {
+     "heldout": 0.009259259259259259,
+     "seen": 0.6064102564102564
+    },
+    "per_label_oracle": {
+     "heldout": 0.030864197530864196,
+     "seen": 0.6551282051282051
+    },
+    "unseen_offset": {
+     "heldout": 0.0,
+     "seen": 0.6628205128205128
+    }
+   },
+   "seen": {
+    "chance_top1": 0.01818181818181818,
+    "median_rank": 1.0,
+    "n": 780,
+    "top1": 0.6064102564102564,
+    "top5": 0.8320512820512821,
+    "top_confusions": [
+     [
+      "first_name",
+      59
+     ],
+     [
+      "race_ethnicity",
+      56
+     ],
+     [
+      "company_name",
+      40
+     ],
+     [
+      "time",
+      24
+     ],
+     [
+      "last_name",
+      17
+     ],
+     [
+      "date",
+      13
+     ],
+     [
+      "swift_bic",
+      13
+     ],
+     [
+      "gender",
+      8
+     ]
+    ]
+   }
+  }
+ },
+ "n_heldout": 324,
+ "n_spans": 1699,
+ "probe_heldout": {
+  "balanced_acc": 0.9346122994652408,
+  "chance": 0.1,
+  "ci95": [
+   0.9060974172092384,
+   0.9650384312849756
+  ],
+  "n": 324,
+  "n_classes": 10,
+  "per_class_recall": {
+   "bank_routing_number": 1.0,
+   "blood_type": 1.0,
+   "education_level": 0.9666666666666667,
+   "fax_number": 1.0,
+   "http_cookie": 0.96875,
+   "language": 0.90625,
+   "medical_record_number": 1.0,
+   "political_view": 0.8181818181818182,
+   "race_ethnicity": 0.8333333333333334,
+   "religious_belief": 0.8529411764705882
+  }
+ },
+ "probe_seen": {
+  "balanced_acc": 0.8352898148365548,
+  "chance": 0.022222222222222223,
+  "ci95": [
+   0.7984820121458407,
+   0.8694672451314244
+  ],
+  "n": 1375,
+  "n_classes": 45,
+  "per_class_recall": {
+   "account_number": 0.8571428571428571,
+   "age": 1.0,
+   "api_key": 0.7777777777777778,
+   "biometric_identifier": 1.0,
+   "certificate_license_number": 0.3333333333333333,
+   "city": 0.8108108108108109,
+   "company_name": 1.0,
+   "coordinate": 0.9,
+   "country": 1.0,
+   "county": 0.6153846153846154,
+   "credit_debit_card": 1.0,
+   "customer_id": 0.8888888888888888,
+   "cvv": 0.3333333333333333,
+   "date": 1.0,
+   "date_of_birth": 1.0,
+   "date_time": 0.8461538461538461,
+   "device_identifier": 0.2,
+   "email": 1.0,
+   "employee_id": 0.8125,
+   "employment_status": 0.8571428571428571,
+   "first_name": 0.9927007299270073,
+   "gender": 0.8,
+   "health_plan_beneficiary_number": 0.9259259259259259,
+   "ipv4": 1.0,
+   "ipv6": 1.0,
+   "last_name": 0.9826086956521739,
+   "license_plate": 0.9230769230769231,
+   "mac_address": 0.75,
+   "national_id": 0.875,
+   "occupation": 0.9148936170212766,
+   "password": 1.0,
+   "phone_number": 1.0,
+   "pin": 0.9333333333333333,
+   "postcode": 0.6666666666666666,
+   "sexuality": 0.4,
+   "ssn": 0.8571428571428571,
+   "state": 0.85,
+   "street_address": 1.0,
+   "swift_bic": 1.0,
+   "tax_id": 0.25,
+   "time": 0.9705882352941176,
+   "unique_id": 0.5,
+   "url": 1.0,
+   "user_name": 0.8636363636363636,
+   "vehicle_identifier": 0.9
+  }
+ }
+}

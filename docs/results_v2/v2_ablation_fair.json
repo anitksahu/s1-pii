@@ -1,0 +1,42 @@
+{
+ "nemotron": {
+  "A_bench": 0.326,
+  "A_canon": 0.457,
+  "cheap_bench": 0.352,
+  "cheap_canon": 0.424,
+  "flat_bench": 0.315,
+  "v1": 0.309
+ },
+ "pii_trace": {
+  "A_bench": 0.175,
+  "A_canon": 0.071,
+  "cheap_bench": 0.145,
+  "cheap_canon": 0.121,
+  "flat_bench": 0.053,
+  "v1": 0.078
+ },
+ "spy_legal": {
+  "A_bench": 0.491,
+  "A_canon": 0.514,
+  "cheap_bench": 0.638,
+  "cheap_canon": 0.639,
+  "flat_bench": 0.377,
+  "v1": 0.646
+ },
+ "spy_medical": {
+  "A_bench": 0.539,
+  "A_canon": 0.562,
+  "cheap_bench": 0.682,
+  "cheap_canon": 0.662,
+  "flat_bench": 0.408,
+  "v1": 0.679
+ },
+ "tab_direct": {
+  "A_bench": 0.332,
+  "A_canon": 0.262,
+  "cheap_bench": 0.267,
+  "cheap_canon": 0.293,
+  "flat_bench": 0.179,
+  "v1": 0.252
+ }
+}

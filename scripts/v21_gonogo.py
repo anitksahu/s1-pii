@@ -8,7 +8,7 @@ v1-label arm to measure that).
     python scripts/v21_gonogo.py prep    # CPU runtime: training subset, stratified eval sample, bge-base probe
     python scripts/v21_gonogo.py train   # GPU: M1 (v1 labels) and M2 (bge labels) x seeds 1, 2; 1000 steps
     python scripts/v21_gonogo.py eval    # GPU: M0 (v2 flat, 3000 steps), M1 and M2 per seed
-    python scripts/v21_gonogo.py decide  # CPU: the rule in docs/PLAN_v2.1_draft.md
+    python scripts/v21_gonogo.py decide  # CPU: the rule in docs/PLAN_v2.1.md
 
 Arms differ only in the label encoder: both use L2-normalized label vectors from at most 128
 tokens, the same text sampling (name / paraphrase / description, name dropout 0.4), label-set

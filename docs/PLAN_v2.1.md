@@ -1,4 +1,4 @@
-# S1-PII v2.1 plan (DRAFT for judge review; nothing run yet)
+# S1-PII v2.1 plan (judge-reviewed draft, then run: go/no-go NO-GO and exploratory failure analysis recorded below)
 
 ## Evidence from the v2 run (headline stage A; ~11.6 of 32 A100-h used; v2.1 fixes pushed at b6e644f)
 - C0' primary holds 3/5 (spy_medical, spy_legal, pii_trace); Nemotron lost (0.44 vs 0.22-0.30 pAUC).
@@ -17,7 +17,7 @@
   pii_trace .053/.175/.078, nemotron .315/.326/.309. Flat = frozen v1 encoder, 30% of training docs, 3000 steps, 1 seed.
   Canonical labels: A .262/.562/.514/.071/.457, cheap .293/.662/.639/.121/.424.
 
-## Proposed v2.1 headline: flat label-conditioned CRF (no P_b x P(k) factorization)
+## Proposed v2.1 headline (not run: the go/no-go below was NO-GO): flat label-conditioned CRF (no P_b x P(k) factorization)
 - Model: existing FlatModel (emission <W_kind h_t, U l_k>, kind-level shared transitions, exact segment marginals; any |L|).
 - Label encoder: frozen sentence encoder (bge-base-en-v1.5; NOT MiniLM, which chose the held-out set), label texts as in v2
   (name / paraphrase / description sampling); U maps 768 -> 256.
@@ -122,8 +122,6 @@ output $D/v21/gonogo/diag.json. Rows are assigned per arm; the table did not say
   floor: S1 match 0.293, hybrid 0.272, GLiNER2.5 match 0.787, acc 0.728. Typing given a match is about 0.93 for both.
   The F row is not met for this hybrid (0.272 vs GLiNER2.5 0.728).
   The go/no-go proposal rate (0.81 to 0.85) used floor 1e-4 and is a lenient rate, not boundary recall.
-- Decision: no further GPU on zero-shot flat typing. A retry needs a new preregistration (frozen or near-identity label
-  map plus a head change, fresh held-out labels since these 10 were inspected per label, a numeric collapse
-  tolerance, an aggregation rule across arms and seeds). GLiNER typing given matched spans makes it low priority.
+- Decision: no further GPU on zero-shot flat typing.
 - Plan limitations: the collapse criterion had no numeric threshold, and the table had no cross-arm or cross-seed
   aggregation rule; rows above were assigned per arm after the fact.

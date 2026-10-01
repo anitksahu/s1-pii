@@ -1,0 +1,18 @@
+{
+ "dataset": "spy_legal",
+ "dropped_cluster_frac": 0.0,
+ "dropped_doc_frac": 0.0,
+ "flagged": {},
+ "n_flagged": 0,
+ "n_test": 3358,
+ "n_train": 143286,
+ "skeleton_threshold": 0.9,
+ "test_hash": "3178dbc9c833684b",
+ "text_threshold": 0.8,
+ "training_examples_hash_per_seed": {
+  "s1": "f866f115751517be",
+  "s2": "f866f115751517be",
+  "s3": "0416b9b4657bae4d"
+ },
+ "variant": "all-sources"
+}

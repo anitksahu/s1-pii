@@ -1,0 +1,1094 @@
+{
+ "A": {
+  "done_markers": [
+   "flat-all-sources.json",
+   "flat-no-nemotron.json",
+   "flatpred-nemotron-calib-no-nemotron.json",
+   "flatpred-nemotron-test-no-nemotron.json",
+   "flatpred-pii_trace-calib-all-sources.json",
+   "flatpred-pii_trace-test-all-sources.json",
+   "flatpred-spy_legal-calib-all-sources.json",
+   "flatpred-spy_legal-test-all-sources.json",
+   "flatpred-spy_medical-calib-all-sources.json",
+   "flatpred-spy_medical-test-all-sources.json",
+   "flatpred-tab_direct-calib-all-sources.json",
+   "flatpred-tab_direct-test-all-sources.json"
+  ],
+  "files": [
+   {
+    "docs": "nemotron-calib.jsonl",
+    "file": "flat-nemotron-calib-no-nemotron.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 15:43",
+    "system": "s1v2flat_no-nemotron-s1"
+   },
+   {
+    "docs": "nemotron-test.jsonl",
+    "file": "flat-nemotron-test-no-nemotron.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 16:02",
+    "system": "s1v2flat_no-nemotron-s1"
+   },
+   {
+    "docs": "pii_trace-calib.jsonl",
+    "file": "flat-pii_trace-calib-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:09",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "pii_trace-test.jsonl",
+    "file": "flat-pii_trace-test-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:10",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "spy_legal-calib.jsonl",
+    "file": "flat-spy_legal-calib-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:21",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "spy_legal-test.jsonl",
+    "file": "flat-spy_legal-test-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:50",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "spy_medical-calib.jsonl",
+    "file": "flat-spy_medical-calib-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:57",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "spy_medical-test.jsonl",
+    "file": "flat-spy_medical-test-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 15:23",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "tab_direct-calib.jsonl",
+    "file": "flat-tab_direct-calib-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:12",
+    "system": "s1v2flat_all-sources-s1"
+   },
+   {
+    "docs": "tab_direct-test.jsonl",
+    "file": "flat-tab_direct-test-all-sources.jsonl",
+    "keys": [
+     "config",
+     "dataset_hash",
+     "docs_path",
+     "system",
+     "versions"
+    ],
+    "mtime_utc": "10-01 14:13",
+    "system": "s1v2flat_all-sources-s1"
+   }
+  ],
+  "flat_model_files": [
+   "flat/all-sources-s1/flat.pt",
+   "flat/all-sources-s1/flat_manifest.json",
+   "flat/no-nemotron-s1/flat.pt",
+   "flat/no-nemotron-s1/flat_manifest.json"
+  ],
+  "gpu_units": [
+   {
+    "hours": 0.2522,
+    "kind": "flat",
+    "ok": true,
+    "t": 1790863753.33519,
+    "unit": "flat-all-sources"
+   },
+   {
+    "hours": 0.0074,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790863779.9368184,
+    "unit": "flatpred-pii_trace-calib-all-sources"
+   },
+   {
+    "hours": 0.0212,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790863856.2698362,
+    "unit": "flatpred-pii_trace-test-all-sources"
+   },
+   {
+    "hours": 0.0227,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790863938.0040715,
+    "unit": "flatpred-tab_direct-calib-all-sources"
+   },
+   {
+    "hours": 0.0216,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790864015.9115129,
+    "unit": "flatpred-tab_direct-test-all-sources"
+   },
+   {
+    "hours": 0.1237,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790864461.0918598,
+    "unit": "flatpred-spy_legal-calib-all-sources"
+   },
+   {
+    "hours": 0.4888,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790866220.6214862,
+    "unit": "flatpred-spy_legal-test-all-sources"
+   },
+   {
+    "hours": 0.1122,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790866624.4692776,
+    "unit": "flatpred-spy_medical-calib-all-sources"
+   },
+   {
+    "hours": 0.4472,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790868234.5516133,
+    "unit": "flatpred-spy_medical-test-all-sources"
+   },
+   {
+    "hours": 0.2466,
+    "kind": "flat",
+    "ok": true,
+    "t": 1790869135.0486135,
+    "unit": "flat-no-nemotron"
+   },
+   {
+    "hours": 0.0713,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790869391.823208,
+    "unit": "flatpred-nemotron-calib-no-nemotron"
+   },
+   {
+    "hours": 0.3245,
+    "kind": "bench_store",
+    "ok": true,
+    "t": 1790870560.1182048,
+    "unit": "flatpred-nemotron-test-no-nemotron"
+   }
+  ]
+ },
+ "B": {
+  "nemotron": {
+   "gliner25_base_zeroshot": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.023517421392700015,
+    "pii_at_1.0": 0.0,
+    "t": 0.086
+   },
+   "gliner25_base_zeroshot_c3": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.0498955533339298,
+    "pii_at_1.0": 0.0,
+    "t": 0.9
+   },
+   "gliner2_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.07127891733347856,
+    "pii_at_1.0": 0.0,
+    "t": 0.267
+   },
+   "s1_no-nemotron-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0001244801979235147,
+    "nonpii_at_1.0": 0.0001244801979235147,
+    "nonpii_scored": 0.005771213176228951,
+    "pii_at_1.0": 0.2183369276087977,
+    "t": 0.0
+   },
+   "s1_no-nemotron-s2": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0001244801979235147,
+    "nonpii_at_1.0": 0.0001244801979235147,
+    "nonpii_scored": 0.010086786037989801,
+    "pii_at_1.0": 0.2183369276087977,
+    "t": 0.011
+   },
+   "s1_no-nemotron-s3": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0001244801979235147,
+    "nonpii_at_1.0": 0.0001244801979235147,
+    "nonpii_scored": 0.008300495197787364,
+    "pii_at_1.0": 0.2183369276087977,
+    "t": 0.0
+   },
+   "s1v2-A_no-nemotron-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.006373386133683953,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   },
+   "s1v2-cheap_no-nemotron-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.0011335478023410056,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   }
+  },
+  "pii_trace": {
+   "gliner25_base_zeroshot": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.023127639084376622,
+    "pii_at_1.0": 0.0,
+    "t": 0.082
+   },
+   "gliner2_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.08323579524409215,
+    "pii_at_1.0": 0.0,
+    "t": 0.238
+   },
+   "nvidia_gliner_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.0980146677531669,
+    "pii_at_1.0": 0.0,
+    "t": 0.182
+   },
+   "s1_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.011215645603378028,
+    "pii_at_1.0": 0.2681010289990646,
+    "t": 0.014
+   },
+   "s1_all-sources-s2": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.01549744425513001,
+    "pii_at_1.0": 0.2681010289990646,
+    "t": 0.019
+   },
+   "s1_all-sources-s3": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.016579005852285354,
+    "pii_at_1.0": 0.2681010289990646,
+    "t": 0.019
+   },
+   "s1v2-A_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.009104378102081636,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   },
+   "s1v2-cheap_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.005800429661456405,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   }
+  },
+  "spy_legal": {
+   "gliner25_base_zeroshot": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.07050463610428571,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "gliner2_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.10370905253687829,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "nvidia_gliner_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.11875969201994802,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "s1_all-sources-s1": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02020055118034781,
+    "nonpii_at_1.0": 0.02020055118034781,
+    "nonpii_scored": 0.07157227322716714,
+    "pii_at_1.0": 0.24065312957923382,
+    "t": 1.001
+   },
+   "s1_all-sources-s2": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02020055118034781,
+    "nonpii_at_1.0": 0.02020055118034781,
+    "nonpii_scored": 0.08145890865389223,
+    "pii_at_1.0": 0.24065312957923382,
+    "t": 1.001
+   },
+   "s1_all-sources-s3": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02020055118034781,
+    "nonpii_at_1.0": 0.02020055118034781,
+    "nonpii_scored": 0.0805846186974038,
+    "pii_at_1.0": 0.24065312957923382,
+    "t": 1.001
+   },
+   "s1v2-A_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.05926062465227104,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "s1v2-cheap_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.051966983293790174,
+    "pii_at_1.0": 0.0,
+    "t": 0.959
+   }
+  },
+  "spy_medical": {
+   "gliner25_base_zeroshot": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.07911602183284687,
+    "pii_at_1.0": 0.0,
+    "t": 0.999
+   },
+   "gliner2_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.11425932929561985,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "nvidia_gliner_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.11050933457347957,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "s1_all-sources-s1": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02220440818906681,
+    "nonpii_at_1.0": 0.02220440818906681,
+    "nonpii_scored": 0.08156313918650991,
+    "pii_at_1.0": 0.2423446989097827,
+    "t": 1.001
+   },
+   "s1_all-sources-s2": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02220440818906681,
+    "nonpii_at_1.0": 0.02220440818906681,
+    "nonpii_scored": 0.09911036396723746,
+    "pii_at_1.0": 0.2423446989097827,
+    "t": 1.001
+   },
+   "s1_all-sources-s3": {
+    "infeasible": true,
+    "min_over_on_grid": 0.02220440818906681,
+    "nonpii_at_1.0": 0.02220440818906681,
+    "nonpii_scored": 0.09624101783675308,
+    "pii_at_1.0": 0.2423446989097827,
+    "t": 1.001
+   },
+   "s1v2-A_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.06902415088285022,
+    "pii_at_1.0": 0.0,
+    "t": 1.0
+   },
+   "s1v2-cheap_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.056044838283362555,
+    "pii_at_1.0": 0.0,
+    "t": 0.959
+   }
+  },
+  "tab_direct": {
+   "gliner25_base_zeroshot": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.043397477562650597,
+    "pii_at_1.0": 0.0,
+    "t": 0.23
+   },
+   "gliner2_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.16683189659888956,
+    "pii_at_1.0": 0.0,
+    "t": 0.636
+   },
+   "nvidia_gliner_pii": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.14087657214639154,
+    "pii_at_1.0": 0.0,
+    "t": 0.539
+   },
+   "s1_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.014485522137528205,
+    "pii_at_1.0": 0.0,
+    "t": 0.013
+   },
+   "s1_all-sources-s2": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.01233206182882179,
+    "pii_at_1.0": 0.0,
+    "t": 0.012
+   },
+   "s1_all-sources-s3": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.011349436139178316,
+    "pii_at_1.0": 0.0,
+    "t": 0.011
+   },
+   "s1v2-A_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.004735861898415325,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   },
+   "s1v2-cheap_all-sources-s1": {
+    "infeasible": false,
+    "min_over_on_grid": 0.0,
+    "nonpii_at_1.0": 0.0,
+    "nonpii_scored": 0.0010504684432714215,
+    "pii_at_1.0": 0.0,
+    "t": 0.0
+   }
+  }
+ },
+ "C": {
+  "n_gold": 7780,
+  "per_label_n": {
+   "bank_routing_number": 860,
+   "blood_type": 443,
+   "education_level": 937,
+   "fax_number": 623,
+   "http_cookie": 450,
+   "language": 708,
+   "medical_record_number": 1108,
+   "political_view": 704,
+   "race_ethnicity": 1140,
+   "religious_belief": 807
+  },
+  "per_label_over64": {
+   "bank_routing_number": 0,
+   "blood_type": 0,
+   "education_level": 0,
+   "fax_number": 0,
+   "http_cookie": 102,
+   "language": 0,
+   "medical_record_number": 0,
+   "political_view": 0,
+   "race_ethnicity": 0,
+   "religious_belief": 0
+  },
+  "systems": {
+   "gliner25_base_zeroshot_c3": {
+    "acc_given_match": 0.9290468986384266,
+    "acc_t05_given_match": 0.9208774583963691,
+    "matched_frac": 0.8496143958868895,
+    "overlap_only_frac": 0.11246786632390746,
+    "per_label": {
+     "bank_routing_number": {
+      "acc|match": 0.984,
+      "match": 0.994,
+      "n": 860
+     },
+     "blood_type": {
+      "acc|match": 0.988,
+      "match": 0.91,
+      "n": 443
+     },
+     "education_level": {
+      "acc|match": 0.878,
+      "match": 0.561,
+      "n": 937
+     },
+     "fax_number": {
+      "acc|match": 0.891,
+      "match": 0.998,
+      "n": 623
+     },
+     "http_cookie": {
+      "acc|match": 0.987,
+      "match": 0.169,
+      "n": 450
+     },
+     "language": {
+      "acc|match": 0.971,
+      "match": 0.934,
+      "n": 708
+     },
+     "medical_record_number": {
+      "acc|match": 0.943,
+      "match": 1.0,
+      "n": 1108
+     },
+     "political_view": {
+      "acc|match": 0.899,
+      "match": 0.834,
+      "n": 704
+     },
+     "race_ethnicity": {
+      "acc|match": 0.856,
+      "match": 0.923,
+      "n": 1140
+     },
+     "religious_belief": {
+      "acc|match": 0.967,
+      "match": 0.892,
+      "n": 807
+     }
+    },
+    "top_confusions": [
+     "race_ethnicity->language:82",
+     "medical_record_number->account_number:49",
+     "education_level->employment_status:39",
+     "fax_number->phone_number:38",
+     "fax_number->account_number:29",
+     "race_ethnicity->blood_type:22",
+     "political_view->religious_belief:17",
+     "race_ethnicity->political_view:16",
+     "political_view->occupation:15",
+     "language->race_ethnicity:15",
+     "religious_belief->political_view:12",
+     "bank_routing_number->account_number:10"
+    ]
+   },
+   "s1v2c3-A_all-sources-s1": {
+    "acc_given_match": 0.07314836046778261,
+    "acc_t05_given_match": 0.0038981884888786974,
+    "matched_frac": 0.5605398457583548,
+    "overlap_only_frac": 0.02069408740359897,
+    "per_label": {
+     "bank_routing_number": {
+      "acc|match": 0.03,
+      "match": 0.999,
+      "n": 860
+     },
+     "blood_type": {
+      "acc|match": 0.0,
+      "match": 0.002,
+      "n": 443
+     },
+     "education_level": {
+      "acc|match": 0.0,
+      "match": 0.027,
+      "n": 937
+     },
+     "fax_number": {
+      "acc|match": 0.01,
+      "match": 0.998,
+      "n": 623
+     },
+     "http_cookie": {
+      "acc|match": 0.0,
+      "match": 0.013,
+      "n": 450
+     },
+     "language": {
+      "acc|match": 0.547,
+      "match": 0.362,
+      "n": 708
+     },
+     "medical_record_number": {
+      "acc|match": 0.014,
+      "match": 1.0,
+      "n": 1108
+     },
+     "political_view": {
+      "acc|match": 0.0,
+      "match": 0.401,
+      "n": 704
+     },
+     "race_ethnicity": {
+      "acc|match": 0.019,
+      "match": 0.938,
+      "n": 1140
+     },
+     "religious_belief": {
+      "acc|match": 0.842,
+      "match": 0.165,
+      "n": 807
+     }
+    },
+    "top_confusions": [
+     "medical_record_number->certificate_license_number:870",
+     "bank_routing_number->account_number:764",
+     "fax_number->phone_number:616",
+     "race_ethnicity->religious_belief:381",
+     "race_ethnicity->language:341",
+     "race_ethnicity->sexuality:187",
+     "political_view->religious_belief:167",
+     "medical_record_number->national_id:110",
+     "race_ethnicity->country:109",
+     "language->country:105",
+     "medical_record_number->customer_id:40",
+     "bank_routing_number->health_plan_beneficiary_number:34"
+    ]
+   },
+   "s1v2c3-A_no-nemotron-s1": {
+    "acc_given_match": 0.20232896652110627,
+    "acc_t05_given_match": 0.12481804949053857,
+    "matched_frac": 0.3532133676092545,
+    "overlap_only_frac": 0.06272493573264781,
+    "per_label": {
+     "bank_routing_number": {
+      "acc|match": 0.001,
+      "match": 0.848,
+      "n": 860
+     },
+     "blood_type": {
+      "acc|match": 0.0,
+      "match": 0.0,
+      "n": 443
+     },
+     "education_level": {
+      "acc|match": 0.0,
+      "match": 0.042,
+      "n": 937
+     },
+     "fax_number": {
+      "acc|match": 0.878,
+      "match": 0.989,
+      "n": 623
+     },
+     "http_cookie": {
+      "acc|match": 0.0,
+      "match": 0.007,
+      "n": 450
+     },
+     "language": {
+      "acc|match": 0.0,
+      "match": 0.008,
+      "n": 708
+     },
+     "medical_record_number": {
+      "acc|match": 0.019,
+      "match": 0.657,
+      "n": 1108
+     },
+     "political_view": {
+      "acc|match": 0.0,
+      "match": 0.217,
+      "n": 704
+     },
+     "race_ethnicity": {
+      "acc|match": 0.0,
+      "match": 0.235,
+      "n": 1140
+     },
+     "religious_belief": {
+      "acc|match": 0.0,
+      "match": 0.255,
+      "n": 807
+     }
+    },
+    "top_confusions": [
+     "bank_routing_number->national_id:464",
+     "race_ethnicity->last_name:179",
+     "medical_record_number->national_id:132",
+     "medical_record_number->employee_id:121",
+     "medical_record_number->ssn:114",
+     "medical_record_number->pin:108",
+     "religious_belief->company_name:104",
+     "bank_routing_number->credit_debit_card:85",
+     "medical_record_number->customer_id:81",
+     "political_view->company_name:70",
+     "political_view->last_name:58",
+     "religious_belief->gender:53"
+    ]
+   },
+   "s1v2c3-B_no-nemotron-s1": {
+    "acc_given_match": 0.04214845207012309,
+    "acc_t05_given_match": 0.01454681089145841,
+    "matched_frac": 0.34460154241645247,
+    "overlap_only_frac": 0.05758354755784062,
+    "per_label": {
+     "bank_routing_number": {
+      "acc|match": 0.0,
+      "match": 0.844,
+      "n": 860
+     },
+     "blood_type": {
+      "acc|match": 0.0,
+      "match": 0.0,
+      "n": 443
+     },
+     "education_level": {
+      "acc|match": 0.0,
+      "match": 0.07,
+      "n": 937
+     },
+     "fax_number": {
+      "acc|match": 0.182,
+      "match": 0.989,
+      "n": 623
+     },
+     "http_cookie": {
+      "acc|match": 0.0,
+      "match": 0.004,
+      "n": 450
+     },
+     "language": {
+      "acc|match": 0.0,
+      "match": 0.003,
+      "n": 708
+     },
+     "medical_record_number": {
+      "acc|match": 0.001,
+      "match": 0.653,
+      "n": 1108
+     },
+     "political_view": {
+      "acc|match": 0.0,
+      "match": 0.185,
+      "n": 704
+     },
+     "race_ethnicity": {
+      "acc|match": 0.0,
+      "match": 0.196,
+      "n": 1140
+     },
+     "religious_belief": {
+      "acc|match": 0.0,
+      "match": 0.237,
+      "n": 807
+     }
+    },
+    "top_confusions": [
+     "fax_number->phone_number:447",
+     "bank_routing_number->national_id:310",
+     "bank_routing_number->credit_debit_card:208",
+     "medical_record_number->employee_id:195",
+     "race_ethnicity->last_name:122",
+     "medical_record_number->ssn:107",
+     "religious_belief->company_name:101",
+     "medical_record_number->national_id:99",
+     "medical_record_number->pin:81",
+     "race_ethnicity->gender:80",
+     "bank_routing_number->ssn:77",
+     "medical_record_number->customer_id:76"
+    ]
+   },
+   "s1v2c3-cheap_no-nemotron-s1": {
+    "acc_given_match": 0.030276437033786747,
+    "acc_t05_given_match": 0.008775778850372971,
+    "matched_frac": 0.2929305912596401,
+    "overlap_only_frac": 0.01683804627249357,
+    "per_label": {
+     "bank_routing_number": {
+      "acc|match": 0.01,
+      "match": 0.891,
+      "n": 860
+     },
+     "blood_type": {
+      "acc|match": 0.0,
+      "match": 0.0,
+      "n": 443
+     },
+     "education_level": {
+      "acc|match": 0.0,
+      "match": 0.0,
+      "n": 937
+     },
+     "fax_number": {
+      "acc|match": 0.1,
+      "match": 0.984,
+      "n": 623
+     },
+     "http_cookie": {
+      "acc|match": 0.0,
+      "match": 0.0,
+      "n": 450
+     },
+     "language": {
+      "acc|match": 0.0,
+      "match": 0.004,
+      "n": 708
+     },
+     "medical_record_number": {
+      "acc|match": 0.0,
+      "match": 0.569,
+      "n": 1108
+     },
+     "political_view": {
+      "acc|match": 0.0,
+      "match": 0.088,
+      "n": 704
+     },
+     "race_ethnicity": {
+      "acc|match": 0.0,
+      "match": 0.151,
+      "n": 1140
+     },
+     "religious_belief": {
+      "acc|match": 0.0,
+      "match": 0.04,
+      "n": 807
+     }
+    },
+    "top_confusions": [
+     "fax_number->phone_number:512",
+     "bank_routing_number->national_id:335",
+     "medical_record_number->employee_id:262",
+     "bank_routing_number->credit_debit_card:189",
+     "race_ethnicity->last_name:133",
+     "medical_record_number->vehicle_identifier:132",
+     "bank_routing_number->ssn:128",
+     "medical_record_number->ssn:56",
+     "medical_record_number->credit_debit_card:44",
+     "bank_routing_number->license_plate:44",
+     "political_view->last_name:40",
+     "fax_number->ssn:38"
+    ]
+   }
+  },
+  "token_len": {
+   "9-64": 430,
+   "<=8": 7248,
+   ">64": 102
+  }
+ },
+ "D": {
+  "B": {
+   "A_fires": true,
+   "B_fires": true,
+   "head_val_acc": [
+    0.9663148439254435,
+    0.9597299813780261,
+    0.9586419049789222,
+    0.952933793536241,
+    0.9451645064805583,
+    0.9521951219512195
+   ],
+   "head_val_acc_min": 0.9451645064805583,
+   "heldout_matched": {
+    "all-sources-s1": 923,
+    "all-sources-s2": 933,
+    "all-sources-s3": 918,
+    "no-nemotron-s1": 706,
+    "no-nemotron-s2": 752,
+    "no-nemotron-s3": 711
+   },
+   "heldout_typing_mean": {
+    "all-sources": 0.17896750187309632,
+    "no-nemotron": 0.043768980157255714
+   },
+   "level1_recall_mean": {
+    "all-sources": 0.8468166586883678,
+    "no-nemotron": 0.5144806127333652
+   }
+  },
+  "cheap": {
+   "A_fires": true,
+   "B_fires": true,
+   "head_val_acc": [
+    0.37248962190059465,
+    0.361941162844568,
+    0.30246562890580614,
+    0.9511010362694301,
+    0.9430340557275542,
+    0.9533564450047274
+   ],
+   "head_val_acc_min": 0.30246562890580614,
+   "heldout_matched": {
+    "all-sources-s1": 551,
+    "all-sources-s2": 555,
+    "all-sources-s3": 553,
+    "no-nemotron-s1": 510,
+    "no-nemotron-s2": 547,
+    "no-nemotron-s3": 523
+   },
+   "heldout_typing_mean": {
+    "all-sources": 0.11246708715982073,
+    "no-nemotron": 0.018666345993283633
+   },
+   "level1_recall_mean": {
+    "all-sources": 0.06665868836764001,
+    "no-nemotron": 0.05784266794319451
+   }
+  }
+ },
+ "E": {
+  "n_labels": 55,
+  "n_queries": 165,
+  "results": {
+   "A_typing_encoder": {
+    "all": {
+     "n": 165,
+     "top1": 0.4484848484848485,
+     "top5": 0.6363636363636364
+    },
+    "heldout": {
+     "n": 30,
+     "top1": 0.4666666666666667,
+     "top5": 0.5333333333333333
+    }
+   },
+   "A_typing_encoder+head": {
+    "all": {
+     "n": 165,
+     "top1": 0.5333333333333333,
+     "top5": 0.7454545454545455
+    },
+    "heldout": {
+     "n": 30,
+     "top1": 0.26666666666666666,
+     "top5": 0.6
+    }
+   },
+   "bge_small": {
+    "all": {
+     "n": 165,
+     "top1": 0.8848484848484849,
+     "top5": 0.9575757575757575
+    },
+    "heldout": {
+     "n": 30,
+     "top1": 0.9333333333333333,
+     "top5": 0.9333333333333333
+    }
+   },
+   "v1_encoder": {
+    "all": {
+     "n": 165,
+     "top1": 0.21212121212121213,
+     "top5": 0.4
+    },
+    "heldout": {
+     "n": 30,
+     "top1": 0.26666666666666666,
+     "top5": 0.4
+    }
+   },
+   "v1_encoder+head": {
+    "all": {
+     "n": 165,
+     "top1": 0.4666666666666667,
+     "top5": 0.6909090909090909
+    },
+    "heldout": {
+     "n": 30,
+     "top1": 0.23333333333333334,
+     "top5": 0.6333333333333333
+    }
+   }
+  }
+ }
+}

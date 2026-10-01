@@ -1,0 +1,132 @@
+{
+ "invalid": [],
+ "seeds": {
+  "1": {
+   "ci95_diff": [
+    -0.10433888529046854,
+    -0.046301561150470065
+   ],
+   "ci_low>0": false,
+   "labels": [
+    "bank_routing_number",
+    "blood_type",
+    "education_level",
+    "fax_number",
+    "http_cookie",
+    "language",
+    "medical_record_number",
+    "political_view",
+    "race_ethnicity",
+    "religious_belief"
+   ],
+   "macro_M1": 0.08494623655913977,
+   "macro_M2": 0.009481915933528836,
+   "macro_M2>=0.40": false,
+   "macro_gain>=0.15": false,
+   "majority_of_labels": false,
+   "match_not_worse": true,
+   "seen_not_worse": true,
+   "wins": 1
+  },
+  "2": {
+   "ci95_diff": [
+    -0.05633447200457587,
+    -0.005327982224063929
+   ],
+   "ci_low>0": false,
+   "labels": [
+    "bank_routing_number",
+    "blood_type",
+    "education_level",
+    "fax_number",
+    "http_cookie",
+    "language",
+    "medical_record_number",
+    "political_view",
+    "race_ethnicity",
+    "religious_belief"
+   ],
+   "macro_M1": 0.04056695992179863,
+   "macro_M2": 0.00967741935483871,
+   "macro_M2>=0.40": false,
+   "macro_gain>=0.15": false,
+   "majority_of_labels": false,
+   "match_not_worse": true,
+   "seen_not_worse": true,
+   "wins": 0
+  }
+ },
+ "summaries": {
+  "M0_v2flat_3000": {
+   "heldout": {
+    "acc": 0.009259259259259259,
+    "macro_acc": 0.009791666666666667,
+    "match": 0.6944444444444444,
+    "n": 324
+   },
+   "seen": {
+    "acc": 0.6487179487179487,
+    "macro_acc": 0.6734441782724562,
+    "match": 0.9102564102564102,
+    "n": 780
+   }
+  },
+  "M1_v1labels-s1": {
+   "heldout": {
+    "acc": 0.08333333333333333,
+    "macro_acc": 0.08494623655913977,
+    "match": 0.8117283950617284,
+    "n": 324
+   },
+   "seen": {
+    "acc": 0.5,
+    "macro_acc": 0.5511876096472211,
+    "match": 0.9,
+    "n": 780
+   }
+  },
+  "M1_v1labels-s2": {
+   "heldout": {
+    "acc": 0.040123456790123455,
+    "macro_acc": 0.04056695992179863,
+    "match": 0.8209876543209876,
+    "n": 324
+   },
+   "seen": {
+    "acc": 0.5358974358974359,
+    "macro_acc": 0.6294065044831247,
+    "match": 0.9192307692307692,
+    "n": 780
+   }
+  },
+  "M2_bgelabels-s1": {
+   "heldout": {
+    "acc": 0.009259259259259259,
+    "macro_acc": 0.009481915933528836,
+    "match": 0.8333333333333334,
+    "n": 324
+   },
+   "seen": {
+    "acc": 0.5333333333333333,
+    "macro_acc": 0.6202309565396065,
+    "match": 0.9282051282051282,
+    "n": 780
+   }
+  },
+  "M2_bgelabels-s2": {
+   "heldout": {
+    "acc": 0.009259259259259259,
+    "macro_acc": 0.00967741935483871,
+    "match": 0.8487654320987654,
+    "n": 324
+   },
+   "seen": {
+    "acc": 0.6051282051282051,
+    "macro_acc": 0.6400546509006759,
+    "match": 0.9384615384615385,
+    "n": 780
+   }
+  }
+ },
+ "verdict": "NO-GO"
+}

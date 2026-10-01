@@ -1,0 +1,18 @@
+{
+ "dataset": "nemotron",
+ "dropped_cluster_frac": 0.0,
+ "dropped_doc_frac": 0.0,
+ "flagged": {},
+ "n_flagged": 0,
+ "n_test": 10020,
+ "n_train": 45360,
+ "skeleton_threshold": 0.9,
+ "test_hash": "9152bdc1358701b4",
+ "text_threshold": 0.8,
+ "training_examples_hash_per_seed": {
+  "s1": "15245aa7cc030dea",
+  "s2": "15245aa7cc030dea",
+  "s3": "15245aa7cc030dea"
+ },
+ "variant": "no-nemotron"
+}

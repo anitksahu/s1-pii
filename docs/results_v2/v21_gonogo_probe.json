@@ -1,0 +1,6 @@
+{
+ "all_top1": 0.8909090909090909,
+ "heldout_top1": 0.9333333333333333,
+ "model": "BAAI/bge-base-en-v1.5",
+ "revision": "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"
+}

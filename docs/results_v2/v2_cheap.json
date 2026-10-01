@@ -1,0 +1,20 @@
+{
+ "all-sources-s1": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-all-sources-s1"
+ },
+ "all-sources-s2": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-all-sources-s2"
+ },
+ "all-sources-s3": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-all-sources-s3"
+ },
+ "no-nemotron-s1": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-no-nemotron-s1"
+ },
+ "no-nemotron-s2": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-no-nemotron-s2"
+ },
+ "no-nemotron-s3": {
+  "head": "/content/drive/MyDrive/s1pii/v2/heads/cheap-no-nemotron-s3"
+ }
+}

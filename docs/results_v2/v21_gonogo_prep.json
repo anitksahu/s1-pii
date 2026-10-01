@@ -1,0 +1,42 @@
+{
+ "available_in_calib": {
+  "bank_routing_number": 149,
+  "blood_type": 113,
+  "education_level": 201,
+  "fax_number": 151,
+  "http_cookie": 127,
+  "language": 140,
+  "medical_record_number": 153,
+  "political_view": 68,
+  "race_ethnicity": 157,
+  "religious_belief": 87
+ },
+ "eval_docs": 190,
+ "eval_docs_sha": "dba1215c652fd11ad2ce2f5c264644c2ee367fd41b39861bf289570fe42ba9ce",
+ "heldout": [
+  "bank_routing_number",
+  "blood_type",
+  "education_level",
+  "fax_number",
+  "http_cookie",
+  "language",
+  "medical_record_number",
+  "political_view",
+  "race_ethnicity",
+  "religious_belief"
+ ],
+ "labels_n_ge_20": 10,
+ "note": "Nemotron calibration docs read by the go/no-go (test untouched)",
+ "per_label_n": {
+  "bank_routing_number": 33,
+  "blood_type": 38,
+  "education_level": 30,
+  "fax_number": 31,
+  "http_cookie": 32,
+  "language": 32,
+  "medical_record_number": 31,
+  "political_view": 33,
+  "race_ethnicity": 30,
+  "religious_belief": 34
+ }
+}

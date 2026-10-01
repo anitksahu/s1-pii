@@ -2,7 +2,7 @@
 # v2 GPU chain on one Colab A100 (resumable; every unit is skipped once done).
 # Env from the setup cell: S1PII_DATA, S1PII_RESULTS (Drive). Status for the monitor cell:
 # $D/v2/STATUS = RUNNING | DONE | FAILED <code> | STOPPED_CAP. The monitor releases the
-# runtime on DONE, FAILED or STOPPED_CAP, and on GPU utilization < 20% for 10 minutes.
+# runtime on DONE, FAILED or STOPPED_CAP, and on GPU utilization < 20% for 25 minutes in a GPU phase (v2_monitor.py).
 set -u
 cd "$(dirname "$0")/.."
 D=/content/drive/MyDrive/s1pii

@@ -133,16 +133,63 @@ Same predictions, scored the conventional way: each model's default threshold (0
 
 </details>
 
-## Where S1-PII falls short
+## Where S1-PII helps, where it does not, and why
+
+### Where it helps
+
+* **Leak area on benchmarks it never trained on.** Lower pAUC than all three GLiNER models on PII-TRACE, TAB, SPY legal and SPY medical (C0 above). None of the four is in S1's training data, and the leakage audit flagged no test document.
+* **Strict budgets on PII-TRACE and TAB.** At 1% over-redaction S1 leaks 7.0% on PII-TRACE (best GLiNER 13.7%) and 20.0% on TAB (best GLiNER 27.5%).
+* **The 2% to 5% range on SPY.** At 5% S1 leaks 14.3% (legal) and 21.6% (medical) against 33% to 53% for GLiNER.
+* **Precision on PII-TRACE and Nemotron-PII.** Strict micro precision is 0.84 on PII-TRACE (GLiNER 0.43 to 0.73) and 0.76 on Nemotron-PII (0.68 to 0.74). On SPY and TAB it is not better.
+* **Raw-score calibration on SPY and TAB.** Adaptive ECE is 0.17 to 0.27 on SPY and 0.12 to 0.17 on TAB, against 0.25 to 0.53 for GLiNER. This is v1 raw-score ECE over each system's own candidate spans; after isotonic recalibration (v2 C4, the v2 model, character level) S1 shows no calibration advantage on SPY and is significantly worse on TAB.
+
+### Where it does not
 
 We report these because they are real and you will find them anyway.
 
-* **Nemotron-PII: S1-PII loses.** On the Nemotron test sample S1-PII is scored with the variant that never saw Nemotron, and both GLiNER models leak less (GLiNER2.5 pAUC 0.220, GLiNER2-PII 0.298 versus S1-PII 0.313). Out-of-distribution transfer to this template-generated, 50+ label corpus is the clearest open problem.
+* **Nemotron-PII: S1-PII loses.** On the Nemotron test sample S1-PII is scored with the variant that never saw Nemotron, and both GLiNER models leak less (GLiNER2.5 pAUC 0.220, GLiNER2-PII 0.298 versus S1-PII 0.313). Out-of-distribution transfer to this template-generated, 50+ label corpus is S1-PII's weakest result.
+* **Strict budgets on SPY.** At 2% over-redaction or less S1 masks nothing on SPY (leak 100%), while GLiNER2.5 reaches 85.9% (medical, 1% and 2%) and 84.3% (legal, 2%); 2% values are in `docs/final_results.json`. The SPY wins come entirely from the 2% to 5% part of the curve, so they depend on the 5% cap of the metric.
+* **The 5% budget on PII-TRACE and TAB.** GLiNER2-PII leaks less than S1 on PII-TRACE at 5% (6.1% vs 6.8%), and NVIDIA GLiNER-PII leaks less than S1 on TAB (16.4% vs a mean of 19.6%; seeds 24.7%, 23.3%, 10.7%).
+* **Typed extraction (classic NER).** Micro F1 at default thresholds is not better than the best GLiNER model on any benchmark (table above). On TAB, S1 ranks PII characters well but its recall at 0.5 is 0.03, against 0.36 for GLiNER2.5. Macro F1 is highest only on SPY (0.51).
 * **Generic dates.** The training taxonomy treats generic dates in Nemotron-PII and Gretel as quasi-identifiers (IGNORE); only dates of birth are PII. S1-PII therefore does not tag appointment or event dates, which PII-TRACE and TAB count as PII. This asymmetry is disclosed in the preregistration.
-* **Calibration off-domain.** On long legal text (TAB) S1-PII ranks PII characters well (it wins on pAUC) but its probabilities sit far below 0.5, so a fixed 0.5 threshold misses most names. Use a threshold tuned on a small in-domain calibration split (the benchmark does this automatically) or recalibrate with the included temperature and isotonic tools.
+* **Calibration off-domain.** On long legal text (TAB) S1-PII ranks PII characters well (it wins on pAUC) but its probabilities sit far below 0.5, so a fixed 0.5 threshold misses most names. Use a threshold tuned on a small in-domain calibration split (the benchmark does this automatically) or recalibrate with the included temperature and isotonic tools. Raw calibration is also not better on PII-TRACE or Nemotron-PII.
 * **Secrets.** SECRET spans are found at low probability; recall at 0.5 is low even where the leak curve is good.
-* **Synthetic dates of birth drifted across runs.** The synthetic training conversations drew dates of birth relative to the run date, so `all-sources` seed 3 and the `no-nemotron` runs (started after midnight UTC) saw different DOB strings than seeds 1 and 2. Same sources and counts; fixed for future runs.
-* **Seed variance on small sets.** TAB has 127 test documents; per-seed pAUC varies noticeably, so we always report the three seeds.
+* **Synthetic dates of birth drifted across runs.** The synthetic training conversations drew dates of birth relative to the run date, so `all-sources` seed 3 and the `no-nemotron` runs (started after midnight UTC) saw different DOB strings than seeds 1 and 2. Same sources and counts; the generator now draws dates of birth from a fixed date range.
+* **Seed variance on small sets.** TAB has 127 test documents and per-seed pAUC ranges from 0.117 to 0.252. The low value is seed 3, which is also the run that saw drifted DOB strings (above), so the spread is not pure seed noise. Seeds 1 and 2 alone (0.252, 0.240) are still below every GLiNER model on TAB (best 0.280; per-seed differences not tested).
+* **Classes supplied at inference and calibrated abstention.** Both were tested in v2 and failed (below).
+
+### Other factors behind the gap
+
+The comparison is fair as a system benchmark, but several factors differ between S1 and the baselines. The gain cannot be attributed to the CRF design alone.
+
+* **Supervision.** S1 is fine-tuned on three sources (synthetic conversations, Nemotron-PII train unless held out, Gretel finance) under one canonical taxonomy. GLiNER2.5 is zero-shot with label prompts, and the two PII-trained GLiNER models used different training data. GLiNER was not fine-tuned on S1's data.
+* **Training-data overlap of the baselines is unknown.** It is known only for NVIDIA GLiNER-PII, which is why it is excluded on Nemotron-PII.
+* **The metric rewards ranking.** pAUC thresholds character scores, and S1 emits an exact probability for every candidate span (all spans with P ≥ 0.01, overlaps kept). Strict F1 at a fixed threshold does not reward this, which is why the two views disagree.
+* **Rule components.** S1 adds deterministic validators (Luhn, IBAN, SSN, ABA, phone); the GLiNER models have none. The no-validator ablation is not reported here.
+* **Taxonomy and annotation conventions.** All systems are mapped to one canonical taxonomy with per-benchmark IGNORE rules (for example generic Nemotron dates, TAB quasi-identifiers).
+* **Backbone.** S1 uses ModernBERT-large; backbones and sizes differ across systems and were not matched.
+
+## v2: classes supplied at inference (preregistered; mostly negative)
+
+v2 asked whether S1 can take its label set at inference time, make hierarchical typed decisions and abstain in a calibrated way (`docs/PLAN_v2.md`). Raw numbers: [`docs/results_v2/`](docs/results_v2/).
+
+* **C0' (redaction with the canonical labels supplied at inference): holds, 3 of 5** (PII-TRACE, SPY legal, SPY medical). Headline pAUC: PII-TRACE 0.083, TAB 0.266, SPY legal 0.529, SPY medical 0.569, Nemotron-PII 0.441. With each benchmark's own label names instead, it fails (2 of 5).
+* **C3 (zero-shot typing of 10 held-out labels on Nemotron-PII): fails.** S1 v2 macro F1 0.00 to 0.03 per seed vs GLiNER2.5 0.70. Over gold spans, S1 types 0.6% to 7% correctly (35% to 37% of spans matched) vs GLiNER2.5 79% (85% matched).
+* **C4 (selective leak at 95% coverage, calibration vs GLiNER): fails.** No benchmark won. On SPY every S1 cell, and every GLiNER cell except GLiNER2.5 on SPY medical (a significant S1 loss), is degenerate (leak 1.0); this result predates the v2.1 rule that marks such cells infeasible. After recalibration S1 is significantly worse calibrated than every baseline on TAB.
+* **Ablation (descriptive, seed 1, not preregistered).** pAUC with each benchmark's own label names for the v2 models; v1 uses its fixed labels.
+
+  | Benchmark | flat label-conditioned CRF | v2 headline | v1 |
+  |---|---|---|---|
+  | PII-TRACE | **0.053** | 0.175 | 0.078 |
+  | TAB (direct IDs) | **0.179** | 0.332 | 0.252 |
+  | SPY legal | **0.377** | 0.491 | 0.646 |
+  | SPY medical | **0.408** | 0.539 | 0.679 |
+  | Nemotron-PII (10k) | 0.315 | 0.326 | **0.309** |
+
+  The flat CRF (frozen v1 encoder, 30% of training documents, 3000 steps, one seed) has the lowest pAUC on 4 of 5 benchmarks. It is a single unreplicated run outside the preregistration, so it is descriptive only, not a claim.
+* **v2.1 go/no-go (a sentence-encoder label space for zero-shot typing): NO-GO.** An exploratory failure analysis found that frozen S1 span features separate the held-out types (linear probe, 0.935 balanced accuracy) but the label-conditioned head does not use them (`docs/PLAN_v2.1.md`).
+
+**Bottom line.** S1-PII is a fixed-taxonomy redaction model that beats the GLiNER family on leak area on 4 of 5 benchmarks it was not trained on (all except Nemotron-PII, where it loses even though its variant never saw Nemotron), with better precision on PII-TRACE and Nemotron-PII and better raw calibration on SPY and TAB. It is not an open-label typer: for labels supplied at inference, use GLiNER2.5.
 
 ## How it works
 

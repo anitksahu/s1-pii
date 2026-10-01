@@ -1,0 +1,934 @@
+{
+ "primary": {
+  "c3_holds": false,
+  "caveat": "no-nemotron never saw Nemotron text or labels; its v1 encoder saw other sources' spans only",
+  "comparisons": {
+   "gliner25_base_zeroshot|macro": {
+    "a": 0.015941965359005716,
+    "a_per_seed": [
+     0.027965756216877292,
+     0.0,
+     0.01986013986013986
+    ],
+    "b": 0.6971901304284752,
+    "ci_high": -0.6624488401425853,
+    "ci_low": -0.6979659185767925,
+    "diff": -0.6812481650694695,
+    "n_boot": 10000,
+    "n_clusters": 165,
+    "p_value": 0.00019998000199980003
+   },
+   "gliner25_base_zeroshot|micro": {
+    "a": 0.0297801105855276,
+    "a_per_seed": [
+     0.07132459970887918,
+     0.0,
+     0.01801573204770363
+    ],
+    "b": 0.7235846200423857,
+    "ci_high": -0.6608738415592665,
+    "ci_low": -0.7271244520907683,
+    "diff": -0.693804509456858,
+    "n_boot": 10000,
+    "n_clusters": 165,
+    "p_value": 0.00019998000199980003
+   }
+  },
+  "gliner25_base_zeroshot": {
+   "macro_f1": 0.6971901304284751,
+   "micro_f1": 0.7235846200423857,
+   "per_label": {
+    "bank_routing_number": {
+     "f1": 0.9627507163323782,
+     "support": 860
+    },
+    "blood_type": {
+     "f1": 0.85,
+     "support": 443
+    },
+    "education_level": {
+     "f1": 0.5717981888745148,
+     "support": 937
+    },
+    "fax_number": {
+     "f1": 0.8641005498821681,
+     "support": 623
+    },
+    "http_cookie": {
+     "f1": 0.0955137481910275,
+     "support": 450
+    },
+    "language": {
+     "f1": 0.8165374677002584,
+     "support": 708
+    },
+    "medical_record_number": {
+     "f1": 0.9675925925925926,
+     "support": 1108
+    },
+    "political_view": {
+     "f1": 0.4552406657669816,
+     "support": 704
+    },
+    "race_ethnicity": {
+     "f1": 0.7637795275590551,
+     "support": 1140
+    },
+    "religious_belief": {
+     "f1": 0.6245878473857749,
+     "support": 807
+    }
+   }
+  },
+  "gliner25_base_zeroshot_gold_typing": {
+   "acc": 0.789331619537275,
+   "matched_frac": 0.8496143958868895,
+   "n": 7780
+  },
+  "gliner25_base_zeroshot_tuned": {
+   "macro_f1": 0.7099547790276471,
+   "micro_f1": 0.7449921507064364,
+   "per_label": {
+    "bank_routing_number": {
+     "f1": 0.963855421686747,
+     "support": 860
+    },
+    "blood_type": {
+     "f1": 0.8565121412803532,
+     "support": 443
+    },
+    "education_level": {
+     "f1": 0.5598923283983849,
+     "support": 937
+    },
+    "fax_number": {
+     "f1": 0.8744038155802861,
+     "support": 623
+    },
+    "http_cookie": {
+     "f1": 0.09422492401215805,
+     "support": 450
+    },
+    "language": {
+     "f1": 0.8242978445460484,
+     "support": 708
+    },
+    "medical_record_number": {
+     "f1": 0.968040759610931,
+     "support": 1108
+    },
+    "political_view": {
+     "f1": 0.49975161450571287,
+     "support": 704
+    },
+    "race_ethnicity": {
+     "f1": 0.775692582663092,
+     "support": 1140
+    },
+    "religious_belief": {
+     "f1": 0.6828763579927574,
+     "support": 807
+    }
+   }
+  },
+  "gliner2_pii_note": "GLiNER2-PII may have been trained on these labels; reported, not a fair zero-shot comparator",
+  "headline_state": {
+   "gates": {
+    "B": "c667b4806210e4746a04b1be611a27aa62bd794529fad9697545025e37120c45",
+    "cheap": "4a43c5642cd193d55297b321e7637328bd064932285586155abb489821b52de8"
+   },
+   "headline": "A",
+   "state_sha256": "0b1caf3011e64b6e9d91d50f13fc0889e1c0d81817eef26202dfa11891f0fbb7"
+  },
+  "heldout": [
+   "bank_routing_number",
+   "blood_type",
+   "education_level",
+   "fax_number",
+   "http_cookie",
+   "language",
+   "medical_record_number",
+   "political_view",
+   "race_ethnicity",
+   "religious_belief"
+  ],
+  "holm": {
+   "gliner25_base_zeroshot|macro": {
+    "p": 0.00019998000199980003,
+    "p_holm": 0.00039996000399960006,
+    "reject": true
+   },
+   "gliner25_base_zeroshot|micro": {
+    "p": 0.00019998000199980003,
+    "p_holm": 0.00039996000399960006,
+    "reject": true
+   }
+  },
+  "primary": true,
+  "s1v2": [
+   {
+    "macro_f1": 0.027965756216877292,
+    "micro_f1": 0.07132459970887918,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.2796575621687729,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.0,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.0,
+    "micro_f1": 0.0,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.0,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.0,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.01986013986013986,
+    "micro_f1": 0.01801573204770363,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.1986013986013986,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.0,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   }
+  ],
+  "s1v2_gold_typing": [
+   {
+    "acc": 0.07146529562982006,
+    "matched_frac": 0.3532133676092545,
+    "n": 7780
+   },
+   {
+    "acc": 0.005912596401028277,
+    "matched_frac": 0.36568123393316193,
+    "n": 7780
+   },
+   {
+    "acc": 0.044087403598971724,
+    "matched_frac": 0.3494858611825193,
+    "n": 7780
+   }
+  ],
+  "s1v2_tuned": [
+   {
+    "macro_f1": 0.03474959224434852,
+    "micro_f1": 0.10175975516449885,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0022701475595913734,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.3418416801292407,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.00338409475465313,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.003151862464183381,
+    "micro_f1": 0.0026908023483365948,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.03151862464183381,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.0,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.054991021175867814,
+    "micro_f1": 0.06860731972460442,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.5412221144519883,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.008688097306689836,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   }
+  ],
+  "threshold": 0.5,
+  "variant": "no-nemotron"
+ },
+ "secondary_all_sources": {
+  "c3_holds": null,
+  "caveat": "all-sources was trained on Nemotron train: same generator and templates, and held-out spans supervised under coarse v1 types; only the label names are unseen",
+  "comparisons": {
+   "gliner25_base_zeroshot|macro": {
+    "a": 0.04128153100272508,
+    "a_per_seed": [
+     0.00390978761661866,
+     0.07649097663011141,
+     0.043443828761445175
+    ],
+    "b": 0.6971901304284752,
+    "ci_high": -0.6369906876661839,
+    "ci_low": -0.672778192611027,
+    "diff": -0.6559085994257501,
+    "n_boot": 10000,
+    "n_clusters": 165,
+    "p_value": 0.00019998000199980003
+   },
+   "gliner25_base_zeroshot|micro": {
+    "a": 0.07775519884420934,
+    "a_per_seed": [
+     0.004333970681963034,
+     0.14878512148785122,
+     0.08014650436281374
+    ],
+    "b": 0.7235846200423857,
+    "ci_high": -0.6143134032682173,
+    "ci_low": -0.6771458513623493,
+    "diff": -0.6458294211981763,
+    "n_boot": 10000,
+    "n_clusters": 165,
+    "p_value": 0.00019998000199980003
+   }
+  },
+  "gliner25_base_zeroshot": {
+   "macro_f1": 0.6971901304284751,
+   "micro_f1": 0.7235846200423857,
+   "per_label": {
+    "bank_routing_number": {
+     "f1": 0.9627507163323782,
+     "support": 860
+    },
+    "blood_type": {
+     "f1": 0.85,
+     "support": 443
+    },
+    "education_level": {
+     "f1": 0.5717981888745148,
+     "support": 937
+    },
+    "fax_number": {
+     "f1": 0.8641005498821681,
+     "support": 623
+    },
+    "http_cookie": {
+     "f1": 0.0955137481910275,
+     "support": 450
+    },
+    "language": {
+     "f1": 0.8165374677002584,
+     "support": 708
+    },
+    "medical_record_number": {
+     "f1": 0.9675925925925926,
+     "support": 1108
+    },
+    "political_view": {
+     "f1": 0.4552406657669816,
+     "support": 704
+    },
+    "race_ethnicity": {
+     "f1": 0.7637795275590551,
+     "support": 1140
+    },
+    "religious_belief": {
+     "f1": 0.6245878473857749,
+     "support": 807
+    }
+   }
+  },
+  "gliner25_base_zeroshot_gold_typing": {
+   "acc": 0.789331619537275,
+   "matched_frac": 0.8496143958868895,
+   "n": 7780
+  },
+  "gliner25_base_zeroshot_tuned": {
+   "macro_f1": 0.7099547790276471,
+   "micro_f1": 0.7449921507064364,
+   "per_label": {
+    "bank_routing_number": {
+     "f1": 0.963855421686747,
+     "support": 860
+    },
+    "blood_type": {
+     "f1": 0.8565121412803532,
+     "support": 443
+    },
+    "education_level": {
+     "f1": 0.5598923283983849,
+     "support": 937
+    },
+    "fax_number": {
+     "f1": 0.8744038155802861,
+     "support": 623
+    },
+    "http_cookie": {
+     "f1": 0.09422492401215805,
+     "support": 450
+    },
+    "language": {
+     "f1": 0.8242978445460484,
+     "support": 708
+    },
+    "medical_record_number": {
+     "f1": 0.968040759610931,
+     "support": 1108
+    },
+    "political_view": {
+     "f1": 0.49975161450571287,
+     "support": 704
+    },
+    "race_ethnicity": {
+     "f1": 0.775692582663092,
+     "support": 1140
+    },
+    "religious_belief": {
+     "f1": 0.6828763579927574,
+     "support": 807
+    }
+   }
+  },
+  "gliner2_pii_note": "GLiNER2-PII may have been trained on these labels; reported, not a fair zero-shot comparator",
+  "headline_state": {
+   "gates": {
+    "B": "c667b4806210e4746a04b1be611a27aa62bd794529fad9697545025e37120c45",
+    "cheap": "4a43c5642cd193d55297b321e7637328bd064932285586155abb489821b52de8"
+   },
+   "headline": "A",
+   "state_sha256": "0b1caf3011e64b6e9d91d50f13fc0889e1c0d81817eef26202dfa11891f0fbb7"
+  },
+  "heldout": [
+   "bank_routing_number",
+   "blood_type",
+   "education_level",
+   "fax_number",
+   "http_cookie",
+   "language",
+   "medical_record_number",
+   "political_view",
+   "race_ethnicity",
+   "religious_belief"
+  ],
+  "holm": {
+   "gliner25_base_zeroshot|macro": {
+    "p": 0.00019998000199980003,
+    "p_holm": 0.00039996000399960006,
+    "reject": true
+   },
+   "gliner25_base_zeroshot|micro": {
+    "p": 0.00019998000199980003,
+    "p_holm": 0.00039996000399960006,
+    "reject": true
+   }
+  },
+  "primary": false,
+  "s1v2": [
+   {
+    "macro_f1": 0.00390978761661866,
+    "micro_f1": 0.004333970681963034,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.011560693641618497,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.015174506828528073,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.00718132854578097,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0051813471502590676,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.07649097663011141,
+    "micro_f1": 0.14878512148785122,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.07357859531772576,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.40429612581511315,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.2804027885360186,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0017482517482517483,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.004884004884004884,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.04344382876144517,
+    "micro_f1": 0.08014650436281374,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0638063806380638,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.3226135783563042,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0026702269692923898,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.02304964539007092,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.022298456260720412,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   }
+  ],
+  "s1v2_gold_typing": [
+   {
+    "acc": 0.0410025706940874,
+    "matched_frac": 0.5605398457583548,
+    "n": 7780
+   },
+   {
+    "acc": 0.15796915167095116,
+    "matched_frac": 0.5583547557840617,
+    "n": 7780
+   },
+   {
+    "acc": 0.12467866323907455,
+    "matched_frac": 0.5677377892030848,
+    "n": 7780
+   }
+  ],
+  "s1v2_tuned": [
+   {
+    "macro_f1": 0.010883984296836301,
+    "micro_f1": 0.012788365095285857,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.03850509626274066,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.018072289156626505,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0026917900403768506,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.024800708591674048,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.015424164524421594,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.009345794392523364,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.08696885539236313,
+    "micro_f1": 0.16445100935499754,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.082039911308204,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.40512048192771083,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.3760058522311631,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.0017376194613379669,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.004784688995215311,
+      "support": 807
+     }
+    }
+   },
+   {
+    "macro_f1": 0.04344382876144517,
+    "micro_f1": 0.08014650436281374,
+    "per_label": {
+     "bank_routing_number": {
+      "f1": 0.0638063806380638,
+      "support": 860
+     },
+     "blood_type": {
+      "f1": 0.0,
+      "support": 443
+     },
+     "education_level": {
+      "f1": 0.0,
+      "support": 937
+     },
+     "fax_number": {
+      "f1": 0.3226135783563042,
+      "support": 623
+     },
+     "http_cookie": {
+      "f1": 0.0,
+      "support": 450
+     },
+     "language": {
+      "f1": 0.0026702269692923898,
+      "support": 708
+     },
+     "medical_record_number": {
+      "f1": 0.02304964539007092,
+      "support": 1108
+     },
+     "political_view": {
+      "f1": 0.0,
+      "support": 704
+     },
+     "race_ethnicity": {
+      "f1": 0.022298456260720412,
+      "support": 1140
+     },
+     "religious_belief": {
+      "f1": 0.0,
+      "support": 807
+     }
+    }
+   }
+  ],
+  "threshold": 0.5,
+  "variant": "all-sources"
+ }
+}
