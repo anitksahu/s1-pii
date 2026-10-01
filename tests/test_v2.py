@@ -219,3 +219,50 @@ def test_batched_extraction_equals_one_doc_at_a_time(v1_dir):
         kx = sorted(zip(x["start"], x["end"], np.round(x["pb"], 5)))
         ky = sorted(zip(y["start"], y["end"], np.round(y["pb"], 5)))
         assert kx == ky
+
+
+# ------------------------------------------------------------------ v2.1 fixes
+
+def test_head_v21_config_and_legacy_load(tmp_path):
+    import json, torch
+    from s1pii.v2.head import TypingHead, HeadConfig, load_head, save_head
+    h = TypingHead(8, 9, HeadConfig(dim=16))
+    assert h.norm is not None and h.cfg.max_scale == 30.0
+    with torch.no_grad():
+        h.log_scale.fill_(10.0)                      # exp(10) >> 30: bounded at inference
+        s = torch.nn.functional.normalize(torch.randn(2, 16), dim=-1)
+        l = torch.nn.functional.normalize(torch.randn(3, 16), dim=-1)
+        assert h.logits(s, l).abs().max() <= 30.0 + abs(float(h.none_bias)) + 1e-4
+    save_head(h, tmp_path / "new", HeadConfig(dim=16), {"vocab": []})
+    assert load_head(tmp_path / "new")[0].norm is not None
+    # a head saved before v2.1 (no new fields in its manifest) loads exactly as it was trained
+    old = TypingHead(8, 9, HeadConfig(dim=16, norm_inputs=False))
+    save_head(old, tmp_path / "old", HeadConfig(dim=16, norm_inputs=False), {"vocab": []})
+    m = json.loads((tmp_path / "old" / "head_manifest.json").read_text())
+    for k in ("max_scale", "norm_inputs", "drop_noncand_gold"):
+        m["config"].pop(k, None)
+    (tmp_path / "old" / "head_manifest.json").write_text(json.dumps(m))
+    lh, _ = load_head(tmp_path / "old")
+    assert lh.norm is None and lh.cfg.max_scale is None
+
+
+def test_sensitive_score_keeps_order_near_one():
+    import numpy as np
+    from s1pii.v2.infer import sensitive_score
+    from s1pii.v2.features import VALIDATOR_PB
+    probs = np.array([[1 - 1e-9, 0.0, 1e-9], [1 - 1e-12, 0.0, 1e-12]], dtype=np.float64)
+    sc = sensitive_score(np.array([VALIDATOR_PB, VALIDATOR_PB]), probs, [True, False])
+    assert (sc < 1.0).all() and sc[1] > sc[0]
+
+
+def test_control_stop(tmp_path):
+    from s1pii.v2 import run_v2
+    ch = run_v2.Chain.__new__(run_v2.Chain)
+    ch.drive = tmp_path
+    ch.check_control()                               # no file: no stop
+    (tmp_path / "CONTROL").write_text("SKIP_C\n")
+    ch.check_control(); assert ch.control_has("SKIP_C")
+    (tmp_path / "CONTROL").write_text("STOP")
+    import pytest
+    with pytest.raises(run_v2.StopRequested):
+        ch.check_control()

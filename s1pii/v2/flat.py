@@ -191,7 +191,10 @@ def train_flat(v1_dir: Path, docs: list[Doc], out: Path, heldout: set[str], *, s
             log(json.dumps({"flat_step": step + 1, "loss": round(float(loss), 4), "sec": round(time.time() - t0, 1)}))
     out.mkdir(parents=True, exist_ok=True)
     torch.save(fm.state_dict(), out / "flat.pt")
+    import hashlib
+    sha = hashlib.sha256((out / "flat.pt").read_bytes()).hexdigest()
     (out / "flat_manifest.json").write_text(json.dumps({"v1": man["weights_sha256"], "v1_dir": str(v1_dir), "steps": steps,
+                                                        "weights_sha256": sha,
                                                         "seed": seed, "vocab": vocab, "heldout_nodes": sorted(heldout)}, indent=2))
     return out
 

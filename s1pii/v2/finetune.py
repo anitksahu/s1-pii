@@ -74,7 +74,7 @@ def finetune(v1_dir: Path, store: Path, head_dir: Path, docs: list[Doc], out: Pa
     enc = copy.deepcopy(model.encoder).to(device)
     del model
     head, hman = load_head(head_dir, device)
-    hcfg = HeadConfig(**{k: v for k, v in hman["config"].items() if k in HeadConfig.__dataclass_fields__})
+    hcfg = head.cfg
     items, stats = build_items(store, heldout_nodes, hcfg)
     vocab = items.labels
     if vocab != hman["vocab"]:

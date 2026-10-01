@@ -48,7 +48,7 @@ while True:
             break
     tail = read(LOG).splitlines()[-1:] if LOG.exists() else []
     print(time.strftime("%H:%M:%S"), st.split(" ")[0] or "-", ph or "-", f"gpu {u}%", (tail[0][:120] if tail else ""), flush=True)
-    if st.startswith(("DONE", "FAILED", "STOPPED_CAP")):
+    if st.startswith(("DONE", "FAILED", "STOPPED_CAP", "STOPPED_USER")):
         release(f"chain finished: {st}; releasing the runtime")
         break
     low = low + 1 if (ph == "GPU" and 0 <= u < 20) else 0

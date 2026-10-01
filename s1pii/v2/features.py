@@ -36,7 +36,10 @@ from ..model.crf import span_logprobs
 from ..model.postprocess import validator_spans
 from ..ledger import dataset_hash
 
-FEATURE_VERSION = "v2-features-0.2"
+FEATURE_VERSION = "v2-features-0.3"
+# validator hits are near-certain but not 1.0: a hard 1.0 ties at the top score bin and made
+# the C4 operating point infeasible in the v2 run (v2.1)
+VALIDATOR_PB = 0.999
 
 
 class DiskLow(RuntimeError):
@@ -234,9 +237,9 @@ class Extractor:
             for key, r in P["vrep"].items():
                 self.report["validator"] += 1
                 if key in best:
-                    best[key]["pb"] = 1.0; best[key]["kind"] = KIND_VALIDATOR
+                    best[key]["pb"] = VALIDATOR_PB; best[key]["kind"] = KIND_VALIDATOR
                 else:
-                    best[key] = {"pb": 1.0, "v1": np.zeros(nt, np.float32), "rep": r, "kind": KIND_VALIDATOR, "label": ""}
+                    best[key] = {"pb": VALIDATOR_PB, "v1": np.zeros(nt, np.float32), "rep": r, "kind": KIND_VALIDATOR, "label": ""}
             rows = list(best.items())
             self.report["candidates"] += len(rows)
             for (cs, ce, lab), r in P["xrep"].items():

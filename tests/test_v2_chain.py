@@ -106,8 +106,12 @@ def test_chain_cheap_ablations_gates_conditional_and_resume(setup):
     sw = EV.sweeps(tmp / "work", tmp / "drive")
     assert all("size" in v for v in sw.values()), sw
     ab = EV.ablation_table()
-    assert ab["pii_trace"]["cheap"] is not None and ab["pii_trace"]["names_only"] is not None
-    assert ab["pii_trace"]["headline"] is not None
+    t = ab["table"]
+    assert t["pii_trace"]["cheap"] is not None and t["pii_trace"]["names_only"] is not None
+    assert t["pii_trace"]["headline"] is not None
+    # flat rows only with a verified model hash; both label sets are predicted
+    assert t["pii_trace"]["flat_bench"] is not None and t["pii_trace"]["flat_canonical"] is not None
+    assert not ab["unverified_flat_files"]
     r4 = EV.c4(n_boot=50)
     assert r4["problems"] and r4["c4_holds"] is None
     mp.setattr(LB, "load_heldout", lambda: {"labels": ["url"], "nodes": ["url"], "synonyms_all_sources": ["url"]})

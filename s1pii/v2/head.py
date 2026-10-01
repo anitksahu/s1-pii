@@ -32,7 +32,9 @@ import torch.nn.functional as F
 from . import labels as LB
 from .features import KIND_EXTRA, load_store, load_label_vectors
 
-HEAD_VERSION = "v2-head-0.1"
+HEAD_VERSION = "v2-head-0.2"
+# heads trained before v2.1 have none of the v2.1 fields in their manifest: load them as trained
+LEGACY_CONFIG = {"max_scale": None, "norm_inputs": False, "drop_noncand_gold": False}
 NONE_TARGET = -1
 
 
@@ -52,6 +54,12 @@ class HeadConfig:
     hard_neg_min_pb: float = 0.05
     hard_neg_ratio: float = 0.5        # at most this many hard negatives per gold item
     shift_ratio: float = 0.5           # at most this many boundary shifts per gold item
+    # v2.1 (after the v2 run): bounded logit scale (no saturated p = 1.0 scores), LayerNorm on
+    # the raw span features (ModernBERT has a few huge-activation dimensions), and gold items
+    # that are not level-1 candidates (P_b = 0, a logit(P_b) shortcut) dropped from training.
+    max_scale: float | None = 30.0
+    norm_inputs: bool = True
+    drop_noncand_gold: bool = True
     val_frac: float = 0.02
     seed: int = 1
     extra: dict = field(default_factory=dict)
@@ -66,6 +74,8 @@ class TypingHead(nn.Module):
         super().__init__()
         cfg = cfg or HeadConfig()
         self.hidden, self.n_v1 = hidden, n_v1
+        self.cfg = cfg
+        self.norm = nn.LayerNorm(3 * hidden + n_v1 + 1) if cfg.norm_inputs else None
         self.span = _mlp(3 * hidden + n_v1 + 1, cfg.dim, cfg.dropout)
         self.label = _mlp(hidden, cfg.dim, cfg.dropout)
         self.none = nn.Parameter(torch.randn(cfg.dim) * 0.02)
@@ -74,14 +84,20 @@ class TypingHead(nn.Module):
 
     def span_vec(self, rep: torch.Tensor, v1: torch.Tensor, pb: torch.Tensor) -> torch.Tensor:
         lp = torch.logit(pb.clamp(1e-4, 1 - 1e-4)).unsqueeze(1)
-        return F.normalize(self.span(torch.cat([rep.float(), v1.float(), lp], 1)), dim=-1)
+        x = torch.cat([rep.float(), v1.float(), lp], 1)
+        if self.norm is not None:
+            x = self.norm(x)
+        return F.normalize(self.span(x), dim=-1)
 
     def label_vec(self, lv: torch.Tensor) -> torch.Tensor:
         return F.normalize(self.label(lv.float()), dim=-1)
 
     def logits(self, s: torch.Tensor, l: torch.Tensor) -> torch.Tensor:
         """(B, |L| + 1); the last column is NONE."""
-        sc = self.log_scale.exp()
+        ls = self.log_scale
+        if self.cfg.max_scale is not None:
+            ls = ls.clamp(max=math.log(self.cfg.max_scale))
+        sc = ls.exp()
         none = (s @ F.normalize(self.none, dim=0)).unsqueeze(1) * sc + self.none_bias
         return torch.cat([sc * (s @ l.T), none], 1)
 
@@ -136,6 +152,8 @@ def build_items(store: Path, heldout_nodes: set[str], cfg: HeadConfig) -> tuple[
                     stats["unknown_label"] += 1
                 elif LB.node_of(l) in heldout_nodes:
                     stats["heldout_removed"] += 1
+                elif cfg.drop_noncand_gold and pb[r] <= 0:
+                    stats["noncand_gold_dropped"] = stats.get("noncand_gold_dropped", 0) + 1
                 else:
                     gold_idx.append(r); y_gold.append(vix[l])
             elif pb[r] >= cfg.hard_neg_min_pb:
@@ -312,7 +330,9 @@ def save_head(head: TypingHead, out: Path, cfg: HeadConfig, info: dict) -> Path:
 
 def load_head(path: Path, device: str | None = None) -> tuple[TypingHead, dict]:
     man = json.loads((Path(path) / "head_manifest.json").read_text())
-    cfg = HeadConfig(**{k: v for k, v in man["config"].items() if k in HeadConfig.__dataclass_fields__})
+    c = dict(LEGACY_CONFIG)
+    c.update({k: v for k, v in man["config"].items() if k in HeadConfig.__dataclass_fields__})
+    cfg = HeadConfig(**c)
     h = TypingHead(man["hidden"], man["n_v1"], cfg)
     h.load_state_dict(torch.load(Path(path) / "head.pt", map_location="cpu"))
     return h.to(device or "cpu").eval(), man

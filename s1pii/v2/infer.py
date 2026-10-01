@@ -41,13 +41,16 @@ def label_probs(head: TypingHead, z: dict, lvecs: np.ndarray, device: str = "cpu
         sv = head.span_vec(torch.as_tensor(z["rep"][s:s + batch], device=device),
                            torch.as_tensor(z["v1"][s:s + batch], device=device),
                            torch.as_tensor(z["pb"][s:s + batch], device=device))
-        out.append(torch.softmax(head.logits(sv, l), 1).cpu().numpy())
+        out.append(torch.softmax(head.logits(sv, l).double(), 1).cpu().numpy())   # float64: no p = 1.0 ties
     return np.concatenate(out) if out else np.zeros((0, len(lvecs) + 1))
 
 
 def sensitive_score(pb: np.ndarray, probs: np.ndarray, sensitive: list[bool]) -> np.ndarray:
+    """P_b * sum over sensitive labels, computed as P_b * (1 - P(NONE) - P(non-sensitive)) in
+    float64 so that near-1 scores keep their order instead of rounding to 1.0."""
     m = np.asarray(sensitive, dtype=bool)
-    return pb * probs[:, :-1][:, m].sum(1)
+    rest = probs[:, -1] + probs[:, :-1][:, ~m].sum(1)
+    return pb.astype(np.float64) * np.clip(1.0 - rest, 0.0, 1.0)
 
 
 def hier_decide(probs_row: np.ndarray, L: LB.LabelSet, tau: float) -> str:

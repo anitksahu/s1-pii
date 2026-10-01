@@ -114,7 +114,10 @@ def c0prime(n_boot: int = 10_000, secondary: bool = False) -> dict:
 # ------------------------------------------------------------------ C4
 
 def band_from_calib(vs, coverage: float, over_budget: float = 0.01, docs=None, preds=None, dataset=None) -> tuple[int, int]:
-    """(lo_bin, hi_bin): masked iff bin >= hi_bin, deferred iff lo_bin <= bin < hi_bin."""
+    """(lo_bin, hi_bin): masked iff bin >= hi_bin, deferred iff lo_bin <= bin < hi_bin.
+    If no threshold meets the over-redaction budget on calibration (``MASK_NOTHING``), the
+    operating point is infeasible: hi = 1002 masks nothing and the selective leak is 1.0 by
+    construction. ``c4`` reports such cells as infeasible instead of scoring them."""
     t_hi = tune_threshold(docs, preds, dataset, over_budget=over_budget)
     hi = 1 + M.k_of(t_hi)
     hp = sum(v.hist()[0] for v in vs); hn = sum(v.hist()[1] for v in vs)
@@ -124,6 +127,14 @@ def band_from_calib(vs, coverage: float, over_budget: float = 0.01, docs=None, p
     while lo > 1 and deferred + cnt[lo - 1] <= (1 - coverage) * tot:
         lo -= 1; deferred += cnt[lo]
     return lo, hi
+
+
+def calib_masked(vs, hi: int) -> int:
+    """Calibration characters masked at hi. Zero means the operating point masks nothing: the
+    1% budget is met only by masking nothing (in the v2 run every system's SPY threshold was
+    1.0 or MASK_NOTHING), so the selective leak is 1.0 by construction."""
+    hp = sum(v.hist()[0] for v in vs); hn = sum(v.hist()[1] for v in vs)
+    return int((hp + hn)[hi:].sum())
 
 
 def selective_hist(vs, lo: int, hi: int, order: list[str]):
@@ -222,6 +233,7 @@ def c4(n_boot: int = 10_000, seed: int = 0) -> dict:
     idx = c0.prediction_index([V2_PRED, ledger.RESULTS / "predictions"])
     results, problems, desc = {}, [], {}
     ece_ci, ece_cmp, coverage_flags = {}, {}, []
+    infeasible: list[str] = []   # "<dataset>|<system>": no calib threshold meets the 1% budget
     hs_ = headline_state()
     for ds in C4_SETS:
         paths = bench.split_paths(ds)
@@ -234,6 +246,7 @@ def c4(n_boot: int = 10_000, seed: int = 0) -> dict:
                 systems[b] = [b]
         per_sys, per_ece = {}, {}
         order = None
+        infeasible_sys = set()
         for name, members in systems.items():
             hs = {cov: [] for cov in COVERAGES}
             eces, eh = [], []
@@ -251,6 +264,8 @@ def c4(n_boot: int = 10_000, seed: int = 0) -> dict:
                     order = sorted({x.cluster_id for x in vt})
                 for cov in COVERAGES:
                     lo, hi = band_from_calib(vc, cov, docs=cal_docs, preds=pc, dataset=ds)
+                    if hi > 1001 or calib_masked(vc, hi) == 0:
+                        infeasible_sys.add(name)
                     hs[cov].append(selective_hist(vt, lo, hi, order))
                 eces.append(brier_skill(vc, vt))
                 eh.append(ece_hist(vc, vt, order))
@@ -275,9 +290,13 @@ def c4(n_boot: int = 10_000, seed: int = 0) -> dict:
             continue
         zero = [(np.zeros_like(per_ece["s1v2"][0][0]), np.zeros_like(per_ece["s1v2"][0][1]))]
         ece_ci[ds] = paired_bootstrap_multi(per_ece["s1v2"], zero, ece_stat, n_boot, seed)
+        for b in sorted(infeasible_sys):
+            infeasible.append(f"{ds}|{b}")
         for b in systems:
             if b == "s1v2" or b not in per_sys:
                 continue
+            if "s1v2" in infeasible_sys or b in infeasible_sys:
+                continue                     # no operating point within budget: not a comparison
             results[f"{ds}|{b}"] = paired_bootstrap_multi(per_sys["s1v2"][0.95], per_sys[b][0.95],
                                                           lambda hp, hn: sel_leak(hp, hn), n_boot, seed)
             ece_cmp[f"{ds}|{b}"] = paired_bootstrap_multi(per_ece["s1v2"], per_ece[b], ece_stat, n_boot, seed)
@@ -292,7 +311,12 @@ def c4(n_boot: int = 10_000, seed: int = 0) -> dict:
     won_sets = sorted(d for d, w in won.items() if all(w))
     c4a = len(won_sets) >= 3
     c4b = not ece_worse and not ece_over and len(ece_ci) == len(C4_SETS)
-    out = {"c4a_selective_leak": {"comparisons": results, "holm": h, "datasets_won": won_sets, "holds": c4a},
+    out = {"c4a_selective_leak": {"comparisons": results, "holm": h, "datasets_won": won_sets, "holds": c4a,
+                                  "infeasible": infeasible,
+                                  "infeasible_note": "v2.1 (post hoc): cells whose calibration operating point masks no "
+                                                     "calibration character (MASK_NOTHING, or a threshold above every "
+                                                     "score) are excluded from the Holm family and the win rule; a dataset with "
+                                                     "an infeasible S1 cell cannot be won"},
            "c4b_calibration": {"bound": ECE_BOUND, "s1_ece_ci": ece_ci, "vs_baselines": ece_cmp, "holm": he,
                                "significantly_worse": ece_worse, "above_bound": ece_over, "holds": c4b},
            "c4_holds": (c4a and c4b) if not problems else None,
@@ -528,12 +552,26 @@ def sweep_texts(dataset: str) -> list[str]:
     return sorted(t)
 
 
+def _flat_verified(meta: dict) -> bool:
+    """A flat-CRF prediction counts only if its model file exists with the recorded hash (the
+    v2 run had a stale no-nemotron flat file with no trained model behind it)."""
+    d, sha = meta.get("model_dir"), meta.get("model_sha")
+    if not d or not sha:
+        return False
+    m = Path(d) / "flat_manifest.json"
+    return m.exists() and json.loads(m.read_text()).get("weights_sha256") == sha
+
+
 def ablation_table() -> dict:
-    """pAUC on each benchmark test split (audited), seed 1: headline v2, names-only texts,
-    no NONE supervision, flat CRF; plus the cheap path when the headline is a later stage."""
-    idx = c0.prediction_index([V2_PRED])
+    """pAUC on each benchmark test split (audited), seed 1. Comparable groups (v2.1):
+    * canonical labels (what every baseline received): headline, cheap, names_only and no_none
+      (both ablations of the cheap path, so compare them with cheap), flat_canonical;
+    * benchmark labels: headline_bench vs flat_bench;
+    * v1 (9 fixed types, no labels at inference) for reference.
+    Flat rows require a verified model hash; unverified files are reported, not scored."""
+    idx = c0.prediction_index([V2_PRED, ledger.RESULTS / "predictions"])
     tag = headline_tag()
-    out = {}
+    out, unverified = {}, []
     for ds in C4_SETS:
         v = c0.variant_for(ds)
         test = c0.audited_test_docs(ds); keep = {d.doc_id for d in test}
@@ -541,17 +579,23 @@ def ablation_table() -> dict:
         row = {}
         for name, sysn in (("headline", v2_system(v, 1, tag)), ("cheap", v2_system(v, 1, "cheap")),
                            ("names_only", f"s1v2ablnames_{v}-s1"), ("no_none", f"s1v2ablnonone_{v}-s1"),
-                           ("flat_crf", f"s1v2flat_{v}-s1")):
+                           ("flat_canonical", f"s1v2flatcanon_{v}-s1"),
+                           ("headline_bench", bench_system(v, 1, tag)), ("flat_bench", f"s1v2flat_{v}-s1"),
+                           ("v1", c0.s1_system(v, 1))):
             if (sysn, tp) not in idx:
                 row[name] = None; continue
-            _, pr = read_predictions(idx[(sysn, tp)])
+            meta, pr = read_predictions(idx[(sysn, tp)])
+            if name.startswith("flat") and not _flat_verified(meta):
+                unverified.append(f"{ds}/{sysn}: {idx[(sysn, tp)].name}")
+                row[name] = None; continue
             vs = views(test, {k: x for k, x in pr.items() if k in keep}, ds)
             hp = sum(x.hist()[0] for x in vs); hn = sum(x.hist()[1] for x in vs)
             leak, over = M.curve_from_hist(hp, hn)
             row[name] = float(M.pauc(leak, over))
         out[ds] = row
-    ledger.append({"kind": "v2_ablations", "tag": tag, "table": out})
-    return out
+    res = {"table": out, "unverified_flat_files": unverified}
+    ledger.append({"kind": "v2_ablations", "tag": tag, **res})
+    return res
 
 
 def sweeps(work: Path, drive: Path) -> dict:

@@ -43,5 +43,6 @@ python -m s1pii.v2.run_v2 all --models "$D/models" --work /content/v2 --drive "$
   --gliner-venv envs/gliner2 >> "$L/v2.log" 2>&1
 rc=$?
 if [ $rc -eq 3 ]; then echo "STOPPED_CAP $(date -u +%FT%TZ)" > "$D/v2/STATUS"; exit 3; fi
+if [ $rc -eq 4 ]; then echo "STOPPED_USER $(date -u +%FT%TZ)" > "$D/v2/STATUS"; exit 4; fi
 [ $rc -eq 0 ] || fail $rc      # "all" ends with the preregistered sweeps (they need the local stores)
 echo "DONE $(date -u +%FT%TZ)" > "$D/v2/STATUS"

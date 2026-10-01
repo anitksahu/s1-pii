@@ -84,6 +84,7 @@ class Chain:
             if not local or pruned or (res and (Path(res) / "meta.json").exists()):
                 return res
             self.log(f"[v2] {name}: local store missing (runtime lost); rebuilding")
+        self.check_control()
         if self.used() + EST_H.get(kind, 0.1) > self.cap:
             raise CapReached(f"{name}: {self.used():.2f} h used + {EST_H.get(kind, 0.1)} h estimate > cap {self.cap} h")
         self.phase("GPU" if gpu else "CPU")
@@ -102,11 +103,23 @@ class Chain:
         self.log(f"[v2] done {name} in {h * 60:.1f} min (total {self.used():.2f} h of {self.cap} h)")
         return str(res) if res is not None else None
 
+    def check_control(self):
+        """``$drive/CONTROL`` = STOP ends the chain at the next unit boundary (or shard): stopping
+        needs no Colab UI and no process kill. SKIP_C skips ablation C."""
+        c = self.drive / "CONTROL"
+        if c.exists() and c.read_text().strip().upper().startswith("STOP"):
+            raise StopRequested(f"CONTROL=STOP at {time.strftime('%H:%M:%S')}")
+
+    def control_has(self, word: str) -> bool:
+        c = self.drive / "CONTROL"
+        return c.exists() and word in c.read_text().upper()
+
     def progress(self, name: str):
         """Extraction callback: stop a unit whose rate over its shards projects past the cap."""
         base = self.used()
         def cb(done: int, total: int, elapsed: float):
             """``done`` shards computed in this call, ``total`` shards this call must compute."""
+            self.check_control()
             proj = base + elapsed / max(done, 1) * total / 3600
             if proj > self.cap:
                 raise CapReached(f"{name}: projected {proj:.2f} h after {done}/{total} shards > cap {self.cap} h")
@@ -227,8 +240,15 @@ class Chain:
                     zf.write_text(json.dumps(self.zones(variant)))
                 self.unit(f"head-{key}", "head", lambda: train_head(ts, head_dir, held, HeadConfig(seed=seed), log=self.log),
                           gpu=False)
-        elif not head_dir.exists():
-            shutil.copytree(typing / "head", head_dir)
+        else:
+            # copy the fine-tuned head unless the same one is already there (a re-run of A must
+            # not keep a stale head)
+            def _sha(d):
+                m = d / "head_manifest.json"
+                return json.loads(m.read_text()).get("head_sha256") if m.exists() else None
+            if _sha(head_dir) != _sha(typing / "head"):
+                shutil.rmtree(head_dir, ignore_errors=True)
+                shutil.copytree(typing / "head", head_dir)
         for ds in BENCH[variant]:
             for split in ("calib", "test"):
                 docs_path = bench.split_paths(ds)[split]
@@ -237,6 +257,16 @@ class Chain:
                 if not self.bench_pending(tag, variant, seed, ds, split):
                     continue
                 st = self.store("bench", tag, variant, seed, ds, split)
+                if ds == "nemotron":
+                    # C3 candidate recall before the prediction floor (v2.1): exact-boundary
+                    # candidates for held-out gold spans at any P_b and at P_b >= 0.5
+                    from .gates import level1_recall
+                    rp = self.drive / "c3_recall" / f"{name}.json"
+                    if not rp.exists():
+                        held_raw = {x.lower() for x in LB.load_heldout()["labels"]}
+                        rp.parent.mkdir(parents=True, exist_ok=True)
+                        rp.write_text(json.dumps({"any_pb": level1_recall(st, docs_path, held_raw, min_pb=1e-9),
+                                                  "pb_ge_0.5": level1_recall(st, docs_path, held_raw, min_pb=0.5)}))
                 for uname, L, sysn, score in pending:
                     self.unit(uname, "pred", lambda: infer.write(st, head_dir, L, docs_path, self.pred_dir, sysn,
                                                                  score=score, device=self.device), gpu=False)
@@ -565,16 +595,28 @@ class Chain:
                     continue
                 for split in ("calib", "test"):
                     p = bench.split_paths(ds)[split]
-                    def run():
-                        docs_ = sorted(read_jsonl(p), key=lambda d: d.doc_id)
-                        L = LB.load_benchmark_label_set(ds)
-                        preds = predict_flat(v1, out, docs_, L, system=f"s1v2flat_{v}-s1")
-                        path = self.pred_dir / f"flat-{ds}-{split}-{v}.jsonl"
-                        write_predictions(preds, path, {"system": f"s1v2flat_{v}-s1", "docs_path": str(p),
-                                                        "dataset_hash": dataset_hash(docs_), "config": {"labels_hash": L.hash()},
-                                                        "versions": {"variant": v, "seed": 1}})
-                        return path
-                    self.unit(f"flatpred-{ds}-{split}-{v}", "bench_store", run)
+                    # both label sets, as for the headline: benchmark labels (s1v2flat_) and the
+                    # canonical strings every baseline received (s1v2flatcanon_)
+                    for tagname, Lfn in (("flat", lambda ds=ds: LB.load_benchmark_label_set(ds)),
+                                         ("flatcanon", lambda ds=ds: LB.canonical_label_set())):
+                        def run(p=p, ds=ds, split=split, tagname=tagname, Lfn=Lfn):
+                            docs_ = sorted(read_jsonl(p), key=lambda d: d.doc_id)
+                            L = Lfn()
+                            fman = json.loads((out / "flat_manifest.json").read_text())
+                            sysn = f"s1v2{tagname}_{v}-s1"
+                            preds = predict_flat(v1, out, docs_, L, system=sysn)
+                            path = self.pred_dir / f"{tagname}-{ds}-{split}-{v}-{fman['weights_sha256'][:12]}.jsonl"
+                            write_predictions(preds, path, {"system": sysn, "docs_path": str(p),
+                                                            "dataset_hash": dataset_hash(docs_),
+                                                            "config": {"labels_hash": L.hash(), "labels": L.name},
+                                                            "versions": {"variant": v, "seed": 1},
+                                                            "model_sha": fman["weights_sha256"], "model_dir": str(out)})
+                            return path
+                        self.unit(f"{tagname}pred-{ds}-{split}-{v}", "bench_store", run)
+
+
+class StopRequested(RuntimeError):
+    pass
 
 
 class CapReached(RuntimeError):
@@ -618,7 +660,7 @@ def main(argv=None) -> None:
                 ch.log(f"[v2] GLiNER C3 stage failed: {e}")
                 ch.set_state(gliner_c3_failed=str(e)[-500:])
         # ablation C (flat CRF) only with whatever cap is left after every claim's runs
-        if a.stage in ("flat", "all"):
+        if a.stage in ("flat", "all") and not ch.control_has("SKIP_C"):
             try:
                 ch.flat()
             except CapReached as e:
@@ -627,6 +669,9 @@ def main(argv=None) -> None:
     except CapReached as e:
         print(f"[v2] STOPPED: {e}", flush=True)
         sys.exit(3)
+    except StopRequested as e:
+        print(f"[v2] STOPPED by user: {e}", flush=True)
+        sys.exit(4)
     print(f"[v2] finished stage {a.stage}; GPU hours used {ch.used():.2f} of {a.cap}", flush=True)
 
 
