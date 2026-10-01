@@ -1,0 +1,253 @@
+rule: k=10 least max-cosine-similar Nemotron leaf labels with >= 50 calibration spans
+encoder: sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41
+labels:
+- blood_type
+- language
+- fax_number
+- http_cookie
+- political_view
+- religious_belief
+- education_level
+- medical_record_number
+- race_ethnicity
+- bank_routing_number
+nodes:
+- blood_type
+- education_level
+- fax
+- http_cookie
+- language
+- medical_record_number
+- political_view
+- race_ethnicity
+- religious_belief
+- routing_number
+synonyms_all_sources:
+- bank_routing_number
+- blood_type
+- education_level
+- fax_number
+- http_cookie
+- language
+- medical_record_number
+- political_view
+- race_ethnicity
+- religious_belief
+- routing_number
+ranking:
+- label: blood_type
+  node: blood_type
+  max_sim: 0.3971
+  calib_spans: 113
+  chosen: true
+- label: language
+  node: language
+  max_sim: 0.4674
+  calib_spans: 140
+  chosen: true
+- label: fax_number
+  node: fax
+  max_sim: 0.4743
+  calib_spans: 151
+  chosen: true
+- label: url
+  node: url
+  max_sim: 0.4942
+  calib_spans: 921
+  skipped: 'veto: core PII type in every benchmark and in the canonical label set
+    the baselines received; holding it out would remove URL typing from C0'''
+- label: http_cookie
+  node: http_cookie
+  max_sim: 0.5025
+  calib_spans: 127
+  chosen: true
+- label: political_view
+  node: political_view
+  max_sim: 0.5198
+  calib_spans: 68
+  chosen: true
+- label: religious_belief
+  node: religious_belief
+  max_sim: 0.5198
+  calib_spans: 87
+  chosen: true
+- label: education_level
+  node: education_level
+  max_sim: 0.5307
+  calib_spans: 201
+  chosen: true
+- label: medical_record_number
+  node: medical_record_number
+  max_sim: 0.5402
+  calib_spans: 153
+  chosen: true
+- label: race_ethnicity
+  node: race_ethnicity
+  max_sim: 0.5436
+  calib_spans: 157
+  chosen: true
+- label: bank_routing_number
+  node: routing_number
+  max_sim: 0.5469
+  calib_spans: 149
+  chosen: true
+- label: swift_bic
+  node: swift_bic
+  max_sim: 0.5489
+  calib_spans: 125
+- label: company_name
+  node: organization
+  max_sim: 0.5516
+  calib_spans: 1739
+- label: age
+  node: age
+  max_sim: 0.5627
+  calib_spans: 89
+- label: ssn
+  node: ssn
+  max_sim: 0.5731
+  calib_spans: 105
+- label: country
+  node: country
+  max_sim: 0.5756
+  calib_spans: 598
+- label: state
+  node: state
+  max_sim: 0.5757
+  calib_spans: 396
+- label: health_plan_beneficiary_number
+  node: health_plan_beneficiary_number
+  max_sim: 0.5939
+  calib_spans: 152
+- label: county
+  node: county
+  max_sim: 0.6035
+  calib_spans: 129
+- label: license_plate
+  node: license_plate
+  max_sim: 0.6057
+  calib_spans: 136
+- label: mac_address
+  node: mac_address
+  max_sim: 0.6182
+  calib_spans: 112
+- label: city
+  node: city
+  max_sim: 0.6211
+  calib_spans: 432
+- label: employment_status
+  node: employment_status
+  max_sim: 0.6385
+  calib_spans: 153
+- label: pin
+  node: pin
+  max_sim: 0.6416
+  calib_spans: 155
+- label: postcode
+  node: postcode
+  max_sim: 0.6448
+  calib_spans: 153
+- label: occupation
+  node: occupation
+  max_sim: 0.649
+  calib_spans: 585
+- label: coordinate
+  node: coordinate
+  max_sim: 0.6493
+  calib_spans: 169
+- label: employee_id
+  node: employee_id
+  max_sim: 0.6641
+  calib_spans: 236
+- label: biometric_identifier
+  node: biometric_identifier
+  max_sim: 0.6771
+  calib_spans: 226
+- label: cvv
+  node: card_security_code
+  max_sim: 0.6787
+  calib_spans: 57
+- label: credit_debit_card
+  node: payment_card
+  max_sim: 0.6805
+  calib_spans: 204
+- label: device_identifier
+  node: device_identifier
+  max_sim: 0.6885
+  calib_spans: 94
+- label: date_of_birth
+  node: date_of_birth
+  max_sim: 0.6946
+  calib_spans: 273
+- label: tax_id
+  node: tax_id
+  max_sim: 0.7062
+  calib_spans: 64
+- label: user_name
+  node: user_name
+  max_sim: 0.7075
+  calib_spans: 296
+- label: api_key
+  node: api_key
+  max_sim: 0.7222
+  calib_spans: 129
+- label: time
+  node: time
+  max_sim: 0.7253
+  calib_spans: 499
+- label: national_id
+  node: national_id
+  max_sim: 0.7323
+  calib_spans: 81
+- label: vehicle_identifier
+  node: vehicle_identifier
+  max_sim: 0.7401
+  calib_spans: 206
+- label: customer_id
+  node: customer_id
+  max_sim: 0.77
+  calib_spans: 343
+- label: password
+  node: password
+  max_sim: 0.7834
+  calib_spans: 167
+- label: gender
+  node: gender
+  max_sim: 0.7845
+  calib_spans: 101
+- label: sexuality
+  node: sexuality
+  max_sim: 0.7845
+  calib_spans: 41
+  skipped: < 50 calibration spans
+- label: certificate_license_number
+  node: certificate_license_number
+  max_sim: 0.7877
+  calib_spans: 156
+- label: first_name
+  node: first_name
+  max_sim: 0.7908
+  calib_spans: 1246
+- label: last_name
+  node: last_name
+  max_sim: 0.7908
+  calib_spans: 969
+- label: ipv4
+  node: ipv4
+  max_sim: 0.8021
+  calib_spans: 197
+- label: ipv6
+  node: ipv6
+  max_sim: 0.8021
+  calib_spans: 116
+- label: email
+  node: email
+  max_sim: 0.8133
+  calib_spans: 1002
+- label: street_address
+  node: street_address
+  max_sim: 0.8944
+  calib_spans: 343
+vetoes:
+  url: core PII type in every benchmark and in the canonical label set the baselines
+    received; holding it out would remove URL typing from C0'
