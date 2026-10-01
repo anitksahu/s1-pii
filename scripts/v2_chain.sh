@@ -18,6 +18,9 @@ git ls-files --error-unmatch s1pii/configs/heldout_labels.yaml >/dev/null 2>&1 |
 [ -z "$(git status --porcelain -- s1pii docs scripts)" ] || { git status --porcelain >> "$L/v2.log"; fail 12; }
 sha256sum -c docs/frozen_inputs.sha256 >> "$L/v2.log" 2>&1 || fail 13
 
+# package dependencies of the main environment (fresh runtimes lack faker, datasets, ...)
+pip install -q -e ".[data,model]" "faker==40.40.0" >> "$L/v2.log" 2>&1 || fail 17
+
 # gliner2 venv builds in the background (needed only at the GLiNER C3 stage, which waits for it)
 rm -f envs/gliner2.ready envs/gliner2.failed
 pkill -f "make_env.sh gliner2" 2>/dev/null || true; pkill -f "envs/gliner2/bin/python -m pip" 2>/dev/null || true

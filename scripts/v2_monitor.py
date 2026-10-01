@@ -2,7 +2,7 @@
 
 Every 60 s: prints STATUS, PHASE, GPU utilization and the last log line. Releases the
 runtime on DONE, FAILED or STOPPED_CAP, and when the chain is in a GPU phase with GPU
-utilization < 20% for 10 consecutive minutes (the chain is then killed and STATUS set).
+utilization < 20% for 25 consecutive minutes (stores load data on CPU first) (the chain is then killed and STATUS set).
 """
 import subprocess
 import time
@@ -52,9 +52,9 @@ while True:
         release(f"chain finished: {st}; releasing the runtime")
         break
     low = low + 1 if (ph == "GPU" and 0 <= u < 20) else 0
-    if low >= 10:
+    if low >= 25:
         subprocess.run(["pkill", "-f", "s1pii.v2.run_v2"])
         (V2 / "STATUS").write_text(f"FAILED idle-gpu {time.strftime('%FT%TZ', time.gmtime())}")
-        release("GPU idle for 10 minutes in a GPU phase; chain stopped; releasing the runtime")
+        release("GPU idle for 25 minutes in a GPU phase; chain stopped; releasing the runtime")
         break
     time.sleep(60)
