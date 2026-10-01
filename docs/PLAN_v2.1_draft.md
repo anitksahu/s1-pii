@@ -78,6 +78,7 @@ paraphrase top-1 held-out and seen); E supervised probe on frozen v1 span featur
 doc-bootstrap CI); F hybrid: v2 headline spans typed by the most-overlapping GLiNER2.5 span vs GLiNER2.5 alone.
 Interpretation (held-out; P = probe balanced acc, R = held-out-only acc, A55 = 55-way top-1):
 | Result | Implies | Next step |
+|---|---|---|
 | P < 0.6 | frozen v1 features cannot separate held-out types | stop zero-shot flat typing; go to F |
 | P >= 0.6, R >= 0.5, A55 < 0.15, unseen offset gives held-out 55-way acc >= 0.3 (absolute) | prior toward seen labels | seen/unseen calibration or abstention |
 | P >= 0.6, 0.3 <= R < 0.5 | partial signal, no single cause | report; no further GPU on flat typing |
@@ -85,3 +86,44 @@ Interpretation (held-out; P = probe balanced acc, R = held-out-only acc, A55 = 5
 | P >= 0.6, R < 0.3, no collapse | training objective failure | rethink the label-conditioned head |
 | F hybrid >= GLiNER + 0.10 | boundaries and typing separable | hybrid as a v2.2 candidate (system claim, fresh labels/test) |
 | only the oracle C recovers | needs held-out supervision | not zero-shot; report, do not pursue |
+
+## Failure analysis outcome (exploratory; C3 stays a preregistered negative)
+Run: scripts/v21_diag.py at GitHub main 2ef29a6, CPU, 1699 gold spans (324 held-out) from the go/no-go calibration sample;
+output $D/v21/gonogo/diag.json. Rows are assigned per arm; the table did not say how to aggregate across arms or seeds.
+
+| Measure (held-out unless noted) | M0 | M1 s1 / s2 | M2 s1 / s2 |
+|---|---|---|---|
+| R, acc among held-out labels only (chance 0.1) | 0.278 | 0.262 / 0.309 | 0.160 / 0.210 |
+| A55, 55-way top-1 | 0.012 | 0.090 / 0.040 | 0.009 / 0.009 |
+| seen-label top-1 at gold boundaries | 0.655 | 0.515 / 0.536 | 0.537 / 0.606 |
+| per-label oracle bias (C), held-out top-1 | 0.071 | 0.120 / 0.099 | 0.031 / 0.031 |
+| collapse gap, raw -> mapped (D) | 0.001 -> 0.011 | 0.001 -> 0.001 / 0.003 | -0.137 -> -0.020 / -0.018 |
+| paraphrase top-1 held-out / seen, raw -> mapped | 0.27/0.20 -> 0.23/0.19 | 0.27/0.20 -> 0.30/0.32, 0.20/0.36 | 0.93/0.88 -> 0.47/0.67, 0.37/0.68 |
+
+- P (E): probe balanced accuracy 0.935 (doc-bootstrap CI 0.906 to 0.965, chance 0.1); seen 0.835. This is supervised
+  linear separability of frozen v1 span features, not zero-shot transfer; fax, bank routing and MRN are likely
+  partly surface format (per-class recall 1.0, low median ranks).
+- M2 (bge): collapse row. The learned map degrades a well-separated label space, more for held-out labels (paraphrase
+  0.93 -> 0.37 to 0.47) than seen ones (0.88 -> 0.67 to 0.68); both nearest-neighbour terms rise, so it is largely global
+  compression. Correlational: no identity-map control was run.
+- M0, M1: no collapse added by the map (gap stays about 0, which means no differential collapse; the 0.925 absolute
+  cosine is anisotropy of mean-pooled MLM embeddings). The v1 label space is weak before the map (raw paraphrase 0.27).
+  Row: training objective failure for M0 and M1 s1. M1 s2 (R 0.309) meets the partial row by the letter of the table;
+  with no preregistered aggregation rule (s1 0.262, mean about 0.29), M1 is recorded as borderline between the two rows.
+- Shared contributor: seen-label top-1 (0.52 to 0.66, plain accuracy) is well below the seen probe (balanced accuracy
+  0.835, CI 0.798 to 0.869, 45 classes). This is consistent with the label-conditioned head underusing the encoder
+  features in every arm, with map collapse as extra damage in M2. The metrics differ, so the gap is indicative only.
+- Prior row excluded because R < 0.5 with only held-out labels in play. The single unseen offset (C) gave 0.0 to
+  0.006 (held-out 55-way); it is fit on pooled rows that are mostly seen spans (its value was not logged), so it does
+  not test the prior hypothesis.
+- Oracle row excluded: per-label biases recover only 0.03 to 0.12.
+- R is plain accuracy on imbalanced classes while P is balanced accuracy; the comparison is indicative only.
+- F not testable for the flat models (their spans were not saved). It used v2 headline stage A spans at the 0.01
+  floor: S1 match 0.293, hybrid 0.272, GLiNER2.5 match 0.787, acc 0.728. Typing given a match is about 0.93 for both.
+  The F row is not met for this hybrid (0.272 vs GLiNER2.5 0.728).
+  The go/no-go proposal rate (0.81 to 0.85) used floor 1e-4 and is a lenient rate, not boundary recall.
+- Decision: no further GPU on zero-shot flat typing. A retry needs a new preregistration (frozen or near-identity label
+  map plus a head change, fresh held-out labels since these 10 were inspected per label, a numeric collapse
+  tolerance, an aggregation rule across arms and seeds). GLiNER typing given matched spans makes it low priority.
+- Plan limitations: the collapse criterion had no numeric threshold, and the table had no cross-arm or cross-seed
+  aggregation rule; rows above were assigned per arm after the fact.
