@@ -141,7 +141,7 @@ We report these because they are real and you will find them anyway.
 * **Generic dates.** The training taxonomy treats generic dates in Nemotron-PII and Gretel as quasi-identifiers (IGNORE); only dates of birth are PII. S1-PII therefore does not tag appointment or event dates, which PII-TRACE and TAB count as PII. This asymmetry is disclosed in the preregistration.
 * **Calibration off-domain.** On long legal text (TAB) S1-PII ranks PII characters well (it wins on pAUC) but its probabilities sit far below 0.5, so a fixed 0.5 threshold misses most names. Use a threshold tuned on a small in-domain calibration split (the benchmark does this automatically) or recalibrate with the included temperature and isotonic tools.
 * **Secrets.** SECRET spans are found at low probability; recall at 0.5 is low even where the leak curve is good.
-* **Synthetic dates of birth drifted across runs.** The synthetic training conversations drew dates of birth relative to the run date, so `all-sources` seed 3 and the `no-nemotron` runs (started after midnight UTC) saw different DOB strings than seeds 1 and 2. Same sources and counts; fixed for future runs (details in DEVIATIONS).
+* **Synthetic dates of birth drifted across runs.** The synthetic training conversations drew dates of birth relative to the run date, so `all-sources` seed 3 and the `no-nemotron` runs (started after midnight UTC) saw different DOB strings than seeds 1 and 2. Same sources and counts; fixed for future runs.
 * **Seed variance on small sets.** TAB has 127 test documents; per-seed pAUC varies noticeably, so we always report the three seeds.
 
 ## How it works
@@ -164,7 +164,7 @@ text ──► ModernBERT-large ──► linear emissions (37 BIOES tags: O + B
 * **Statistics:** paired cluster bootstrap with shared weights across the three S1 seeds and the baseline, Holm correction over the full family, decision rule fixed before any result (see `prereg/v0.md`).
 * **Leakage audit:** MinHash (word 5-grams, Jaccard ≥ 0.8) and skeleton hashing against each model's exact training data; any flagged test cluster is removed for every system.
 * **Fair baselines:** every GLiNER model gets the full canonical label set (plus its native labels), label descriptions where supported, identical windowing and emission floor, pinned revisions, and isolated environments.
-* **Deviations** from the preregistered plan are listed with reasons in [`docs/DEVIATIONS.md`](docs/DEVIATIONS.md). Raw numbers: [`docs/final_results.json`](docs/final_results.json), [`docs/c0.json`](docs/c0.json).
+* **Raw numbers:** [`docs/final_results.json`](docs/final_results.json), [`docs/c0.json`](docs/c0.json).
 
 ## Reproduce
 
