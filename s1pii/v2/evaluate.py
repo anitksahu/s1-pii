@@ -177,6 +177,8 @@ def ece_hist(vs_cal, vs_test, order: list[str]):
         m = v.alnum & (v.lab != M.LAB_IGN) & (v.bins > 0)
         return (v.bins[m] - 1) / 1000.0, (v.lab[m] == M.LAB_PII).astype(float)
     sc = np.concatenate([xy(v)[0] for v in vs_cal]); yc = np.concatenate([xy(v)[1] for v in vs_cal])
+    if len(sc) == 0:
+        return np.zeros((len(order), 2 * ECE_BINS)), np.zeros((len(order), ECE_BINS))
     iso = IsotonicRegression(out_of_bounds="clip", y_min=0, y_max=1).fit(sc, yc)
     ix = {c: i for i, c in enumerate(order)}
     hp = np.zeros((len(order), 2 * ECE_BINS)); hn = np.zeros((len(order), ECE_BINS))

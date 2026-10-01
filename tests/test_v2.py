@@ -39,6 +39,17 @@ def heldout(tmp_path_factory):
 FC = FeatureConfig(max_len=128, validators=False)
 
 
+def test_ece_hist_accepts_calibration_with_no_scored_characters():
+    from types import SimpleNamespace
+    from s1pii.eval import metrics as M
+    from s1pii.v2.evaluate import ECE_BINS, ece_hist
+    view = SimpleNamespace(alnum=np.ones(3, dtype=bool), lab=np.full(3, M.LAB_NON),
+                           bins=np.zeros(3, dtype=int), cluster_id="c")
+    hp, hn = ece_hist([view], [view], ["c"])
+    assert hp.shape == (1, 2 * ECE_BINS) and hn.shape == (1, ECE_BINS)
+    assert not hp.any() and not hn.any()
+
+
 @pytest.fixture(scope="module")
 def trained(v1_dir, heldout, tmp_path_factory):
     tmp = tmp_path_factory.mktemp("v2")
