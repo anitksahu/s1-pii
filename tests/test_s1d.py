@@ -9,9 +9,9 @@ import torch
 
 from s1pii.schema import Doc, OTHER_PII, Span
 from s1pii.s1d import labels as HL
-from s1pii.s1d.data import assert_no_heldout_leakage, generate_questions
-from s1pii.s1d.model import S1DModel, has_lm_head
-from s1pii.s1d.packer import SPECIAL_TOKENS, pack_separate, pack_window
+from s1pii.s1d.data import assert_no_heldout_leakage, generate_questions, pack_training_questions
+from s1pii.s1d.model import S1DModel, apply_lora, has_lm_head, prepare_tokenizer
+from s1pii.s1d.packer import BranchText, SPECIAL_TOKENS, pack_separate, pack_window
 from s1pii.s1d.schema import Question, answer
 
 
@@ -19,6 +19,7 @@ class StubTokenizer:
     def __init__(self):
         self.vocab = {s: i + 1 for i, s in enumerate(SPECIAL_TOKENS)}
         self.unk_token_id = 0
+        self.pad_token_id = 0
 
     def convert_tokens_to_ids(self, token):
         return self.vocab.get(token, 0)
@@ -27,14 +28,25 @@ class StubTokenizer:
         ids = [8 + (ord(c) % 96) for c in text]
         if kwargs.get("truncation"):
             ids = ids[:kwargs["max_length"]]
-        return {"input_ids": ids}
+        out = {"input_ids": ids}
+        if kwargs.get("return_offsets_mapping"):
+            out["offset_mapping"] = [(i, i + 1) for i in range(len(ids))]
+        return out
+
+    def add_special_tokens(self, spec):
+        for token in spec["additional_special_tokens"]:
+            self.vocab.setdefault(token, len(self.vocab) + 1)
+        return len(spec["additional_special_tokens"])
+
+    def __len__(self):
+        return 128
 
 
 @pytest.fixture(scope="module")
 def tiny():
     from transformers import Qwen3Config
     torch.manual_seed(7)
-    cfg = Qwen3Config(vocab_size=128, hidden_size=16, intermediate_size=32, num_hidden_layers=1,
+    cfg = Qwen3Config(vocab_size=128, hidden_size=16, intermediate_size=32, num_hidden_layers=2,
                       num_attention_heads=2, num_key_value_heads=2, head_dim=8,
                       max_position_embeddings=2048, use_cache=False, attention_dropout=0)
     return S1DModel.from_config(cfg).eval()
@@ -61,12 +73,52 @@ def test_label_draw_deterministic_disjoint_and_frozen():
     assert a["replication_labels"] == HL.load()["replication_labels"]
 
 
+def test_trainable_c3_vocabulary_and_ood_only_names_are_pinned():
+    from s1pii.v2.labels import c3_label_set
+    expected = {
+        "account_number", "age", "biometric_identifier", "city", "company_name", "credit_debit_card",
+        "date_of_birth", "device_identifier", "email", "employee_id", "employment_status", "gender",
+        "health_plan_beneficiary_number", "ipv6", "license_plate", "mac_address", "national_id", "password",
+        "phone_number", "pin", "sexuality", "ssn", "swift_bic", "tax_id", "time", "unique_id", "url",
+        "user_name", "vehicle_identifier",
+    }
+    c3 = {row.name for row in c3_label_set(False).labels}
+    assert set(HL.training_vocabulary()) & c3 == expected
+    ood = {"code", "datetime", "dem", "id_num", "loc", "misc", "org", "phone_num", "private_address",
+           "private_date", "private_email", "private_person", "private_phone", "private_url", "quantity", "username"}
+    assert HL.ood_only_names() == ood
+    assert set(HL.load()["replication_labels"]).isdisjoint(HL.training_vocabulary())
+    assert set(HL.training_vocabulary(remove_parents=True)).isdisjoint(HL.PARENT_LABELS)
+
+
+def test_nearest_trained_neighbours_are_complete_and_ledgered(tmp_path):
+    rows = HL.record_nearest_trained_neighbours(tmp_path / "ledger.jsonl")
+    assert set(rows) == set(HL.load()["test_labels"])
+    assert all(row["label"] in HL.training_vocabulary() for row in rows.values())
+    ledger = json.loads((tmp_path / "ledger.jsonl").read_text().splitlines()[-1])
+    assert ledger["test_labels"] == rows
+
+
 def test_mask_has_no_cross_branch_edges():
     p = packed()
     a0, b0 = p.branch_ranges[0]; a1, b1 = p.branch_ranges[1]
     assert not p.dense_mask[a0:b0, a1:b1].any()
     assert not p.dense_mask[a1:b1, a0:b0].any()
     assert p.dense_mask[a0:b0, p.state_range[0]:p.state_range[1]].all()
+
+
+def test_kev_mask_is_branch_local_and_options_see_own_question():
+    p = pack_window(StubTokenizer(), "state", ("one", "two"),
+                    (BranchText("span-a", "left-a"), BranchText("span-b", "left-b")), layout="kev")
+    q0, q1 = p.question_ranges
+    opts0, opts1 = p.option_ranges[:2], p.option_ranges[2:]
+    for a, b in opts0:
+        assert p.dense_mask[a:b, q0[0]:q0[1]].all()
+        assert not p.dense_mask[a:b, q1[0]:q1[1]].any()
+    d0, d1 = (p.decide_indices[0].item(), p.decide_indices[1].item())
+    assert all(p.dense_mask[d0, a:b].all() for a, b in opts0)
+    assert all(not p.dense_mask[d0, a:b].any() for a, b in opts1)
+    assert all(p.dense_mask[d1, a:b].all() for a, b in opts1)
 
 
 def test_zero_cross_branch_gradient(tiny):
@@ -79,6 +131,31 @@ def test_zero_cross_branch_gradient(tiny):
     tiny.zero_grad(set_to_none=True); y.backward(); h.remove()
     a, b = p.branch_ranges[1]
     assert torch.count_nonzero(captured["embedding"].grad[0, a:b]) == 0
+
+
+def test_flex_no_grad_matches_eager_and_mask_is_material():
+    from transformers import Qwen3Config, Qwen3Model
+    cfg = Qwen3Config(vocab_size=128, hidden_size=16, intermediate_size=32, num_hidden_layers=2,
+                      num_attention_heads=2, num_key_value_heads=2, head_dim=8,
+                      max_position_embeddings=2048, use_cache=False, attention_dropout=0)
+    eager = S1DModel.from_config(cfg).eval()
+    flex_cfg = Qwen3Config(**cfg.to_dict()); flex_cfg._attn_implementation = "flex_attention"
+    flex = S1DModel(Qwen3Model(flex_cfg), 16).eval(); flex.load_state_dict(eager.state_dict())
+    p = packed()
+    try:
+        with torch.no_grad():
+            a = eager(p).probabilities
+            b = flex(p).probabilities
+    except (NotImplementedError, RuntimeError) as exc:
+        if "CPU" in str(exc) or "platform" in str(exc):
+            pytest.skip(f"FlexAttention CPU kernel unavailable: {exc}")
+        raise
+    with torch.no_grad():
+        unmasked = eager.backbone(input_ids=p.input_ids.unsqueeze(0), position_ids=p.position_ids.unsqueeze(0),
+                                  attention_mask=None, return_dict=True).last_hidden_state
+        masked = eager(p, output_hidden_states=True).hidden_states
+    assert torch.allclose(a, b, atol=1e-5, rtol=0)
+    assert not torch.allclose(masked, unmasked[0])
 
 
 def test_branch_changes_with_state(tiny):
@@ -133,6 +210,21 @@ def test_rope_receives_packed_positions_and_no_lm_head(tiny):
     assert not has_lm_head(tiny)
 
 
+def test_lora_and_reserved_token_rows():
+    from transformers import Qwen3Config
+    cfg = Qwen3Config(vocab_size=128, hidden_size=16, intermediate_size=32, num_hidden_layers=1,
+                      num_attention_heads=2, num_key_value_heads=2, head_dim=8, use_cache=False)
+    model = S1DModel.from_config(cfg); tok = StubTokenizer()
+    indices = prepare_tokenizer(tok, model)
+    rows_before = model.backbone.get_input_embeddings().num_embeddings
+    apply_lora(model, indices)
+    trainable = [name for name, p in model.named_parameters() if p.requires_grad]
+    assert rows_before == 128 and indices == [1, 2, 3, 4, 5, 6]
+    assert any("lora_" in name for name in trainable)
+    assert any("trainable_tokens" in name for name in trainable)
+    assert not has_lm_head(model)
+
+
 def test_heldout_spans_are_never_targets_or_hard_negatives(tmp_path):
     held = HL.load()["test_labels"][0]
     text = "secret@example.test ordinary"
@@ -142,6 +234,29 @@ def test_heldout_spans_are_never_targets_or_hard_negatives(tmp_path):
     rows = generate_questions([doc], hard_negative_hook=hard, ledger_path=tmp_path / "ledger.jsonl")
     assert_no_heldout_leakage(rows)
     assert all(r.source_span != (0, 19) for r in rows)
+    assert not [r for r in rows if r.question.type.value in ("noul", "score")]
+
+
+def test_heldout_doc_has_no_document_targets_and_hard_negatives_avoid_all_gold(tmp_path):
+    held = HL.load()["test_labels"][0]
+    text = "held ordinary"
+    hs = Span("h", 0, 4, OTHER_PII, held, surface="held")
+    doc = Doc("h", text, (hs,), "nemotron", "train", "h")
+    hard = lambda _d: [Span("h", 0, 4, OTHER_PII, "", surface="held"),
+                       Span("h", 5, 13, OTHER_PII, "", surface="ordinary")]
+    rows = generate_questions([doc], hard_negative_hook=hard, ledger_path=tmp_path / "ledger")
+    assert not [r for r in rows if r.question.type.value in ("noul", "score")]
+    assert all(r.source_span != (0, 4) for r in rows)
+
+
+def test_training_question_windowing_uses_descriptions_and_left_context(tmp_path):
+    text = "x" * 20 + "ada@example.test"
+    span = Span("w", 20, len(text), OTHER_PII, "email", surface="ada@example.test")
+    rows = generate_questions([Doc("w", text, (span,), "synthetic_conv", "train", "w")],
+                              seed=3, ledger_path=tmp_path / "ledger")
+    choice = [r for r in rows if r.question.type.value == "choice"]
+    packed_rows = pack_training_questions(choice, StubTokenizer(), make_block_mask=False)
+    assert packed_rows and packed_rows[0][0].true_length < len(packed_rows[0][0].input_ids)
 
 
 def test_proposer_nt1_trains_one_step():
@@ -170,3 +285,21 @@ def test_stage0_dry_chain(tmp_path):
     assert run.returncode == 0, run.stdout + run.stderr
     assert (tmp_path / "s1d" / "STATUS").read_text().startswith("DONE")
     assert len(list((tmp_path / "s1d" / "stores").glob("stage0-*.done"))) == 8
+    probe = json.loads((tmp_path / "s1d" / "stores" / "stage0-prompted_probe.json").read_text())
+    assert probe["questions"] > 0
+    assert probe["chance"] == pytest.approx(1 / probe["options"])
+
+
+def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
+    from s1pii.s1d import run as runner
+    monkeypatch.setattr(runner, "_unit_census", lambda c, o: {"passed": True})
+    monkeypatch.setattr(runner, "_unit_revisions", lambda c, o: {"model": "revision"})
+    with pytest.raises(NotImplementedError):
+        runner.run("stage0", tmp_path, dry=False)
+    assert not (tmp_path / "stores" / "stage0-proposer_all.done").exists()
+
+
+def test_stage_cap_returns_exit_code_three(tmp_path):
+    from s1pii.s1d.run import run
+    (tmp_path / "gpu_hours.jsonl").write_text(json.dumps({"hours": 6}) + "\n")
+    assert run("stage0", tmp_path, dry=False) == 3

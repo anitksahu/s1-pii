@@ -15,7 +15,7 @@ from ..schema import Doc, Span, OTHER_PII
 from ..ledger import append
 from . import labels
 from .data import assert_no_heldout_leakage, generate_questions
-from .train import GPUHours
+from .train import GPUCapReached, GPUHours
 
 
 UNITS = {
@@ -47,6 +47,7 @@ def _unit_label_draw(ctx, out):
     cfg = labels.load(src)
     append({"unit": "s1d_label_draw", "seed": cfg["seed"], "rule": cfg["rule"],
             "config_sha": cfg["draw_sha256"]}, path=ctx["root"] / "ledger.jsonl")
+    labels.record_nearest_trained_neighbours(ctx["root"] / "ledger.jsonl", cfg)
     return {"sha": cfg["draw_sha256"]}
 
 
@@ -68,17 +69,24 @@ def _unit_revisions(ctx, out):
     models = ("Qwen/Qwen3-0.6B", "Qwen/Qwen3-1.7B", "Qwen/Qwen3-4B")
     if ctx["dry"]: return {m: "local-dry" for m in models}
     from huggingface_hub import HfApi
-    resolved = {m: HfApi().model_info(m).sha for m in models}
     pinned = {m: ctx["config"]["models"][m]["revision"] for m in models}
-    if resolved != pinned:
-        raise RuntimeError(f"Qwen revision changed: pinned={pinned}, resolved={resolved}")
+    resolved = {}
+    for model in models:
+        if not pinned[model]:
+            pinned[model] = HfApi().model_info(model).sha
+        resolved[model] = HfApi().model_info(model, revision=pinned[model]).sha
+        if resolved[model] != pinned[model]:
+            raise RuntimeError(f"Qwen revision did not resolve exactly: {model}@{pinned[model]}")
+    append({"unit": "s1d_revisions", "models": resolved}, path=ctx["root"] / "ledger.jsonl")
     return resolved
 
 
 def _unit_proposer(ctx, out, variant):
     docs = _dry_docs() if ctx["dry"] else []
     if not ctx["dry"]:
-        return {"variant": variant, "entrypoint": "s1pii.s1d.proposer", "status": "configured"}
+        from .proposer import train_and_gate
+        return train_and_gate(variant, ctx["root"], cap_hours=ctx["config"]["stages"]["stage0"]["cap_a100_hours"],
+                              control_path=ctx["root"] / "CONTROL")
     # Verify the one-type path really optimizes for one step without a pretrained model.
     from ..model.s1 import S1Model
     class Encoder(torch.nn.Module):
@@ -97,16 +105,28 @@ def _unit_proposer(ctx, out, variant):
 
 
 def _unit_questions(ctx, out, name):
+    if not ctx["dry"]:
+        from .stage0 import kev_baseline, prompted_probe
+        control = ctx["root"] / "CONTROL"
+        if name == "prompted_probe":
+            return prompted_probe(ctx["root"], ctx["config"], control)
+        if name == "kev_baseline":
+            return kev_baseline(ctx["root"], ctx["config"], control)
+        raise ValueError(f"unknown Stage 0 question unit {name!r}")
     q = generate_questions(_dry_docs(), variant="all-sources", seed=0,
-                           ledger_path=ctx["root"] / "ledger.jsonl") if ctx["dry"] else []
+                           ledger_path=ctx["root"] / "ledger.jsonl")
     if q: assert_no_heldout_leakage(q)
-    chance = 1 / 3
-    return {"unit": name, "questions": len(q), "chance": chance,
-            "accuracy": chance * 2.1 if ctx["dry"] else None,
-            "status": "dry-complete" if ctx["dry"] else "requires-stage0-models"}
+    choice = [row for row in q if row.question.type == "choice"]
+    option_count = len(choice[0].question.options) if choice else 0
+    chance = 1 / option_count if option_count else 0.0
+    return {"unit": name, "questions": len(q), "options": option_count, "chance": chance,
+            "accuracy": chance * 2.1, "status": "dry-complete"}
 
 
 def _unit_latency(ctx, out):
+    if not ctx["dry"]:
+        from .stage0 import latency_benchmark
+        return latency_benchmark(ctx["root"], ctx["config"], ctx["root"] / "CONTROL")
     return {"branches": 64, "options": 56, "mask_prebuilt": True, "dry": ctx["dry"]}
 
 
@@ -116,6 +136,11 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
     if cfg["stages"][stage].get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
     ctx = {"root": root, "dry": dry, "config": cfg}
+    meter = GPUHours(root / "gpu_hours.jsonl", cfg["stages"][stage]["cap_a100_hours"], stage)
+    try:
+        meter.reserve(0.0)
+    except GPUCapReached:
+        return 3
     handlers = {
         "label_draw": _unit_label_draw, "census": _unit_census, "revisions": _unit_revisions,
         "proposer_all": lambda c, o: _unit_proposer(c, o, "all-sources"),
@@ -131,14 +156,23 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "comparators": lambda c, o: {"status": "entrypoint-ready"},
     }
     stores = root / "stores"; stores.mkdir(exist_ok=True)
-    for unit in UNITS[stage]:
-        if (root / "CONTROL").exists() and (root / "CONTROL").read_text().strip().upper() == "STOP":
-            return 4
-        done = stores / f"{stage}-{unit}.done"
-        if done.exists(): continue
-        result = handlers[unit](ctx, stores / f"{stage}-{unit}.json")
-        _atomic_json(stores / f"{stage}-{unit}.json", result)
-        done.write_text(time.strftime("%FT%TZ", time.gmtime()))
+    try:
+        for unit in UNITS[stage]:
+            if (root / "CONTROL").exists() and (root / "CONTROL").read_text().strip().upper() == "STOP":
+                return 4
+            done = stores / f"{stage}-{unit}.done"
+            if done.exists(): continue
+            if not dry and unit not in ("label_draw", "census", "revisions"):
+                meter.reserve(float(cfg["stages"][stage].get("unit_estimates", {}).get(unit, 0)))
+            result = handlers[unit](ctx, stores / f"{stage}-{unit}.json")
+            if not isinstance(result, dict) or result.get("status") in {"configured", "entrypoint-ready"}:
+                raise RuntimeError(f"{unit} did not produce a complete result")
+            _atomic_json(stores / f"{stage}-{unit}.json", result)
+            done.write_text(time.strftime("%FT%TZ", time.gmtime()))
+    except GPUCapReached:
+        return 3
+    except InterruptedError:
+        return 4
     if stage == "stage0":
         probe = json.loads((stores / "stage0-prompted_probe.json").read_text())
         kev = json.loads((stores / "stage0-kev_baseline.json").read_text())

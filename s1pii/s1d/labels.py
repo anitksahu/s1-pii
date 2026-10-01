@@ -8,12 +8,14 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Iterable
 
 import yaml
 
-from ..ledger import append, stable_hash
+from .. import taxonomy
+from ..ledger import append
 from ..v2 import labels as v2
 
 CONFIG = Path(__file__).resolve().parents[1] / "configs" / "s1d_heldout.yaml"
@@ -21,6 +23,12 @@ V21_CONFIG = Path(__file__).resolve().parents[1] / "configs" / "heldout_labels.y
 DEFAULT_SEED = 20261001
 NOT_PII = "not personal information"
 OOD_DATASETS = ("spy_legal", "spy_medical", "tab_direct", "pii_trace")
+SYNTHETIC_RAW_LABELS = {
+    "person", "address", "email", "phone", "url", "date", "account_number", "secret", "other_pii",
+}
+PARENT_LABELS = {
+    "name", "person", "address", "date", "account_number", "secret", "other_pii", "unique_id",
+}
 
 
 def eligible_names() -> list[str]:
@@ -101,16 +109,72 @@ def replication_set(config: dict | None = None) -> v2.LabelSet:
 
 
 def semantic_exclusions(config: dict | None = None) -> dict[str, set[str]]:
-    return {key: set(value) for key, value in (config or load())["exclusions"].items()}
+    c = config or load()
+    out = {key: set(value) for key, value in c["exclusions"].items()}
+    old = yaml.safe_load(V21_CONFIG.read_text())
+    for key in ("labels", "nodes", "synonyms_all_sources"):
+        out[f"replication_{key}"] = {str(x).lower() for x in old.get(key, ())}
+    return out
+
+
+def actual_training_raw_labels() -> set[str]:
+    """Raw labels present in the three declared S1-D training sources."""
+    return ({str(x).lower() for x in taxonomy.NEMOTRON}
+            | {str(x).lower() for x in taxonomy.GRETEL}
+            | SYNTHETIC_RAW_LABELS)
+
+
+def ood_only_names(config: dict | None = None) -> set[str]:
+    """Evaluation-native names that are absent from every actual training source."""
+    c = config or load()
+    return {str(x).lower() for x in c.get("never_train_native_names", ())} - actual_training_raw_labels()
 
 
 def excluded(raw: str, config: dict | None = None) -> bool:
     c = config or load()
+    exclusions = semantic_exclusions(c)
     x = raw.strip().lower().replace("_", " ")
     texts = [*c["exclusions"]["names"], *c["exclusions"]["paraphrases"]]
     return (any(x == str(t).lower().replace("_", " ") for t in texts)
             or v2.node_of(raw) in c["exclusions"]["nodes"]
-            or v2.canonical_of(raw) in c["exclusions"]["canonical_mappings"])
+            or raw.lower() in exclusions["replication_labels"]
+            or v2.node_of(raw) in exclusions["replication_nodes"]
+            or raw.lower() in exclusions["replication_synonyms_all_sources"])
+
+
+def training_vocabulary(config: dict | None = None, *, remove_parents: bool = False) -> list[str]:
+    """Fine option labels that may be trained; canonical type strings are never options."""
+    c = config or load()
+    raw = actual_training_raw_labels()
+    names = sorted(n for n in raw if n in v2.NATIVE and not excluded(n, c) and n not in ood_only_names(c))
+    if remove_parents:
+        names = [n for n in names if n not in PARENT_LABELS]
+    return names
+
+
+def nearest_trained_neighbours(config: dict | None = None, *, remove_parents: bool = False) -> dict[str, dict]:
+    """Audit nearest trainable label by separately comparing names and descriptions."""
+    c = config or load(); trained = training_vocabulary(c, remove_parents=remove_parents)
+    result = {}
+    for test in c["test_labels"]:
+        test_name = test.replace("_", " "); test_desc = v2.NATIVE[test][1]
+        rows = []
+        for candidate in trained:
+            name_sim = SequenceMatcher(None, test_name, candidate.replace("_", " ")).ratio()
+            desc_sim = SequenceMatcher(None, test_desc, v2.NATIVE[candidate][1]).ratio()
+            rows.append(((name_sim + desc_sim) / 2, candidate, name_sim, desc_sim))
+        score, neighbour, name_sim, desc_sim = max(rows)
+        result[test] = {"label": neighbour, "name_similarity": round(name_sim, 6),
+                        "description_similarity": round(desc_sim, 6), "mean_similarity": round(score, 6)}
+    return result
+
+
+def record_nearest_trained_neighbours(ledger_path: Path, config: dict | None = None,
+                                      *, remove_parents: bool = False) -> dict[str, dict]:
+    c = config or load(); rows = nearest_trained_neighbours(c, remove_parents=remove_parents)
+    append({"unit": "s1d_label_neighbours", "config_sha": c["draw_sha256"],
+            "parent_labels_removed": remove_parents, "test_labels": rows}, path=ledger_path)
+    return rows
 
 
 def census(spans: Iterable[object], *, config: dict | None = None, ledger_path: Path | None = None) -> dict:

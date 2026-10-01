@@ -48,8 +48,9 @@ class S1DModel(nn.Module):
         if not revision:
             raise ValueError("a resolved Qwen revision is required")
         from transformers import AutoModel
+        kwargs.pop("dtype", None)
         backbone = AutoModel.from_pretrained(model_id, revision=revision,
-                                             attn_implementation="flex_attention", **kwargs)
+                                             attn_implementation="flex_attention", dtype=torch.bfloat16, **kwargs)
         if "qwen3" not in getattr(backbone.config, "model_type", "").lower():
             raise ValueError("S1-D requires a dense Qwen3 checkpoint")
         return cls(backbone)
@@ -63,15 +64,14 @@ class S1DModel(nn.Module):
         device = next(self.parameters()).device
         # The BlockMask is intentionally supplied even with restarted position ids.
         attention_mask = packed.attention_mask
-        if device.type == "cpu":
+        implementation = getattr(self.backbone.config, "_attn_implementation", "")
+        if device.type == "cpu" and implementation != "flex_attention":
             allowed = packed.dense_mask.to(device)
             attention_mask = torch.zeros_like(allowed, dtype=next(self.parameters()).dtype)
             attention_mask.masked_fill_(~allowed, torch.finfo(attention_mask.dtype).min)
             attention_mask = attention_mask[None, None]
-        else:
-            # Rebuild on the execution device when packing/caching happened on CPU.
-            from .packer import flex_block_mask
-            attention_mask = flex_block_mask(packed.dense_mask, device=device)
+        elif isinstance(attention_mask, torch.Tensor):
+            raise ValueError("CUDA S1-D forward requires the prebuilt FlexAttention BlockMask")
         output = self.backbone(input_ids=packed.input_ids.unsqueeze(0).to(device),
                                position_ids=packed.position_ids.unsqueeze(0).to(device),
                                attention_mask=attention_mask,
@@ -118,3 +118,17 @@ def prepare_tokenizer(tokenizer, model: S1DModel | None = None) -> list[int]:
 
 def has_lm_head(model: nn.Module) -> bool:
     return any(name == "lm_head" or name.endswith(".lm_head") for name, _ in model.named_modules())
+
+
+def merge_and_export(model: S1DModel, tokenizer, path: Path, manifest: dict | None = None) -> Path:
+    """Merge LoRA for latency/deployment and save the backbone plus pointer head."""
+    path = Path(path); path.mkdir(parents=True, exist_ok=True)
+    if hasattr(model.backbone, "merge_and_unload"):
+        model.backbone = model.backbone.merge_and_unload()
+    model.backbone.save_pretrained(path / "backbone", safe_serialization=True)
+    tokenizer.save_pretrained(path / "backbone")
+    torch.save({"decision_projection": model.decision_projection.state_dict(),
+                "option_projection": model.option_projection.state_dict(),
+                "pointer_bias": model.pointer_bias.detach().cpu()}, path / "pointer.pt")
+    (path / "manifest.json").write_text(__import__("json").dumps(manifest or {}, indent=2, sort_keys=True))
+    return path

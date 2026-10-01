@@ -56,16 +56,20 @@ class TrainConfig:
     cap_hours: float = 5.0
     estimated_hours: float = 0.0
     bf16: bool = True
+    checkpoint_every: int = 100
+    control_path: str = ""
 
 
 class GPUHours:
-    def __init__(self, path: Path, cap: float):
-        self.path, self.cap = Path(path), float(cap)
+    def __init__(self, path: Path, cap: float, stage: str | None = None):
+        self.path, self.cap, self.stage = Path(path), float(cap), stage
 
     def used(self) -> float:
         if not self.path.exists():
             return 0.0
-        return sum(float(json.loads(line).get("hours", 0)) for line in self.path.read_text().splitlines() if line.strip())
+        rows = [json.loads(line) for line in self.path.read_text().splitlines() if line.strip()]
+        return sum(float(row.get("hours", 0)) for row in rows
+                   if self.stage is None or row.get("stage", self.stage) == self.stage)
 
     def reserve(self, estimate: float) -> None:
         if self.used() + estimate > self.cap + 1e-12:
@@ -95,10 +99,15 @@ def manifest(config: TrainConfig, hashes: dict[str, str], model) -> dict:
             "trainable_parameters": sum(p.numel() for p in model.parameters() if p.requires_grad)}
 
 
+def _trainable_state(model) -> dict[str, torch.Tensor]:
+    trainable = {name for name, param in model.named_parameters() if param.requires_grad}
+    return {name: value.detach().cpu() for name, value in model.state_dict().items() if name in trainable}
+
+
 def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict) -> None:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "checkpoint.pt.part"
-    torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(), "step": step}, tmp)
+    torch.save({"trainable_model": _trainable_state(model), "optimizer": optimizer.state_dict(), "step": step}, tmp)
     os.replace(tmp, out / "checkpoint.pt")
     (out / "manifest.json").write_text(json.dumps(meta, indent=2, sort_keys=True))
 
@@ -107,7 +116,7 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
           *, hashes: dict[str, str] | None = None) -> dict:
     """Train/resume pointer CE. Each row is ``(PackedWindow, target_index)``."""
     seed_everything(config.seed)
-    meter = GPUHours(gpu_hours_path, config.cap_hours); meter.reserve(config.estimated_hours)
+    meter = GPUHours(gpu_hours_path, config.cap_hours, config.stage); meter.reserve(config.estimated_hours)
     model.enable_training_memory_features()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); model.to(device).train()
     optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=config.learning_rate)
@@ -115,25 +124,33 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
     checkpoint = out / "checkpoint.pt"
     if checkpoint.exists():
         state = torch.load(checkpoint, map_location=device, weights_only=False)
-        model.load_state_dict(state["model"]); optimizer.load_state_dict(state["optimizer"]); start_step = state["step"]
+        model.load_state_dict(state["trainable_model"], strict=False)
+        optimizer.load_state_dict(state["optimizer"]); start_step = state["step"]
     meta = manifest(config, hashes or {}, model)
-    started = time.monotonic(); step = 0
-    try:
-        for epoch in range(config.epochs):
-            for batch in token_batches(packed_rows, config.token_budget,
-                                       length=lambda x: len(x[0].input_ids), seed=config.seed + epoch):
-                step += 1
-                if step <= start_step: continue
-                optimizer.zero_grad(set_to_none=True)
-                losses = []
-                with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
-                                    enabled=config.bf16 and device.type == "cuda"):
-                    for packed, target in batch:
-                        losses.append(model(packed, labels=torch.as_tensor([target])).loss)
-                    loss = torch.stack(losses).mean()
-                loss.backward(); optimizer.step()
+    last_accounted = time.monotonic(); step = 0
+    for epoch in range(config.epochs):
+        for batch in token_batches(packed_rows, config.token_budget,
+                                   length=lambda x: len(x[0].input_ids), seed=config.seed + epoch):
+            if config.control_path and Path(config.control_path).exists() \
+                    and Path(config.control_path).read_text().strip().upper() == "STOP":
+                raise InterruptedError("STOP requested")
+            meter.reserve(0.0)
+            step += 1
+            if step <= start_step: continue
+            optimizer.zero_grad(set_to_none=True)
+            losses = []
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                enabled=config.bf16 and device.type == "cuda"):
+                for packed, target in batch:
+                    target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
+                    losses.append(model(packed, labels=target).loss)
+                loss = torch.stack(losses).mean()
+            loss.backward(); optimizer.step()
+            now = time.monotonic()
+            meter.record(config.unit, now - last_accounted, stage=config.stage, device=str(device), step=step)
+            last_accounted = now
+            if step % config.checkpoint_every == 0:
                 save_checkpoint(model, optimizer, step, out, meta)
-    finally:
-        meter.record(config.unit, time.monotonic() - started, stage=config.stage, device=str(device))
+    save_checkpoint(model, optimizer, step, out, meta)
     (out / "done").write_text(str(step))
     return {**meta, "steps": step}

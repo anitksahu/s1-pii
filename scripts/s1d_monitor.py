@@ -20,9 +20,11 @@ def gpu_util():
     except Exception: return -1
 
 
-def hours():
+def hours(stage):
     path = ROOT / "gpu_hours.jsonl"
-    try: return sum(float(json.loads(x).get("hours", 0)) for x in path.read_text().splitlines() if x.strip())
+    try:
+        rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+        return sum(float(row.get("hours", 0)) for row in rows if row.get("stage", stage) == stage)
     except OSError: return 0.0
 
 
@@ -42,7 +44,7 @@ while True:
     stage = status.split()[1] if status.startswith("RUNNING ") and len(status.split()) > 1 else "stage0"
     caps = {"stage0": 5, "stage1": 12, "stage2": 23}
     print(time.strftime("%H:%M:%S"), status or "STARTING", phase or "-", f"gpu {util}%",
-          f"hours {hours():.3f}/{caps.get(stage, 40)}", tail[0][:120] if tail else "", flush=True)
+          f"hours {hours(stage):.3f}/{caps.get(stage, 40)}", tail[0][:120] if tail else "", flush=True)
     if status.startswith(("DONE", "FAILED", "STOPPED_CAP", "STOPPED_USER", "STOPPED_RULE")):
         release(f"chain finished: {status}"); break
     low = low + 1 if phase == "GPU" and 0 <= util < 20 else 0
