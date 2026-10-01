@@ -334,3 +334,24 @@ def test_gonogo_decision_statistics():
     s = g.summarize(rows)
     assert abs(s["heldout"]["macro_acc"] - (0.75 + 0.25) / 2) < 1e-9          # label c (n=1) excluded
     assert s["seen"]["acc"] == 1.0 and abs(g._macro(rows, ["a"]) - 0.75) < 1e-9
+
+
+def test_predict_flat_skips_whitespace_only_spans(v1_dir, tmp_path, monkeypatch):
+    """A segment made only of whitespace tokens trims to empty offsets; it must be skipped, not
+    raised as an OffsetError (the v2.1 go/no-go eval crashed on one)."""
+    from s1pii.schema import Doc
+    from s1pii.v2 import flat as FL
+    docs = generate(40, seed=6)
+    out = FL.train_flat(v1_dir, docs, tmp_path / "flat", {"url"}, steps=2, batch=4, max_len=64, device="cpu", log=lambda *_: None)
+    d = Doc("ws", "alpha beta gamma delta", [])
+    real = FL.tokenize_doc
+
+    def ws_tokenize(doc, tok):                       # make token 1 whitespace-only (empty trimmed offsets)
+        td = real(doc, tok)
+        td.offsets[1] = (td.offsets[1][0], td.offsets[1][0])
+        return td
+    monkeypatch.setattr(FL, "tokenize_doc", ws_tokenize)
+    monkeypatch.setattr(FL, "span_logprobs", lambda crf, em, a, b, z, n, floor, max_len: [(i, i, 0, 0.9) for i in range(n)])
+    L = LB.LabelSet("t", [LB.native_label("person")])
+    pr = FL.predict_flat(v1_dir, out, [d], L, system="t", max_len=128, device="cpu", score="typed")
+    assert pr["ws"] and all(s.end > s.start for s in pr["ws"])

@@ -369,6 +369,8 @@ def predict_flat(v1_dir: Path, flat_dir: Path, docs: list[Doc], L: LB.LabelSet, 
                 if sc < floor:
                     continue
                 cs, ce = int(td.offsets[a + i][0]), int(td.offsets[a + j][1])
+                if ce <= cs:            # whitespace-only tokens trim to empty offsets (as in features.py)
+                    continue
                 if (cs, ce) not in best or sc > best[(cs, ce)].score:
                     best[(cs, ce)] = Span(d.doc_id, cs, ce, canon[k], label_raw=L.labels[k].name, score=min(1.0, sc),
                                           source=system, surface=d.text[cs:ce])
