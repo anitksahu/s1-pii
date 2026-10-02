@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -146,7 +147,7 @@ def _unit_latency(ctx, out):
         from .stage0 import latency_benchmark
         return latency_benchmark(ctx["root"], ctx["config"], ctx["root"] / "CONTROL")
     from .latency import benchmark
-    return benchmark(ctx["config"], dry=True)
+    return benchmark(ctx["config"], dry=True, root=ctx["root"])
 
 
 def _stage1_docs(dry: bool) -> list[Doc]:
@@ -167,7 +168,42 @@ def _stage1_docs(dry: bool) -> list[Doc]:
     return read_jsonl(bench.split_paths("nemotron")["calib"])
 
 
-def _proposer_candidates(root: Path, docs: list[Doc], dry: bool) -> dict[str, list[Span]]:
+# Bump when the candidate-mining code (floor, overlap filter, scoring, cap policy) changes, so
+# both the cache key and the stored payload reject candidates produced by an older miner.
+_CANDIDATE_MINING_VERSION = 1
+
+
+def _require_end_to_end_latency(latency: dict, dry: bool) -> None:
+    """Selection must not run against model-only or bare-encoder latency evidence."""
+    if not dry and not latency.get("proposer_included"):
+        raise RuntimeError("stage0-latency.json predates the end-to-end (proposer-included) latency "
+                           "benchmark; re-run Stage 0 latency before Stage 1 selection")
+
+
+def _proposer_weights_sha(path: Path) -> str:
+    """The proposer identity used both to build S1Predictor and to key the candidate cache.
+
+    Read from the same ``s1_manifest.json`` that ``load_exported`` consumes, so the cache can
+    never silently reuse candidates mined from different proposer weights."""
+    manifest = json.loads((path / "s1_manifest.json").read_text())
+    weights = manifest.get("weights_sha256")
+    if not weights:
+        raise RuntimeError(f"proposer manifest at {path} is missing weights_sha256")
+    return weights
+
+
+def _candidate_cache_path(root: Path, docs: list[Doc], weights_sha: str, cache_name: str) -> Path:
+    identity = hashlib.sha256(json.dumps({
+        "documents": [doc.doc_id for doc in docs],
+        "weights": weights_sha,
+        "floor": 0.01,
+        "mining_version": _CANDIDATE_MINING_VERSION,
+    }, sort_keys=True).encode()).hexdigest()[:16]
+    return root / "stores" / f"stage1-{cache_name}-candidates-{identity}.json"
+
+
+def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
+                         cache_name: str | None = None) -> dict[str, list[Span]]:
     if dry:
         output = {}
         for doc in docs:
@@ -179,15 +215,57 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool) -> dict[str, li
     from ..model.train import load_exported
     from ..model.predict import S1Predictor
     path = root / "models" / "proposer-no-nemotron" / "final"
-    model, tokenizer, manifest = load_exported(path, device="cuda")
-    predictor = S1Predictor(model, tokenizer, revision=manifest["weights_sha256"], max_len=512,
-                            floor=0.0, validators=False, propagation=False, device="cuda")
+    weights_sha = _proposer_weights_sha(path)
+    cache_path = _candidate_cache_path(root, docs, weights_sha, cache_name) if cache_name else None
+    if cache_path is not None and cache_path.exists():
+        payload = json.loads(cache_path.read_text())
+        if payload.get("mining_version") == _CANDIDATE_MINING_VERSION:
+            print(f"stage1 proposer candidates: loaded {payload['count']} from {cache_path.name}", flush=True)
+            return {doc_id: [Span.from_dict(row) for row in rows]
+                    for doc_id, rows in payload["candidates"].items()}
+        print(f"stage1 proposer candidates: recomputing; {cache_path.name} has mining_version "
+              f"{payload.get('mining_version')} != {_CANDIDATE_MINING_VERSION}", flush=True)
+    meter = GPUHours(root / "gpu_hours.jsonl", 12, "stage1")
+    meter.reserve(0.0)
+    last_accounted = time.monotonic()
+    # Mining interleaves CPU tokenisation/CRF decoding with low-utilisation proposer forwards,
+    # so it stays in the CPU phase: marking it GPU would let the idle-GPU watchdog kill a
+    # legitimately slow pass. Wall-clock is still metered against the stage-1 A100 budget.
+    (root / "PHASE").write_text("CPU")
+    model, tokenizer, _manifest = load_exported(path, device="cuda")
+    predictor = S1Predictor(model, tokenizer, revision=weights_sha, max_len=512,
+                            floor=0.01, validators=False, propagation=False, device="cuda")
     output = {}
-    for first in range(0, len(docs), 16):
-        chunk, _ = predictor.predict_docs(docs[first:first + 16])
-        output.update(chunk)
-    del predictor, model
-    torch.cuda.empty_cache()
+    try:
+        control = root / "CONTROL"
+        for first in range(0, len(docs), 64):
+            if control.exists() and control.read_text().strip().upper() == "STOP":
+                raise InterruptedError("STOP requested")
+            batch = docs[first:first + 64]
+            chunk, _ = predictor.predict_docs(batch)
+            for doc in batch:
+                output[doc.doc_id] = sorted(
+                    (span for span in chunk.get(doc.doc_id, ())
+                     if not any(span.start < gold.end and span.end > gold.start for gold in doc.spans)),
+                    key=lambda span: span.score, reverse=True)
+            now = time.monotonic()
+            meter.record("stage1-candidate-mining", now - last_accounted, stage="stage1",
+                         device="cuda", documents=min(first + len(batch), len(docs)))
+            last_accounted = now
+            print(f"stage1 proposer candidates: {min(first + len(batch), len(docs))}/{len(docs)} documents",
+                  flush=True)
+    finally:
+        del predictor, model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    if cache_path is not None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"version": 1, "mining_version": _CANDIDATE_MINING_VERSION,
+                   "count": sum(map(len, output.values())),
+                   "candidates": {doc_id: [span.to_dict() for span in rows]
+                                  for doc_id, rows in output.items()}}
+        part = cache_path.with_suffix(".part")
+        part.write_text(json.dumps(payload, sort_keys=True)); part.replace(cache_path)
     return output
 
 
@@ -215,24 +293,69 @@ class _LazyPackedRows:
         return self.cache[index]
 
 
+def _run_manifest_hashes(run_dir: Path) -> dict | None:
+    try:
+        return json.loads((run_dir / "manifest.json").read_text()).get("hashes", {})
+    except (OSError, ValueError):
+        return None
+
+
+def _archive_stale_run(run_dir: Path) -> Path | None:
+    """Move a stale/partial run aside under a deterministic, non-clobbering name.
+
+    Never removes an existing archive: if the base name is taken (two different stale contents
+    share a questions hash), append ``-1``, ``-2``, ... so every archive stays recoverable."""
+    if not run_dir.exists():
+        return None
+    hashes = _run_manifest_hashes(run_dir) or {}
+    tag = str(hashes.get("questions", "nohash"))[:12]
+    base = run_dir.parent / f"{run_dir.name}.stale-{tag}"
+    dest, n = base, 1
+    while dest.exists():
+        dest = run_dir.parent / f"{base.name}-{n}"
+        n += 1
+    shutil.move(str(run_dir), str(dest))
+    return dest
+
+
+def _reuse_or_reset_run(run_dir: Path, expected: dict) -> bool:
+    """Decide whether a prior run may be reused as-is; reset mismatches aside.
+
+    Returns True only for a *completed* run whose manifest matches every expected hash. A
+    matching but incomplete run is left in place so ``train`` resumes its own checkpoint. Any
+    run whose manifest is absent or mismatched (completed or checkpoint-only) is archived
+    recoverably, so ``_score_trained_run`` only ever sees the clean canonical model. Idempotent:
+    once a clean matching run is written, later calls reuse it and archive nothing."""
+    hashes = _run_manifest_hashes(run_dir)
+    matches = hashes is not None and all(hashes.get(k) == v for k, v in expected.items())
+    if matches:
+        return (run_dir / "done").exists()
+    if run_dir.exists() and any((run_dir / name).exists()
+                                for name in ("done", "checkpoint.pt", "manifest.json")):
+        _archive_stale_run(run_dir)
+    return False
+
+
 def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                       window_count: int, run_dir: Path, branches_per_window: int = 1) -> dict:
     from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
     from .model import S1DModel, apply_lora, prepare_tokenizer
     from .train import TrainConfig, seed_everything, train
     dry = ctx["dry"]
-    if (run_dir / "done").exists() and (run_dir / "manifest.json").exists():
-        return json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
+    revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
     selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
     selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), seed)
+    # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
+    # revision and layout all match; mismatches (including a stale checkpoint) are archived aside.
+    expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout}
+    if _reuse_or_reset_run(run_dir, expected_hashes):
+        return json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
     seed_everything(seed)
     if dry:
         from .latency import _DryTokenizer, _tiny_model
         tokenizer, model = _DryTokenizer(), _tiny_model()
-        revision = "local-dry"
     else:
         from transformers import AutoTokenizer
-        revision = ctx["config"]["models"][model_id]["revision"]
         tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
         model = S1DModel.from_pretrained(model_id, revision)
     token_rows = prepare_tokenizer(tokenizer, model); apply_lora(model, token_rows, rank=32)
@@ -257,9 +380,12 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                          stage="stage1", unit=f"{model_id}-s{seed}-{layout}",
                          cap_hours=ctx["config"]["stages"]["stage1"]["cap_a100_hours"],
                          control_path=str(ctx["root"] / "CONTROL"), checkpoint_every=100)
-    result = train(model, packed, config, run_dir, ctx["root"] / "gpu_hours.jsonl",
-                   hashes={"questions": question_set_hash(selected), "revision": revision,
-                           "layout": layout})
+    (ctx["root"] / "PHASE").write_text("GPU")
+    try:
+        result = train(model, packed, config, run_dir, ctx["root"] / "gpu_hours.jsonl",
+                       hashes=expected_hashes)
+    finally:
+        (ctx["root"] / "PHASE").write_text("CPU")
     del model
     if torch.cuda.is_available(): torch.cuda.empty_cache()
     return result
@@ -272,7 +398,9 @@ def _training_questions(ctx, seed: int):
     else:
         from ..model.train import TrainConfig as V1Config, training_docs
         docs, _ = training_docs(V1Config(variant="no-nemotron", seed=seed))
-        candidates = _proposer_candidates(ctx["root"], docs, False)
+        counts = dict(__import__("collections").Counter(doc.dataset for doc in docs))
+        print(f"stage1 training documents: {len(docs)} source_counts={counts}", flush=True)
+        candidates = _proposer_candidates(ctx["root"], docs, False, cache_name="training")
     return generate_questions(docs, seed=seed, variant="no-nemotron", min_options=2, max_options=64,
                               hard_negative_hook=lambda doc: candidates.get(doc.doc_id, ()),
                               ledger_path=ctx["root"] / "ledger.jsonl")
@@ -289,14 +417,14 @@ def _unit_train_sizes(ctx, _out):
             results[key] = _train_stage1_run(ctx, questions, model_id=model_id, seed=seed,
                                              layout="shared", window_count=16000,
                                              run_dir=models_root / key)
-    return {"implementation_version": 3, "variant": "no-nemotron", "windows_per_run": 16000,
+    return {"implementation_version": 5, "variant": "no-nemotron", "windows_per_run": 16000,
             "seeds": [1, 2], "runs": results}
 
 
 def _dev_questions(ctx, *, descriptions: bool = True):
     from .data import span_evaluation_questions
     docs = _stage1_docs(ctx["dry"])
-    candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"])
+    candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"], cache_name="calibration")
     rows = span_evaluation_questions(docs, candidates, labels=labels.load()["dev_labels"], seed=0,
                                      descriptions=descriptions)
     if not rows or not any(row.hard_negative for row in rows):
@@ -410,7 +538,7 @@ def _unit_layout_ablation(ctx, _out):
         differences.setdefault(row.doc_id, []).append(kev - shared)
     from .infer import document_bootstrap
     interval = document_bootstrap(differences, seed=17, samples=100 if ctx["dry"] else 2000, side="lower")
-    return {"implementation_version": 3, "windows_per_run": 4000, "sampled_spans_per_window": 16,
+    return {"implementation_version": 5, "windows_per_run": 4000, "sampled_spans_per_window": 16,
             "metrics": metrics, "difference": interval,
             "stage2_layout": "kev" if interval["one_sided_lower_95"] > 0.02 else "shared"}
 
@@ -441,7 +569,9 @@ def _unit_dev_eval(ctx, _out):
                 ctx, rows, model_id=model_id, run_dir=run_dir), temperature=temperature)
             trained[key]["temperature"] = temperature
     latency = json.loads((ctx["root"] / "stores" / "stage0-latency.json").read_text()) if not ctx["dry"] else {
+        "proposer_included": True,
         "models": {name: {"p95_ms_per_window": 1.0} for name in ctx["config"]["models"]}}
+    _require_end_to_end_latency(latency, ctx["dry"])
     pooled = {}
     for model_id in ctx["config"]["models"]:
         size = model_id.rsplit("-", 1)[-1]
@@ -475,7 +605,7 @@ def _unit_dev_eval(ctx, _out):
     chosen = eligible[0] if eligible else order[-1]
     trained_accuracy = pooled[chosen]["macro_accuracy"]
     prompted_accuracy = prompted[chosen]["macro_accuracy"]
-    return {"implementation_version": 3, "split": "nemotron-calib", "questions": len(rows),
+    return {"implementation_version": 5, "split": "nemotron-calib", "questions": len(rows),
             "not_pii_questions": sum(row.hard_negative for row in rows),
             "trained": trained, "prompted": prompted, "pooled": pooled, "rule_outcomes": outcomes,
             "chosen_size": chosen, "trained_accuracy": trained_accuracy,
@@ -517,13 +647,20 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if stage != "stage0":
         if stage == "stage1":
             try:
-                return json.loads(result_path.read_text()).get("implementation_version") == 3
+                return json.loads(result_path.read_text()).get("implementation_version") == 5
             except (OSError, ValueError):
                 return False
         # Stage 2 still has no production implementation. Dry runs may resume its stubs.
         return dry
     if unit == "census":
         return True
+    if unit == "latency":
+        # Bumped when the benchmark became a genuinely measured end-to-end (exported proposer +
+        # decision model) pass; older model-only or bare-encoder caches re-run.
+        try:
+            return json.loads(result_path.read_text()).get("implementation_version") == 4
+        except (OSError, ValueError):
+            return False
     if unit == "label_draw":
         if dry:
             return True
@@ -549,6 +686,10 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
     ctx = {"root": root, "dry": dry, "config": cfg}
     meter = GPUHours(root / "gpu_hours.jsonl", cfg["stages"][stage]["cap_a100_hours"], stage)
+    if os.environ.get("S1D_CAP_OVERRIDE") == "1":
+        # Auditable, accounting-neutral (0 hours) marker that the hard cap is not enforced.
+        meter.record("cap_override_active", 0.0, stage=stage, device="n/a",
+                     note="S1D_CAP_OVERRIDE enabled; per-stage A100 cap not enforced")
     try:
         meter.reserve(0.0)
     except GPUCapReached:

@@ -337,7 +337,7 @@ def latency_benchmark(root: Path, config: dict, control_path: Path) -> dict:
     from .latency import benchmark
     clock = UnitClock(root, config, "latency")
     set_phase(root, "CPU")
-    result = benchmark(config, dry=False, control_path=control_path,
+    result = benchmark(config, dry=False, root=root, control_path=control_path,
                        phase_callback=lambda phase: set_phase(root, phase))
     clock.tick(substep="benchmark")
     result_path = root / "eval" / "latency.json"; result_path.parent.mkdir(parents=True, exist_ok=True)

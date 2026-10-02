@@ -400,7 +400,13 @@ def test_latency_harness_tiny_cpu_dry():
     from s1pii.s1d.latency import benchmark
     result = benchmark({}, dry=True, warmup=0, repeats=1)
     assert result["branches"] == 64 and result["options"] == 56
-    assert result["models"]["tiny-random"]["p95_ms_per_window"] > 0
+    assert result["implementation_version"] == 4 and result["proposer_included"] is True
+    assert result["proposer"]["mode"] == "dry"
+    assert result["proposer_p95_ms_per_window"] == result["proposer"]["p95_ms_per_window"]
+    row = result["models"]["tiny-random"]
+    assert row["p95_ms_per_window"] > 0
+    # End-to-end p95 is the decision model plus the proposer (0 in the dry harness).
+    assert row["p95_ms_per_window"] == row["model_p95_ms_per_window"] + row["proposer_p95_ms_per_window"]
 
 
 def test_stage0_dry_chain(tmp_path):
@@ -594,6 +600,276 @@ def test_stage1_reads_nemotron_calibration_never_test(tmp_path, monkeypatch):
     assert [row.doc_id for row in _stage1_docs(False)] == ["calib-only"]
 
 
+def test_stage1_proposer_weights_sha_requires_manifest(tmp_path):
+    from s1pii.s1d.run import _proposer_weights_sha
+    path = tmp_path / "final"; path.mkdir()
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "deadbeef"}))
+    assert _proposer_weights_sha(path) == "deadbeef"
+    (path / "s1_manifest.json").write_text(json.dumps({"other": 1}))
+    with pytest.raises(RuntimeError):
+        _proposer_weights_sha(path)
+
+
+def test_stage1_candidate_cache_round_trips_without_gpu(tmp_path):
+    from s1pii.s1d.run import _CANDIDATE_MINING_VERSION, _candidate_cache_path, _proposer_candidates
+    root = tmp_path
+    path = root / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+    docs = [Doc("d0", "alpha beta", (), "nemotron", "calib", "d0")]
+    cache_path = _candidate_cache_path(root, docs, "w-sha", "calibration")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    span = Span("d0", 0, 5, OTHER_PII, "cand", score=0.7, surface="alpha")
+    cache_path.write_text(json.dumps({"version": 1, "mining_version": _CANDIDATE_MINING_VERSION,
+                                      "count": 1, "candidates": {"d0": [span.to_dict()]}}))
+    # A cache hit returns before any model load, so no CUDA is required to reuse candidates.
+    out = _proposer_candidates(root, docs, False, cache_name="calibration")
+    assert [s.to_dict() for s in out["d0"]] == [span.to_dict()]
+    # Identity is keyed on the proposer weights: a different sha maps to a different cache file.
+    assert _candidate_cache_path(root, docs, "other-sha", "calibration") != cache_path
+
+
+def test_stage1_candidate_mining_stays_cpu_and_meters_without_cap(tmp_path, monkeypatch):
+    from s1pii.s1d import run as runner
+    import s1pii.model.train as v1train
+    import s1pii.model.predict as v1predict
+    root = tmp_path
+    path = root / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+    (root / "PHASE").write_text("GPU")   # a prior GPU phase must be cleared by mining
+
+    class _StubPredictor:
+        def __init__(self, *a, **k):
+            pass
+
+        def predict_docs(self, batch):
+            # Five non-overlapping candidates per doc proves there is no four-candidate cap.
+            return ({d.doc_id: [Span(d.doc_id, 10 + 2 * i, 11 + 2 * i, OTHER_PII, "cand",
+                                     score=0.5 + i / 100, surface="x") for i in range(5)]
+                     for d in batch}, None)
+
+    monkeypatch.setattr(v1train, "load_exported",
+                        lambda *a, **k: (object(), object(), {"weights_sha256": "w-sha"}))
+    monkeypatch.setattr(v1predict, "S1Predictor", _StubPredictor)
+    docs = [Doc(f"d{i}", "plain text body", (), "nemotron", "calib", f"d{i}") for i in range(3)]
+    out = runner._proposer_candidates(root, docs, False, cache_name="training")
+    assert all(len(out[f"d{i}"]) == 5 for i in range(3))              # no per-doc cap
+    assert (root / "PHASE").read_text() == "CPU"                      # idle-watchdog-safe phase
+    assert [s.score for s in out["d0"]] == sorted((s.score for s in out["d0"]), reverse=True)
+    rows = [json.loads(line) for line in (root / "gpu_hours.jsonl").read_text().splitlines() if line.strip()]
+    assert any(r["unit"] == "stage1-candidate-mining" and r["stage"] == "stage1" for r in rows)
+
+
+def test_stage1_candidate_cache_rejects_stale_mining_version(tmp_path, monkeypatch):
+    from s1pii.s1d import run as runner
+    import s1pii.model.train as v1train
+    import s1pii.model.predict as v1predict
+    root = tmp_path
+    path = root / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+    docs = [Doc("d0", "alpha beta", (), "nemotron", "calib", "d0")]
+    cache_path = runner._candidate_cache_path(root, docs, "w-sha", "calibration")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    stale = Span("d0", 0, 5, OTHER_PII, "stale", score=0.9, surface="alpha")
+    cache_path.write_text(json.dumps({"version": 1, "mining_version": runner._CANDIDATE_MINING_VERSION - 1,
+                                      "count": 1, "candidates": {"d0": [stale.to_dict()]}}))
+
+    class _StubPredictor:
+        def __init__(self, *a, **k):
+            pass
+
+        def predict_docs(self, batch):
+            return ({d.doc_id: [Span(d.doc_id, 1, 2, OTHER_PII, "fresh", score=0.3, surface="l")]
+                     for d in batch}, None)
+
+    monkeypatch.setattr(v1train, "load_exported",
+                        lambda *a, **k: (object(), object(), {"weights_sha256": "w-sha"}))
+    monkeypatch.setattr(v1predict, "S1Predictor", _StubPredictor)
+    out = runner._proposer_candidates(root, docs, False, cache_name="calibration")
+    assert [s.label_raw for s in out["d0"]] == ["fresh"]              # recomputed, not the stale cache
+    reread = json.loads(cache_path.read_text())
+    assert reread["mining_version"] == runner._CANDIDATE_MINING_VERSION   # rewritten at current version
+
+
+def test_latency_selection_guard_requires_proposer_included():
+    from s1pii.s1d.run import _require_end_to_end_latency
+    _require_end_to_end_latency({"proposer_included": True}, False)      # ok
+    _require_end_to_end_latency({}, True)                                # dry is exempt
+    with pytest.raises(RuntimeError):
+        _require_end_to_end_latency({"models": {}}, False)
+
+
+def test_latency_proposer_dry_is_download_free_measurement():
+    from s1pii.s1d.latency import _proposer_window_latency_ms
+    result = _proposer_window_latency_ms(None, {}, dry=True, warmup=0, repeats=2)
+    assert result["mode"] == "dry" and result["windows"] == 1
+    assert result["p95_ms_per_window"] >= 0
+    assert set(result) >= {"mode", "p95_ms_per_window", "p95_ms_per_document",
+                           "candidates_per_window", "windows", "repeats"}
+
+
+def test_latency_proposer_measures_exported_pipeline_not_bare_encoder(tmp_path, monkeypatch):
+    from s1pii.s1d import latency as lat
+    import s1pii.model.train as v1train
+    import s1pii.model.predict as v1predict
+    path = tmp_path / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+    calls = {"load_exported": 0, "predict_docs": 0}
+
+    class _WSTokenizer:
+        def __call__(self, text, **k):
+            return {"input_ids": text.split()}
+
+    class _Report:
+        def __init__(self, windows):
+            self.windows = windows
+
+    class _StubPredictor:
+        size = 510
+
+        def __init__(self, *a, **k):
+            pass
+
+        def predict_docs(self, docs):
+            calls["predict_docs"] += 1
+            d = docs[0]
+            # 100 candidates proves the timed path applies the <=64-per-window selection; the
+            # report says exactly one window, which the benchmark requires.
+            spans = [Span(d.doc_id, 2 * i, 2 * i + 1, OTHER_PII, "crf", score=i / 200, surface="x")
+                     for i in range(100)]
+            return ({d.doc_id: spans}, _Report(1))
+
+    def _stub_load_exported(p, device=None):
+        calls["load_exported"] += 1
+        assert Path(p) == path       # the exported trained proposer, not a hub encoder
+        return object(), _WSTokenizer(), {"weights_sha256": "w-sha"}
+
+    monkeypatch.setattr(v1train, "load_exported", _stub_load_exported)
+    monkeypatch.setattr(v1predict, "S1Predictor", _StubPredictor)
+    result = lat._proposer_window_latency_ms(tmp_path, {}, dry=False, warmup=0, repeats=2)
+    # A bare-encoder proxy would never load_exported, run predict_docs, or cap to 64 candidates.
+    assert result["mode"] == "measured-exported"
+    assert result["candidates_per_window"] == 64 and result["windows"] == 1
+    assert result["window_tokens"] <= result["window_capacity_tokens"] == 510   # one near-full window
+    assert result["p95_ms_per_window"] >= 0 and result["weights_sha256"] == "w-sha"
+    assert calls["load_exported"] == 1 and calls["predict_docs"] >= 2
+
+
+def test_latency_one_window_text_fits_capacity_unlike_old_workload():
+    from s1pii.s1d.latency import _one_window_text
+
+    class _WSTokenizer:
+        def __call__(self, text, **k):
+            return {"input_ids": text.split()}
+
+    tok, size = _WSTokenizer(), 510
+    text = _one_window_text(tok, size)
+    n = len(tok(text)["input_ids"])
+    assert n <= size                 # exactly one window's worth of content tokens
+    assert n >= size - 20            # near-capacity, not a tiny document
+    # The previous hard-coded workload was >= 570 tokens and would have broken this invariant.
+    assert n < 570
+
+
+def test_latency_proposer_rejects_multi_window(tmp_path, monkeypatch):
+    from s1pii.s1d import latency as lat
+    import s1pii.model.train as v1train
+    import s1pii.model.predict as v1predict
+    path = tmp_path / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+
+    class _WSTokenizer:
+        def __call__(self, text, **k):
+            return {"input_ids": text.split()}
+
+    class _Report:
+        windows = 2
+
+    class _StubPredictor:
+        size = 510
+
+        def __init__(self, *a, **k):
+            pass
+
+        def predict_docs(self, docs):
+            d = docs[0]
+            return ({d.doc_id: [Span(d.doc_id, 0, 1, OTHER_PII, "crf", score=0.5, surface="x")]},
+                    _Report())
+
+    monkeypatch.setattr(v1train, "load_exported",
+                        lambda *a, **k: (object(), _WSTokenizer(), {"weights_sha256": "w-sha"}))
+    monkeypatch.setattr(v1predict, "S1Predictor", _StubPredictor)
+    # The benchmark reads report.windows and must refuse to label a multi-window duration per-window.
+    with pytest.raises(RuntimeError):
+        lat._proposer_window_latency_ms(tmp_path, {}, dry=False, warmup=0, repeats=1)
+
+
+def test_archive_stale_run_never_clobbers(tmp_path):
+    from s1pii.s1d.run import _archive_stale_run
+    run_dir = tmp_path / "0.6B-s1"
+
+    def _make(marker):
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "manifest.json").write_text(json.dumps({"hashes": {"questions": "SAME"}}))
+        (run_dir / "marker.txt").write_text(marker)
+
+    _make("first")
+    first = _archive_stale_run(run_dir)
+    _make("second")            # same questions hash -> same base archive name, different content
+    second = _archive_stale_run(run_dir)
+    assert first != second
+    assert (first / "marker.txt").read_text() == "first"     # original archive untouched
+    assert (second / "marker.txt").read_text() == "second"   # second archived alongside
+
+
+def _write_stage1_run(run_dir, hashes, *, done):
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "manifest.json").write_text(json.dumps({"hashes": hashes}))
+    (run_dir / "checkpoint.pt").write_text("ckpt")
+    if done:
+        (run_dir / "done").write_text("1")
+
+
+def test_train_run_reuses_only_matching_completed_run(tmp_path):
+    from s1pii.s1d.run import _reuse_or_reset_run
+    exp = {"questions": "qh", "revision": "rev", "layout": "shared"}
+    run_dir = tmp_path / "0.6B-s1"
+    _write_stage1_run(run_dir, exp, done=True)
+    assert _reuse_or_reset_run(run_dir, exp) is True
+    assert _reuse_or_reset_run(run_dir, exp) is True          # idempotent
+    assert list(tmp_path.glob("*.stale-*")) == []
+
+
+def test_train_run_archives_completed_mismatch(tmp_path):
+    from s1pii.s1d.run import _reuse_or_reset_run
+    run_dir = tmp_path / "0.6B-s1"
+    _write_stage1_run(run_dir, {"questions": "OLD", "revision": "rev", "layout": "shared"}, done=True)
+    exp = {"questions": "NEW", "revision": "rev", "layout": "shared"}
+    assert _reuse_or_reset_run(run_dir, exp) is False
+    assert not run_dir.exists()                               # canonical cleared for a fresh run
+    stale = list(tmp_path.glob("*.stale-*"))
+    assert len(stale) == 1 and (stale[0] / "manifest.json").exists()   # recoverable
+
+
+def test_train_run_archives_checkpoint_only_mismatch(tmp_path):
+    from s1pii.s1d.run import _reuse_or_reset_run
+    run_dir = tmp_path / "0.6B-s1"
+    _write_stage1_run(run_dir, {"questions": "OLD", "revision": "rev", "layout": "shared"}, done=False)
+    exp = {"questions": "NEW", "revision": "rev", "layout": "shared"}
+    assert _reuse_or_reset_run(run_dir, exp) is False
+    assert not run_dir.exists()
+    assert len(list(tmp_path.glob("*.stale-*"))) == 1
+
+
+def test_train_run_resumes_matching_incomplete_run(tmp_path):
+    from s1pii.s1d.run import _reuse_or_reset_run
+    exp = {"questions": "qh", "revision": "rev", "layout": "shared"}
+    run_dir = tmp_path / "0.6B-s1"
+    _write_stage1_run(run_dir, exp, done=False)              # matching but unfinished
+    assert _reuse_or_reset_run(run_dir, exp) is False        # not a completed reuse
+    assert (run_dir / "checkpoint.pt").exists()              # left in place for train() to resume
+    assert list(tmp_path.glob("*.stale-*")) == []
+
+
 def test_stage1_dry_chain_writes_all_units(tmp_path):
     root = tmp_path / "s1d_dry"; root.mkdir()
     (root / "APPROVED_stage1").write_text("approved")
@@ -605,7 +881,7 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
     assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
     outputs = {name: json.loads((root / "stores" / f"stage1-{name}.json").read_text())
                for name in ("train_sizes", "layout_ablation", "dev_eval")}
-    assert all(value["implementation_version"] == 3 for value in outputs.values())
+    assert all(value["implementation_version"] == 5 for value in outputs.values())
     assert len(outputs["train_sizes"]["runs"]) == 6
     for seed in (1, 2):
         hashes = {outputs["train_sizes"]["runs"][f"{size}-s{seed}"]["hashes"]["questions"]

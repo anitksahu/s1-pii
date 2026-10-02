@@ -151,6 +151,8 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
             now = time.monotonic()
             meter.record(config.unit, now - last_accounted, stage=config.stage, device=str(device), step=step)
             last_accounted = now
+            if step == 1 or step % 25 == 0:
+                print(f"{config.unit}: step {step} loss {float(loss.detach()):.6f}", flush=True)
             if step % config.checkpoint_every == 0:
                 save_checkpoint(model, optimizer, step, out, meta)
     save_checkpoint(model, optimizer, step, out, meta)
