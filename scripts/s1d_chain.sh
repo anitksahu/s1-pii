@@ -9,6 +9,7 @@ STAGE=${1:-stage0}; LOG="$L/$STAGE.log"
 PYTHON=${PYTHON:-python}
 status() { echo "$1 $(date -u +%FT%TZ)" > "$R/STATUS"; }
 fail() { status "FAILED $1"; exit "${2:-1}"; }
+echo "[$(date -u +%FT%TZ)] starting $STAGE" >> "$LOG"
 status "RUNNING $STAGE"; echo CPU > "$R/PHASE"
 
 if [ "${S1D_SKIP_INSTALL:-0}" != 1 ]; then

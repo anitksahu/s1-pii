@@ -10,15 +10,16 @@ import torch
 from ..schema import Doc, IGNORE, PERSON
 from ..model.encode import train_examples
 from ..model.s1 import S1Model, collate
-from .labels import excluded, load
+from .labels import excluded, load, semantic_exclusions
 
 
-def proposer_doc(doc: Doc, config: dict | None = None) -> Doc:
+def proposer_doc(doc: Doc, config: dict | None = None,
+                 exclusions: dict[str, set[str]] | None = None) -> Doc:
     """Map every observed PII span to one type; held-out spans become partial labels."""
     cfg = config or load()
     spans = []
     for span in doc.spans:
-        if span.label_raw and excluded(span.label_raw, cfg):
+        if span.label_raw and excluded(span.label_raw, cfg, exclusions=exclusions):
             spans.append(replace(span, label_canonical=IGNORE))
         elif span.is_pii:
             # PERSON is canonical index zero, hence BIOES ids 1..4. Its name never
@@ -29,8 +30,43 @@ def proposer_doc(doc: Doc, config: dict | None = None) -> Doc:
     return replace(doc, spans=tuple(spans))
 
 
-def examples(docs, tokenizer, **kwargs):
-    return train_examples([proposer_doc(d) for d in docs], tokenizer, num_types=1, **kwargs)
+def examples(docs, tokenizer, *, config: dict | None = None,
+             exclusions: dict[str, set[str]] | None = None, **kwargs):
+    cfg = config or load()
+    exclusions = semantic_exclusions(cfg) if exclusions is None else exclusions
+    return train_examples([proposer_doc(d, cfg, exclusions) for d in docs],
+                          tokenizer, num_types=1, **kwargs)
+
+
+def _cached_examples(docs, tokenizer, *, cache: Path, config: dict, clock,
+                     control_path: Path, chunk_size: int = 512):
+    """Build resumable chunks so progress, STOP, and the cap are checked frequently."""
+    if cache.exists():
+        rows = torch.load(cache, map_location="cpu", weights_only=False)
+        print(f"proposer examples: loaded {len(rows)} rows from legacy cache {cache.name}", flush=True)
+        clock.tick(substep="load-example-cache", examples=len(rows))
+        return rows
+    chunk_dir = cache.with_suffix("")
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    exclusions = semantic_exclusions(config)
+    rows = []
+    total = len(docs)
+    for first in range(0, total, chunk_size):
+        if control_path.exists() and control_path.read_text().strip().upper() == "STOP":
+            raise InterruptedError("STOP requested")
+        last = min(first + chunk_size, total)
+        path = chunk_dir / f"{first:08d}-{last:08d}.pt"
+        if path.exists():
+            part = torch.load(path, map_location="cpu", weights_only=False)
+        else:
+            part = examples(docs[first:last], tokenizer, max_len=512,
+                            config=config, exclusions=exclusions)
+            tmp = path.with_suffix(".part")
+            torch.save(part, tmp); tmp.replace(path)
+        rows.extend(part)
+        print(f"proposer examples: {last}/{total} documents, {len(rows)} rows", flush=True)
+        clock.tick(substep="data-and-tokenization", documents=last, examples=len(rows))
+    return rows
 
 
 def proposer_model(encoder, hidden: int, dropout: float = 0.1) -> S1Model:
@@ -80,6 +116,7 @@ def train_and_gate(variant: str, root: Path, *, cap_hours: float, control_path: 
     tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
     cfg = V1Config(backbone=model_id, backbone_revision=revision, variant=variant, seed=seed,
                    max_len=512, epochs=1, bf16=True, gradient_checkpointing=True)
+    print(f"proposer {variant}: loading training documents", flush=True)
     docs, source_counts = training_docs(cfg)
     if dry_limit:
         docs = docs[:dry_limit]
@@ -87,15 +124,12 @@ def train_and_gate(variant: str, root: Path, *, cap_hours: float, control_path: 
                              "spans": [(s.start, s.end, s.label_raw) for s in doc.spans]} for doc in docs])
     cache = Path(root) / "stores" / f"proposer-examples-{variant}-{data_sha[:16]}.pt"
     cache.parent.mkdir(parents=True, exist_ok=True)
-    if cache.exists():
-        rows = torch.load(cache, map_location="cpu", weights_only=False)
-    else:
-        rows = examples(docs, tokenizer, max_len=512)
-        tmp = cache.with_suffix(".part"); torch.save(rows, tmp); tmp.replace(cache)
+    rows = _cached_examples(docs, tokenizer, cache=cache, config=load(), clock=clock,
+                            control_path=control_path)
     batches = list(token_batches(rows, cfg.token_budget, length=lambda x: len(x.input_ids), seed=seed))
     if not batches:
         raise ValueError("proposer generated no training batches")
-    clock.tick(substep="data-and-tokenization", examples=len(rows))
+    clock.tick(substep="batching", examples=len(rows), batches=len(batches))
     encoder = AutoModel.from_pretrained(model_id, revision=revision, dtype=torch.float32)
     if any(parameter.dtype != torch.float32 for parameter in encoder.parameters()):
         raise RuntimeError("proposer master weights must remain FP32")

@@ -233,12 +233,14 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
     try:
         for unit in UNITS[stage]:
             (root / "PHASE").write_text("CPU")
+            (root / "CURRENT").write_text(f"{unit} starting {time.strftime('%FT%TZ', time.gmtime())}")
             if (root / "CONTROL").exists() and (root / "CONTROL").read_text().strip().upper() == "STOP":
                 return 4
             if stage == "stage0" and unit == "proposer_all" and _stage0_should_stop(stores, dry):
                 return 5
             done = stores / f"{stage}-{unit}.done"
             if _cache_is_current(root, stores, stage, unit, dry):
+                (root / "CURRENT").write_text(f"{unit} cached {time.strftime('%FT%TZ', time.gmtime())}")
                 continue
             if not dry and unit not in ("label_draw", "census", "revisions"):
                 meter.reserve(float(cfg["stages"][stage].get("unit_estimates", {}).get(unit, 0)))
@@ -247,6 +249,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
                 raise RuntimeError(f"{unit} did not produce a complete result")
             _atomic_json(stores / f"{stage}-{unit}.json", result)
             done.write_text(time.strftime("%FT%TZ", time.gmtime()))
+            (root / "CURRENT").write_text(f"{unit} done {time.strftime('%FT%TZ', time.gmtime())}")
     except GPUCapReached:
         return 3
     except InterruptedError:

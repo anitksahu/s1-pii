@@ -91,6 +91,22 @@ def test_trainable_c3_vocabulary_and_ood_only_names_are_pinned():
     assert set(HL.training_vocabulary(remove_parents=True)).isdisjoint(HL.PARENT_LABELS)
 
 
+def test_replication_exclusions_are_parsed_once(monkeypatch):
+    text = HL.V21_CONFIG.read_text()
+    reads = []
+    class Source:
+        def read_text(self):
+            reads.append(1)
+            return text
+    HL._replication_exclusions.cache_clear()
+    monkeypatch.setattr(HL, "V21_CONFIG", Source())
+    cfg = HL.load()
+    for _ in range(20):
+        HL.excluded("email", cfg)
+    assert len(reads) == 1
+    HL._replication_exclusions.cache_clear()
+
+
 def test_nearest_trained_neighbours_are_complete_and_ledgered(tmp_path):
     def local_embeddings(texts):
         return torch.tensor([[1.0 + (sum(map(ord, text)) % 17), float(i + 1), 0.5]
@@ -294,6 +310,34 @@ def test_proposer_fp32_master_weights_under_autocast():
     assert {p.dtype for p in model.parameters()} == {torch.float32}
 
 
+def test_proposer_example_chunks_are_resumable(tmp_path, monkeypatch):
+    from s1pii.s1d import proposer
+    docs = [Doc(f"d{i}", "plain", (), "synthetic", "train", f"d{i}") for i in range(3)]
+    class Clock:
+        def __init__(self): self.ticks = []
+        def tick(self, **values): self.ticks.append(values)
+    cache = tmp_path / "examples.pt"
+    clock = Clock()
+    first = proposer._cached_examples(docs, StubTokenizer(), cache=cache, config=HL.load(),
+                                      clock=clock, control_path=tmp_path / "CONTROL", chunk_size=1)
+    assert len(first) == 3 and len(clock.ticks) == 3
+    monkeypatch.setattr(proposer, "examples", lambda *a, **k: pytest.fail("cached chunk was rebuilt"))
+    second = proposer._cached_examples(docs, StubTokenizer(), cache=cache, config=HL.load(),
+                                       clock=Clock(), control_path=tmp_path / "CONTROL", chunk_size=1)
+    assert [row.doc_id for row in second] == [row.doc_id for row in first]
+
+
+def test_unit_clock_records_then_stops_on_cap(tmp_path):
+    from s1pii.s1d.stage0 import UnitClock
+    from s1pii.s1d.train import GPUCapReached, GPUHours
+    config = {"stages": {"stage0": {"cap_a100_hours": 0}}}
+    clock = UnitClock(tmp_path, config, "bounded")
+    clock.last -= 1
+    with pytest.raises(GPUCapReached):
+        clock.tick(substep="chunk")
+    assert GPUHours(tmp_path / "gpu_hours.jsonl", 0, "stage0").used() > 0
+
+
 def test_gate_g1_caps_candidates_and_is_non_blocking():
     from s1pii.s1d.proposer import gate_g1
     candidates = [(i, i + 1, float(100 - i)) for i in range(70)]
@@ -377,6 +421,11 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     assert "torchvision torchaudio torchtext torchao" in chain
     assert "is_torchao_available; is_torchao_available()" in chain
     assert "torch.cuda.is_available()" in chain
+    assert "starting $STAGE" in chain
+
+    monitor = Path("scripts/s1d_monitor.py").read_text()
+    assert 'read(ROOT / "CURRENT")' in monitor
+    assert "max(logs, key=lambda path: path.stat().st_mtime)" in monitor
 
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source

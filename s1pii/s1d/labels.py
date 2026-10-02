@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -108,12 +109,18 @@ def replication_set(config: dict | None = None) -> v2.LabelSet:
     return split_labels("replication", config)
 
 
+@lru_cache(maxsize=1)
+def _replication_exclusions() -> dict[str, frozenset[str]]:
+    old = yaml.safe_load(V21_CONFIG.read_text())
+    return {key: frozenset(str(x).lower() for x in old.get(key, ()))
+            for key in ("labels", "nodes", "synonyms_all_sources")}
+
+
 def semantic_exclusions(config: dict | None = None) -> dict[str, set[str]]:
     c = config or load()
     out = {key: set(value) for key, value in c["exclusions"].items()}
-    old = yaml.safe_load(V21_CONFIG.read_text())
-    for key in ("labels", "nodes", "synonyms_all_sources"):
-        out[f"replication_{key}"] = {str(x).lower() for x in old.get(key, ())}
+    for key, values in _replication_exclusions().items():
+        out[f"replication_{key}"] = set(values)
     return out
 
 
@@ -130,9 +137,9 @@ def ood_only_names(config: dict | None = None) -> set[str]:
     return {str(x).lower() for x in c.get("never_train_native_names", ())} - actual_training_raw_labels()
 
 
-def excluded(raw: str, config: dict | None = None) -> bool:
+def excluded(raw: str, config: dict | None = None, *, exclusions: dict[str, set[str]] | None = None) -> bool:
     c = config or load()
-    exclusions = semantic_exclusions(c)
+    exclusions = semantic_exclusions(c) if exclusions is None else exclusions
     x = raw.strip().lower().replace("_", " ")
     texts = [*c["exclusions"]["names"], *c["exclusions"]["paraphrases"]]
     return (any(x == str(t).lower().replace("_", " ") for t in texts)

@@ -39,12 +39,15 @@ def release(message):
 low = 0; started = time.time()
 while True:
     status, phase, util = read(ROOT / "STATUS"), read(ROOT / "PHASE"), gpu_util()
-    logs = sorted((ROOT / "logs").glob("*.log")) if (ROOT / "logs").exists() else []
-    tail = read(logs[-1]).splitlines()[-1:] if logs else []
+    logs = list((ROOT / "logs").glob("*.log")) if (ROOT / "logs").exists() else []
+    latest = max(logs, key=lambda path: path.stat().st_mtime) if logs else None
+    tail = read(latest).splitlines()[-1:] if latest else []
+    current = read(ROOT / "CURRENT")
     stage = status.split()[1] if status.startswith("RUNNING ") and len(status.split()) > 1 else "stage0"
     caps = {"stage0": 5, "stage1": 12, "stage2": 23}
     print(time.strftime("%H:%M:%S"), status or "STARTING", phase or "-", f"gpu {util}%",
-          f"hours {hours(stage):.3f}/{caps.get(stage, 40)}", tail[0][:120] if tail else "", flush=True)
+          f"hours {hours(stage):.3f}/{caps.get(stage, 40)}", current,
+          tail[0][:120] if tail else "", flush=True)
     if status.startswith(("DONE", "FAILED", "STOPPED_CAP", "STOPPED_USER", "STOPPED_RULE")):
         release(f"chain finished: {status}"); break
     low = low + 1 if phase == "GPU" and 0 <= util < 20 else 0

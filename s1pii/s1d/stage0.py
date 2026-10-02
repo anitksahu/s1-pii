@@ -38,10 +38,12 @@ class UnitClock:
         self.unit, self.last = unit, time.monotonic()
 
     def tick(self, **extra) -> None:
-        self.meter.reserve(0.0)
         now = time.monotonic()
         self.meter.record(self.unit, now - self.last, stage="stage0", **extra)
         self.last = now
+        # Account for elapsed allocation before checking the cap. Chunked callers
+        # bound any overrun to one short chunk instead of one entire preprocessing job.
+        self.meter.reserve(0.0)
 
 
 def dev_gold_questions(config: dict | None = None) -> list[dict]:
