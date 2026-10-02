@@ -3,7 +3,8 @@
 set -u
 cd "$(dirname "$0")/.."
 D=${DRIVE:-/content/drive/MyDrive/s1pii}
-R="$D/s1d"; L="$R/logs"; mkdir -p "$L" "$R/models" "$R/stores" "$R/eval"
+if [ "${S1D_DRY:-0}" = 1 ]; then R="$D/s1d_dry"; else R="$D/s1d"; fi
+L="$R/logs"; mkdir -p "$L" "$R/models" "$R/stores" "$R/eval"
 STAGE=${1:-stage0}; LOG="$L/$STAGE.log"
 PYTHON=${PYTHON:-python}
 status() { echo "$1 $(date -u +%FT%TZ)" > "$R/STATUS"; }

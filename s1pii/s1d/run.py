@@ -20,8 +20,8 @@ from .train import GPUCapReached, GPUHours
 
 
 UNITS = {
-    "stage0": ("label_draw", "census", "revisions", "proposer_all", "proposer_no_nemotron",
-               "prompted_probe", "kev_baseline", "latency"),
+    "stage0": ("label_draw", "census", "revisions", "prompted_probe", "kev_baseline",
+               "proposer_all", "proposer_no_nemotron", "latency"),
     "stage1": ("train_sizes", "layout_ablation", "dev_eval"),
     "stage2": ("train_final", "test_inference", "comparators"),
 }
@@ -201,6 +201,8 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
 
 def run(stage: str, root: Path, dry: bool = False) -> int:
     cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "s1d.yaml").read_text())
+    if dry and root.name != "s1d_dry":
+        root = root.parent / "s1d_dry"
     root.mkdir(parents=True, exist_ok=True)
     (root / "PHASE").write_text("CPU")
     if stage == "stage0":
@@ -233,7 +235,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
             (root / "PHASE").write_text("CPU")
             if (root / "CONTROL").exists() and (root / "CONTROL").read_text().strip().upper() == "STOP":
                 return 4
-            if stage == "stage0" and unit == "latency" and _stage0_should_stop(stores, dry):
+            if stage == "stage0" and unit == "proposer_all" and _stage0_should_stop(stores, dry):
                 return 5
             done = stores / f"{stage}-{unit}.done"
             if _cache_is_current(root, stores, stage, unit, dry):

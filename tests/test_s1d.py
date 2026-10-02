@@ -350,9 +350,10 @@ def test_stage0_dry_chain(tmp_path):
            "PYTHON": sys.executable}
     run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage0"], env=env, capture_output=True, text=True)
     assert run.returncode == 0, run.stdout + run.stderr
-    assert (tmp_path / "s1d" / "STATUS").read_text().startswith("DONE")
-    assert len(list((tmp_path / "s1d" / "stores").glob("stage0-*.done"))) == 8
-    probe = json.loads((tmp_path / "s1d" / "stores" / "stage0-prompted_probe.json").read_text())
+    assert not (tmp_path / "s1d").exists()
+    assert (tmp_path / "s1d_dry" / "STATUS").read_text().startswith("DONE")
+    assert len(list((tmp_path / "s1d_dry" / "stores").glob("stage0-*.done"))) == 8
+    probe = json.loads((tmp_path / "s1d_dry" / "stores" / "stage0-prompted_probe.json").read_text())
     assert probe["questions"] > 0
     assert probe["chance"] == pytest.approx(1 / probe["options"])
 
@@ -381,6 +382,9 @@ def test_future_stage_placeholders_never_write_done(tmp_path, stage):
 
 def test_stage0_macro_stop_rule_fires_before_latency(tmp_path, monkeypatch):
     from s1pii.s1d import run as runner
+    assert runner.UNITS["stage0"] == ("label_draw", "census", "revisions", "prompted_probe",
+                                      "kev_baseline", "proposer_all",
+                                      "proposer_no_nemotron", "latency")
     monkeypatch.setattr(runner, "_unit_label_draw", lambda c, o: {"ok": True})
     monkeypatch.setattr(runner, "_unit_census", lambda c, o: {"passed": True})
     monkeypatch.setattr(runner, "_unit_revisions", lambda c, o: {"ok": True})
@@ -394,6 +398,8 @@ def test_stage0_macro_stop_rule_fires_before_latency(tmp_path, monkeypatch):
     assert runner.run("stage0", tmp_path, dry=False) == 5
     assert not called
     assert (tmp_path / "stores" / "stage0-kev_baseline.done").exists()
+    assert not (tmp_path / "stores" / "stage0-proposer_all.done").exists()
+    assert not (tmp_path / "stores" / "stage0-proposer_no_nemotron.done").exists()
     assert not (tmp_path / "stores" / "stage0-latency.done").exists()
     rule_rows = [json.loads(line) for line in (tmp_path / "ledger.jsonl").read_text().splitlines()
                  if json.loads(line).get("unit") == "s1d_stage0_stop_rule"]
