@@ -49,7 +49,12 @@ while True:
           f"hours {hours(stage):.3f}/{caps.get(stage, 40)}", current,
           tail[0][:120] if tail else "", flush=True)
     if status.startswith(("DONE", "FAILED", "STOPPED_CAP", "STOPPED_USER", "STOPPED_RULE")):
-        release(f"chain finished: {status}"); break
+        # A just-launched background process may not have replaced the previous
+        # terminal status yet. Confirm once before releasing the runtime.
+        time.sleep(2)
+        if read(ROOT / "STATUS") == status:
+            release(f"chain finished: {status}"); break
+        continue
     low = low + 1 if phase == "GPU" and 0 <= util < 20 else 0
     if low >= 25:
         subprocess.run(["pkill", "-f", "s1pii.s1d.run"])

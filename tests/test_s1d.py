@@ -430,6 +430,11 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source
     assert "torch.cuda.get_device_name(0)" in launch_source
+    assert "if used >= cap:" in launch_source
+    assert "The hard cap has been reached. Do not run Cell 4." in launch_source
+    assert "STARTING {stage}" in launch_source
+    assert launch_source.index("if used >= cap:") < launch_source.index("subprocess.Popen")
+    assert launch_source.index("STARTING {stage}") < launch_source.index("subprocess.Popen")
     assert launch_source.index("run_visible([sys.executable, '-c', cuda_probe])") < launch_source.index("subprocess.Popen")
 
     helper_source = source.split("\nrun_visible([", 1)[0]
