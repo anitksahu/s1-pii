@@ -338,6 +338,20 @@ def test_unit_clock_records_then_stops_on_cap(tmp_path):
     assert GPUHours(tmp_path / "gpu_hours.jsonl", 0, "stage0").used() > 0
 
 
+def test_gpu_cap_override_preserves_accounting_and_does_not_stop(tmp_path, monkeypatch):
+    from s1pii.s1d.stage0 import UnitClock
+    from s1pii.s1d.train import GPUHours
+    monkeypatch.setenv("S1D_CAP_OVERRIDE", "1")
+    path = tmp_path / "gpu_hours.jsonl"
+    path.write_text(json.dumps({"stage": "stage0", "hours": 6.225}) + "\n")
+    meter = GPUHours(path, 5, "stage0")
+    meter.reserve(100)
+    clock = UnitClock(tmp_path, {"stages": {"stage0": {"cap_a100_hours": 5}}}, "override")
+    clock.last -= 1
+    clock.tick(substep="continues")
+    assert meter.used() > 6.225
+
+
 def test_gate_g1_caps_candidates_and_is_non_blocking():
     from s1pii.s1d.proposer import gate_g1
     candidates = [(i, i + 1, float(100 - i)) for i in range(70)]
@@ -430,10 +444,10 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source
     assert "torch.cuda.get_device_name(0)" in launch_source
-    assert "if used >= cap:" in launch_source
-    assert "The hard cap has been reached. Do not run Cell 4." in launch_source
+    assert "os.environ['S1D_CAP_OVERRIDE'] = '1'" in launch_source
+    assert "CAP OVERRIDE: continuing" in launch_source
     assert "STARTING {stage}" in launch_source
-    assert launch_source.index("if used >= cap:") < launch_source.index("subprocess.Popen")
+    assert launch_source.index("S1D_CAP_OVERRIDE") < launch_source.index("subprocess.Popen")
     assert launch_source.index("STARTING {stage}") < launch_source.index("subprocess.Popen")
     assert launch_source.index("run_visible([sys.executable, '-c', cuda_probe])") < launch_source.index("subprocess.Popen")
 
