@@ -349,7 +349,9 @@ def test_stage0_dry_chain(tmp_path):
     env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
            "PYTHON": sys.executable}
     run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage0"], env=env, capture_output=True, text=True)
-    assert run.returncode == 0, run.stdout + run.stderr
+    log_path = tmp_path / "s1d_dry" / "logs" / "stage0.log"
+    log = log_path.read_text() if log_path.exists() else "<stage0 log was not created>"
+    assert run.returncode == 0, run.stdout + run.stderr + "\n--- stage0.log ---\n" + log
     assert not (tmp_path / "s1d").exists()
     assert (tmp_path / "s1d_dry" / "STATUS").read_text().startswith("DONE")
     assert len(list((tmp_path / "s1d_dry" / "stores").glob("stage0-*.done"))) == 8
@@ -363,11 +365,17 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     source = "".join(notebook["cells"][1]["source"])
     assert "'CUDA_VISIBLE_DEVICES': ''" in source
     assert "from transformers import BertModel, Qwen3Model" in source
+    assert "'torchao'" in source
+    assert "is_torchao_available();" in source
     assert "stdout=subprocess.PIPE" in source
     assert "stderr=subprocess.STDOUT" in source
     assert "for line in proc.stdout" in source
     assert "full output is above" in source
     assert "CalledProcessError" not in source
+
+    chain = Path("scripts/s1d_chain.sh").read_text()
+    assert "torchvision torchaudio torchtext torchao" in chain
+    assert "is_torchao_available; is_torchao_available()" in chain
 
     helper_source = source.split("\nrun_visible([", 1)[0]
     namespace = {"subprocess": subprocess}
