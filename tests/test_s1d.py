@@ -358,6 +358,14 @@ def test_stage0_dry_chain(tmp_path):
     assert probe["chance"] == pytest.approx(1 / probe["options"])
 
 
+def test_colab_cpu_test_cell_hides_gpu_and_checks_model_imports():
+    notebook = json.loads(Path("notebooks/06_s1d.ipynb").read_text())
+    source = "".join(notebook["cells"][1]["source"])
+    assert "'CUDA_VISIBLE_DEVICES': ''" in source
+    assert "from transformers import BertModel, Qwen3Model" in source
+    assert source.count("check=True") == 4
+
+
 def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
     from s1pii.s1d import run as runner
     monkeypatch.setattr(runner, "_unit_census", lambda c, o: {"passed": True})
