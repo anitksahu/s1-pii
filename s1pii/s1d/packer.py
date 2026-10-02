@@ -112,7 +112,8 @@ def length_bucket(length: int, buckets=(512, 1024, 2048, 4096, 8192)) -> int:
 
 def pack_window(tokenizer, state: str, options: Sequence[str], branches: Sequence[str], *,
                 state_tokens: int = 512, left_context_tokens: int = 8, make_block_mask: bool = True,
-                layout: str = "shared", device=None, pad_to_bucket: bool = True) -> PackedWindow:
+                layout: str = "shared", device=None, pad_to_bucket: bool = True,
+                keep_dense_mask: bool = True) -> PackedWindow:
     if not 2 <= len(options) <= 255:
         raise ValueError("2-255 shared options are required")
     if layout not in ("shared", "kev"):
@@ -171,7 +172,8 @@ def pack_window(tokenizer, state: str, options: Sequence[str], branches: Sequenc
     for i in range(true_length, packed_length):
         dense[i, i] = True
     block = flex_block_mask(dense, device=device) if make_block_mask else dense
-    return PackedWindow(torch.tensor(ids, dtype=torch.long), torch.tensor(pos, dtype=torch.long), block, dense,
+    stored_dense = dense if keep_dense_mask else torch.empty(0, dtype=torch.bool)
+    return PackedWindow(torch.tensor(ids, dtype=torch.long), torch.tensor(pos, dtype=torch.long), block, stored_dense,
                         torch.tensor([b - 1 for _, b in branch_ranges]), torch.tensor(option_ends),
                         tuple(option_ranges), tuple(branch_ranges), state_range, layout,
                         tuple(question_ranges), true_length)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import copy
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
@@ -66,3 +67,62 @@ def predict(model, packed_windows, questions: Sequence[Sequence[Question]], cali
 
 def span_redaction_scores(response: DecisionResponse) -> list[float | None]:
     return [None if a.abstained else redaction_score(a) for a in response.answers]
+
+
+@torch.no_grad()
+def prompted_option_distribution(model, tokenizer, prompt: str, options: Sequence[str], *, device=None) -> torch.Tensor:
+    """Length-normalised option-name likelihoods from one reused prompt KV cache."""
+    if len(options) < 2:
+        raise ValueError("at least two prompted options are required")
+    device = device or next(model.parameters()).device
+    prompt_ids = tokenizer(prompt, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
+    prefix = model(input_ids=prompt_ids, use_cache=True, return_dict=True)
+    scores = []
+    for option in options:
+        ids = tokenizer(option, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
+        if ids.shape[1] == 0:
+            raise ValueError("prompted options must tokenize to at least one token")
+        token_scores = [prefix.logits[:, -1].float().log_softmax(-1).gather(1, ids[:, :1])]
+        if ids.shape[1] > 1:
+            continuation = model(input_ids=ids[:, :-1], past_key_values=copy.deepcopy(prefix.past_key_values),
+                                 use_cache=False, return_dict=True).logits.float().log_softmax(-1)
+            token_scores.append(continuation.gather(-1, ids[:, 1:].unsqueeze(-1)).squeeze(-1))
+        scores.append(torch.cat(token_scores, dim=1).mean())
+    return torch.stack(scores).softmax(0).cpu()
+
+
+def expected_calibration_error(probabilities: Sequence[Sequence[float]], targets: Sequence[int],
+                               bins: int = 15) -> float:
+    p = np.asarray(probabilities, dtype=float)
+    y = np.asarray(targets, dtype=int)
+    if p.ndim != 2 or len(p) != len(y) or not len(y):
+        raise ValueError("ECE requires aligned non-empty probability rows and targets")
+    confidence, prediction = p.max(1), p.argmax(1)
+    total = 0.0
+    for lo in np.linspace(0, 1, bins, endpoint=False):
+        hi = lo + 1 / bins
+        mask = (confidence >= lo) & (confidence <= hi if hi >= 1 else confidence < hi)
+        if mask.any():
+            total += mask.mean() * abs((prediction[mask] == y[mask]).mean() - confidence[mask].mean())
+    return float(total)
+
+
+def document_bootstrap(values_by_doc: dict[str, Sequence[float]], *, seed: int = 0,
+                       samples: int = 2000, side: str = "two-sided") -> dict[str, float]:
+    """Cluster bootstrap over documents for scalar per-question values."""
+    docs = sorted(values_by_doc)
+    if not docs:
+        raise ValueError("document bootstrap requires documents")
+    rng = np.random.default_rng(seed)
+    draws = []
+    for _ in range(samples):
+        chosen = rng.choice(docs, len(docs), replace=True)
+        values = [value for doc in chosen for value in values_by_doc[doc]]
+        draws.append(float(np.mean(values)))
+    q = np.quantile(draws, [0.025, 0.05, 0.95, 0.975])
+    result = {"mean": float(np.mean([v for values in values_by_doc.values() for v in values])),
+              "lower_95": float(q[0]), "upper_95": float(q[3]),
+              "one_sided_lower_95": float(q[1]), "one_sided_upper_95": float(q[2])}
+    if side not in {"two-sided", "lower", "upper"}:
+        raise ValueError("side must be two-sided, lower, or upper")
+    return result

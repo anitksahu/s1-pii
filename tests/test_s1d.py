@@ -486,12 +486,12 @@ def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
     assert not (tmp_path / "stores" / "stage0-proposer_all.done").exists()
 
 
-@pytest.mark.parametrize("stage", ["stage1", "stage2"])
+@pytest.mark.parametrize("stage", ["stage2"])
 def test_future_stage_placeholders_never_write_done(tmp_path, stage):
     from s1pii.s1d.run import run
     (tmp_path / f"APPROVED_{stage}").write_text("approved")
     stores = tmp_path / "stores"; stores.mkdir()
-    first = {"stage1": "train_sizes", "stage2": "train_final"}[stage]
+    first = {"stage2": "train_final"}[stage]
     (stores / f"{stage}-{first}.json").write_text(json.dumps({"status": "entrypoint-ready"}))
     (stores / f"{stage}-{first}.done").write_text("legacy")
     with pytest.raises(NotImplementedError):
@@ -529,3 +529,90 @@ def test_stage_cap_returns_exit_code_three(tmp_path):
     from s1pii.s1d.run import run
     (tmp_path / "gpu_hours.jsonl").write_text(json.dumps({"hours": 6}) + "\n")
     assert run("stage0", tmp_path, dry=False) == 3
+
+
+def test_prompted_option_scorer_reuses_prefix_and_returns_56_probabilities():
+    from s1pii.s1d.infer import prompted_option_distribution
+    class Tokenizer:
+        def __call__(self, text, **kwargs):
+            if text == "prompt": ids = [1, 2]
+            else: ids = [3 + int(text.removeprefix("option"))]
+            return {"input_ids": torch.tensor([ids])}
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(())); self.calls = 0
+        def forward(self, input_ids, **kwargs):
+            self.calls += 1
+            logits = torch.arange(64, dtype=torch.float32).repeat(1, input_ids.shape[1], 1)
+            return type("Output", (), {"logits": logits, "past_key_values": ((torch.zeros(1),),)})
+    model = Model()
+    probabilities = prompted_option_distribution(model, Tokenizer(), "prompt",
+                                                  [f"option{i}" for i in range(56)])
+    assert probabilities.shape == (56,)
+    assert probabilities.sum().item() == pytest.approx(1.0)
+    assert model.calls == 1
+
+
+def test_dev_question_builder_has_56_options_and_equal_not_pii_rows():
+    from s1pii.s1d.data import span_evaluation_questions
+    label = HL.load()["dev_labels"][0]
+    text = "secret ordinary"
+    gold = Span("d", 0, 6, OTHER_PII, label, surface="secret")
+    candidate = Span("d", 7, 15, OTHER_PII, "candidate", surface="ordinary")
+    rows = span_evaluation_questions([Doc("d", text, (gold,), "nemotron", "calib", "d")],
+                                     {"d": [candidate]}, labels=[label])
+    assert len(rows) == 2 and sum(row.hard_negative for row in rows) == 1
+    assert all(len(row.question.options) == 56 for row in rows)
+    assert rows[1].question.options[rows[1].target].name == "not personal information"
+
+
+def test_layout_ablation_uses_same_16_branch_windows_for_both_layouts(tmp_path):
+    from s1pii.s1d.data import generate_questions, pack_layout_ablation_questions
+    text = "email ada@example.test phone 555-0102"
+    spans = (Span("d", 6, 22, OTHER_PII, "email", surface="ada@example.test"),
+             Span("d", 29, 37, OTHER_PII, "phone_number", surface="555-0102"))
+    questions = generate_questions([Doc("d", text, spans, "synthetic_conv", "train", "d")],
+                                   seed=4, ledger_path=tmp_path / "ledger")
+    shared = pack_layout_ablation_questions(questions, StubTokenizer(), windows=2, seed=9,
+                                            layout="shared", make_block_mask=False)
+    kev = pack_layout_ablation_questions(questions, StubTokenizer(), windows=2, seed=9,
+                                         layout="kev", make_block_mask=False)
+    assert all(len(targets) == 16 and len(packed.decide_indices) == 16
+               and len(packed.option_indices) == (56 if packed.layout == "shared" else 16 * 56)
+               for packed, targets in shared + kev)
+    assert [target for _packed, target in shared] == [target for _packed, target in kev]
+
+
+def test_stage1_reads_nemotron_calibration_never_test(tmp_path, monkeypatch):
+    from s1pii import bench
+    from s1pii.s1d.run import _stage1_docs
+    calib = tmp_path / "calib.jsonl"; test = tmp_path / "test.jsonl"
+    doc = Doc("calib-only", "plain", (), "nemotron", "calib", "calib-only")
+    calib.write_text(doc.to_json() + "\n")
+    test.write_text("this is deliberately not JSON\n")
+    monkeypatch.setattr(bench, "split_paths", lambda _name: {"calib": calib, "test": test})
+    assert [row.doc_id for row in _stage1_docs(False)] == ["calib-only"]
+
+
+def test_stage1_dry_chain_writes_all_units(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    (root / "APPROVED_stage1").write_text("approved")
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "stage1.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    outputs = {name: json.loads((root / "stores" / f"stage1-{name}.json").read_text())
+               for name in ("train_sizes", "layout_ablation", "dev_eval")}
+    assert all(value["implementation_version"] == 3 for value in outputs.values())
+    assert len(outputs["train_sizes"]["runs"]) == 6
+    for seed in (1, 2):
+        hashes = {outputs["train_sizes"]["runs"][f"{size}-s{seed}"]["hashes"]["questions"]
+                  for size in ("0.6B", "1.7B", "4B")}
+        assert len(hashes) == 1
+    dev = outputs["dev_eval"]
+    assert dev["split"] == "nemotron-calib" and dev["not_pii_questions"] > 0
+    assert all(len(row) == 56 for result in dev["prompted"].values()
+               for row in result["probabilities"])
+    assert outputs["layout_ablation"]["stage2_layout"] in {"shared", "kev"}

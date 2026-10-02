@@ -137,7 +137,8 @@ def assert_no_heldout_leakage(questions: Sequence[TrainingQuestion], config: dic
 
 
 def pack_training_questions(questions: Sequence[TrainingQuestion], tokenizer, *, stride: int = 384,
-                            layout: str = "shared", device=None, make_block_mask: bool = True):
+                            layout: str = "shared", device=None, make_block_mask: bool = True,
+                            keep_dense_mask: bool = True):
     """Convert generated questions to real 512-token state windows and short branches."""
     from .packer import BranchText, pack_window
     output = []
@@ -171,6 +172,87 @@ def pack_training_questions(questions: Sequence[TrainingQuestion], tokenizer, *,
             span_text = f"{span_text} {row.question.criteria}"
         options = [o.text() for o in row.question.options]
         packed = pack_window(tokenizer, state, options, [BranchText(span_text, left)], state_tokens=512,
-                             layout=layout, device=device, make_block_mask=make_block_mask)
+                             layout=layout, device=device, make_block_mask=make_block_mask,
+                             keep_dense_mask=keep_dense_mask)
         output.append((packed, row.target))
+    return output
+
+
+def evaluation_options(*, descriptions: bool = True) -> tuple[Option, ...]:
+    """Frozen 55-way C3 option set plus the required not-PII option."""
+    names = [label.name for label in v2.c3_label_set(False).labels]
+    options = [Option(name, v2.NATIVE[name][1] if descriptions else "") for name in names]
+    options.append(Option(heldout.NOT_PII, "the span is not personal information" if descriptions else ""))
+    return tuple(options)
+
+
+def span_evaluation_questions(docs: Sequence[Doc], candidates: dict[str, Sequence[Span]], *,
+                              labels: Sequence[str], seed: int = 0,
+                              descriptions: bool = True,
+                              require_equal_negatives: bool = True) -> list[TrainingQuestion]:
+    """Gold-label questions plus an equal count of candidate spans disjoint from all gold."""
+    wanted = {name.lower() for name in labels}
+    options = evaluation_options(descriptions=descriptions)
+    option_index = {option.name: i for i, option in enumerate(options)}
+    rows, negatives = [], []
+    for doc in docs:
+        for span in doc.spans:
+            raw = _raw(span)
+            if raw not in wanted:
+                continue
+            question = Question("choice", "Classify the marked span.", "Use its meaning and context.", options,
+                                id=f"{doc.doc_id}:{span.start}:{span.end}", span=(span.start, span.end))
+            rows.append(TrainingQuestion(doc.doc_id, doc.text, question, option_index[raw],
+                                         (span.start, span.end)))
+        for span in candidates.get(doc.doc_id, ()):
+            if _overlaps(span, doc.spans):
+                continue
+            negatives.append((doc, span))
+    rng = random.Random(seed); rng.shuffle(negatives)
+    if require_equal_negatives and len(negatives) < len(rows):
+        raise ValueError(f"need {len(rows)} non-overlapping proposer candidates, found {len(negatives)}")
+    for doc, span in negatives[:len(rows) if require_equal_negatives else 0]:
+        question = Question("choice", "Classify the marked span.", "Use its meaning and context.", options,
+                            id=f"{doc.doc_id}:negative:{span.start}:{span.end}", span=(span.start, span.end))
+        rows.append(TrainingQuestion(doc.doc_id, doc.text, question, option_index[heldout.NOT_PII],
+                                     (span.start, span.end), True))
+    return rows
+
+
+def pack_layout_ablation_questions(questions: Sequence[TrainingQuestion], tokenizer, *, windows: int,
+                                   seed: int, layout: str, branches_per_window: int = 16,
+                                   device=None, make_block_mask: bool = True,
+                                   keep_dense_mask: bool = True, window_offset: int = 0):
+    """Create identical fixed-option, 16-branch semantic windows for either layout."""
+    from .packer import BranchText, pack_window
+    options = evaluation_options(descriptions=False)
+    option_names = [option.name for option in options]
+    option_index = {name: i for i, name in enumerate(option_names)}
+    description_to_raw = {description: name for name, (_node, description, _p) in v2.NATIVE.items()}
+    by_doc = {}
+    for row in questions:
+        if row.source_span is None:
+            continue
+        target_option = row.question.options[row.target]
+        target_name = heldout.NOT_PII if row.hard_negative else description_to_raw.get(
+            target_option.description, target_option.name)
+        if target_name not in option_index:
+            continue
+        by_doc.setdefault(row.doc_id, []).append((row, option_index[target_name]))
+    if not by_doc:
+        raise ValueError("layout ablation requires span questions")
+    rng = random.Random(seed); docs = sorted(by_doc)
+    output = []
+    for index in range(windows):
+        rows = by_doc[docs[(window_offset + index) % len(docs)]]
+        chosen = [rows[rng.randrange(len(rows))] for _ in range(branches_per_window)]
+        state = chosen[0][0].state; branches, targets = [], []
+        for row, target in chosen:
+            start, end = row.source_span
+            branches.append(BranchText(state[start:end], state[max(0, start - 96):start]))
+            targets.append(target)
+        packed = pack_window(tokenizer, state, option_names, branches, state_tokens=512,
+                             layout=layout, device=device, make_block_mask=make_block_mask,
+                             keep_dense_mask=keep_dense_mask)
+        output.append((packed, targets))
     return output
