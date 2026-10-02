@@ -358,12 +358,30 @@ def test_stage0_dry_chain(tmp_path):
     assert probe["chance"] == pytest.approx(1 / probe["options"])
 
 
-def test_colab_cpu_test_cell_hides_gpu_and_checks_model_imports():
+def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsys):
     notebook = json.loads(Path("notebooks/06_s1d.ipynb").read_text())
     source = "".join(notebook["cells"][1]["source"])
     assert "'CUDA_VISIBLE_DEVICES': ''" in source
     assert "from transformers import BertModel, Qwen3Model" in source
-    assert source.count("check=True") == 4
+    assert "stdout=subprocess.PIPE" in source
+    assert "stderr=subprocess.STDOUT" in source
+    assert "for line in proc.stdout" in source
+    assert "full output is above" in source
+    assert "CalledProcessError" not in source
+
+    helper_source = source.split("\nrun_visible([", 1)[0]
+    namespace = {"subprocess": subprocess}
+    exec(compile(helper_source, "notebook-cell-2", "exec"), namespace)
+    command = [
+        sys.executable,
+        "-c",
+        "import sys; print('visible stdout'); print('visible stderr', file=sys.stderr); raise SystemExit(7)",
+    ]
+    with pytest.raises(RuntimeError, match="exit status 7; full output is above"):
+        namespace["run_visible"](command)
+    output = capsys.readouterr().out
+    assert "visible stdout" in output
+    assert "visible stderr" in output
 
 
 def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
