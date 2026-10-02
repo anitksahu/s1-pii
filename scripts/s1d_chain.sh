@@ -17,6 +17,10 @@ if [ "${S1D_SKIP_INSTALL:-0}" != 1 ]; then
 fi
 "$PYTHON" -c "import torch, transformers, peft; from peft.import_utils import is_torchao_available; is_torchao_available(); from transformers import BertModel, Qwen3Model; import s1pii.s1d" >> "$LOG" 2>&1 || fail deps 18
 
+if [ "${S1D_DRY:-0}" != 1 ]; then
+  "$PYTHON" -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable. In Colab select Runtime > Change runtime type > GPU, reconnect, and rerun Cells 1-3."; print("CUDA ready:", torch.cuda.get_device_name(0))' >> "$LOG" 2>&1 || fail gpu 19
+fi
+
 if [ -f "$R/CONTROL" ] && [ "$(tr '[:lower:]' '[:upper:]' < "$R/CONTROL")" = STOP ]; then status STOPPED_USER; exit 4; fi
 echo CPU > "$R/PHASE"
 "$PYTHON" -m s1pii.s1d.run "$STAGE" --root "$R" >> "$LOG" 2>&1

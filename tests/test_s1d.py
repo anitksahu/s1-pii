@@ -376,6 +376,12 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     chain = Path("scripts/s1d_chain.sh").read_text()
     assert "torchvision torchaudio torchtext torchao" in chain
     assert "is_torchao_available; is_torchao_available()" in chain
+    assert "torch.cuda.is_available()" in chain
+
+    launch_source = "".join(notebook["cells"][2]["source"])
+    assert "Runtime > Change runtime type > GPU" in launch_source
+    assert "torch.cuda.get_device_name(0)" in launch_source
+    assert launch_source.index("run_visible([sys.executable, '-c', cuda_probe])") < launch_source.index("subprocess.Popen")
 
     helper_source = source.split("\nrun_visible([", 1)[0]
     namespace = {"subprocess": subprocess}
@@ -390,6 +396,17 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     output = capsys.readouterr().out
     assert "visible stdout" in output
     assert "visible stderr" in output
+
+
+@pytest.mark.skipif(torch.cuda.is_available(), reason="exercises the no-CUDA Stage 0 preflight")
+def test_non_dry_chain_refuses_before_stage0_without_cuda(tmp_path):
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_SKIP_INSTALL": "1", "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage0"], env=env, capture_output=True, text=True)
+    root = tmp_path / "s1d"
+    assert run.returncode == 19
+    assert (root / "STATUS").read_text().startswith("FAILED gpu")
+    assert "CUDA is unavailable" in (root / "logs" / "stage0.log").read_text()
+    assert not list((root / "stores").glob("stage0-*.done"))
 
 
 def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
