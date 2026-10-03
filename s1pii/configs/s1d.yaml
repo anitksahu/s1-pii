@@ -11,6 +11,12 @@ external:
     base_id: Qwen/Qwen2.5-0.5B
     base_revision: 060db6499f32faf8b98477b0a26969ef7d8b9987
     state_tokens: 384
+  decision20:
+    vllm-sr/Decision-2.0-Kai-0.6B: {revision: cd49ea3813fd8ba0928a9a23ef6c9a0f2f0cd764}
+    vllm-sr/Decision-2.0-Eos-0.8B: {revision: 3594047d69f476f1d01cf84c593e213fc3a4dfe0}
+    vllm-sr/Decision-2.0-Sol-2B: {revision: 64235bef55dad29387dd16da7c90e038bf2f0972}
+    vllm-sr/Decision-2.0-Nox-4B: {revision: 25e8f67d1b486c647222df3aac640d2d5d736bbe}
+    vllm-sr/Decision-2.0-Lux-9B: {revision: 78bf3c03d9147aeb30b641edfe0e30ed04887ca5}
   proposer:
     model_id: answerdotai/ModernBERT-large
     revision: 45bb4654a4d5aaff24dd11d4781fa46d39bf8c13
@@ -33,4 +39,5 @@ stages:
       kev_baseline: 0.4
       latency: 0.4
   stage1: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
+  comparators1: {cap_a100_hours: 3, enforce_cap: false, requires_approval: false, unit_estimates: {decision20: 1.5}}
   stage2: {cap_a100_hours: 23, enforce_cap: false, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

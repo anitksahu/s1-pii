@@ -26,6 +26,7 @@ UNITS = {
                "proposer_all", "proposer_no_nemotron", "latency"),
     "stage1": ("train_sizes", "layout_ablation", "dev_eval"),
     "stage2": ("train_final", "test_inference", "comparators"),
+    "comparators1": ("decision20",),
 }
 
 
@@ -612,6 +613,46 @@ def _unit_dev_eval(ctx, _out):
             "prompted_accuracy": prompted_accuracy, "stop_rule": trained_accuracy < prompted_accuracy}
 
 
+def _unit_decision20(ctx, _out):
+    """Zero-shot Decision 2.0 System One models on the exact dev_eval questions."""
+    from .decision20 import failed_distribution, load, score_rows
+    from .infer import fit_temperatures
+    _, rows = _dev_questions(ctx, descriptions=True)
+    seen_rows = _seen_questions(ctx, descriptions=True)
+    results = {}
+    for model_id, spec in ctx["config"]["external"]["decision20"].items():
+        if ctx["dry"]:
+            from types import SimpleNamespace
+
+            def system_one(*, state, questions):
+                return {"answers": {qid: {"type": "choice", "probabilities":
+                                          {name: 1 / len(q["criteria"]) for name in q["criteria"]}}
+                                    for qid, q in questions.items()}}
+            model = SimpleNamespace(system_one=system_one)
+        else:
+            model = load(model_id, spec["revision"])
+        seen_probs, seen_errors = score_rows(model, seen_rows)
+        dev_probs, dev_errors = score_rows(model, rows)
+        del model
+        if not ctx["dry"] and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        seen_kept = [(r, p) for r, p in zip(seen_rows, seen_probs) if p is not None]
+        temperature = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for _, p in seen_kept],
+                                       [r.target for r, _ in seen_kept],
+                                       ["choice"] * len(seen_kept))["choice"] if seen_kept else 1.0
+        answered = sum(p is not None for p in dev_probs)
+        if answered == 0:
+            raise RuntimeError(f"{model_id}: no valid answers on {len(rows)} dev questions: {dev_errors}")
+        full = [p if p is not None else failed_distribution(r) for r, p in zip(rows, dev_probs)]
+        metrics = _probability_metrics(rows, full, temperature=temperature)
+        metrics.update({"revision": spec["revision"], "temperature": temperature,
+                        "answered": answered, "questions": len(rows),
+                        "dev_errors": dev_errors, "seen_errors": seen_errors})
+        results[model_id] = metrics
+    return {"implementation_version": 1, "split": "nemotron-calib", "questions": len(rows),
+            "not_pii_questions": sum(row.hard_negative for row in rows), "models": results}
+
+
 def _unimplemented(ctx, _out, name):
     if ctx["dry"]:
         return {"status": "dry-complete", "unit": name}
@@ -645,6 +686,11 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if not (stores / f"{stage}-{unit}.done").exists() or not result_path.exists():
         return False
     if stage != "stage0":
+        if stage == "comparators1":
+            try:
+                return json.loads(result_path.read_text()).get("implementation_version") == 1
+            except (OSError, ValueError):
+                return False
         if stage == "stage1":
             try:
                 return json.loads(result_path.read_text()).get("implementation_version") == 5
@@ -699,6 +745,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "train_sizes": _unit_train_sizes,
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
+        "decision20": _unit_decision20,
         "train_final": lambda c, o: _unimplemented(c, o, "train_final"),
         "test_inference": lambda c, o: _unimplemented(c, o, "test_inference"),
         "comparators": lambda c, o: _unimplemented(c, o, "comparators"),

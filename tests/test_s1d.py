@@ -895,3 +895,50 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
     assert all(len(row) == 56 for result in dev["prompted"].values()
                for row in result["probabilities"])
     assert outputs["layout_ablation"]["stage2_layout"] in {"shared", "kev"}
+
+
+def test_decision20_dry_chain_scores_dev_questions(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "comparators1"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "comparators1.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    out = json.loads((root / "stores" / "comparators1-decision20.json").read_text())
+    assert out["split"] == "nemotron-calib" and out["not_pii_questions"] > 0
+    assert set(out["models"]) == {"vllm-sr/Decision-2.0-Kai-0.6B", "vllm-sr/Decision-2.0-Eos-0.8B",
+                                  "vllm-sr/Decision-2.0-Sol-2B", "vllm-sr/Decision-2.0-Nox-4B",
+                                  "vllm-sr/Decision-2.0-Lux-9B"}
+    for result in out["models"].values():
+        assert result["answered"] == result["questions"] == out["questions"]
+        assert all(len(row) == 56 for row in result["probabilities"])
+
+
+def test_decision20_parser_excludes_errors_and_mismatched_options():
+    from types import SimpleNamespace
+    from s1pii.s1d.decision20 import criteria, instruction, score_rows
+    from s1pii.s1d.schema import Option, Question
+    options = (Option("email", "email address"), Option("not personal information", "not PII"))
+    def row(i):
+        text = f"write to a{i}@x.org now"
+        start = text.index("a"); end = text.index(" now")
+        return SimpleNamespace(doc_id="d", state=text, source_span=(start, end), target=0,
+                               question=Question("choice", "Classify", "", options))
+    rows = [row(0), row(1), row(2)]
+    assert "[[a0@x.org]]" in instruction(rows[0])
+    assert criteria(rows[0]) == {"email": "email address", "not personal information": "not PII"}
+    calls = []
+    def system_one(*, state, questions):
+        calls.append(sorted(questions))
+        return {"answers": {"q0": {"type": "choice", "probabilities": {"email": 0.9, "not personal information": 0.1}},
+                            "q1": {"type": "choice", "error": "max_length_exceeded"},
+                            "q2": {"type": "choice", "probabilities": {"email": 1.0}}}}
+    probs, errors = score_rows(SimpleNamespace(system_one=system_one), rows)
+    assert probs == [[0.9, 0.1], None, None]
+    assert errors == {"max_length_exceeded": 1, "invalid_answer": 1}
+    assert len(calls) == 3  # each row has its own state text, so one call per document state
+    from s1pii.s1d.decision20 import failed_distribution
+    failed = failed_distribution(rows[1])
+    assert abs(sum(failed) - 1) < 1e-9 and failed[rows[1].target] == 0.0
+    assert max(range(len(failed)), key=failed.__getitem__) != rows[1].target
