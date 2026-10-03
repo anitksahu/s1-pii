@@ -18,7 +18,7 @@ from ..schema import Doc, Span, OTHER_PII
 from ..ledger import append
 from . import labels
 from .data import assert_no_heldout_leakage, generate_questions
-from .train import GPUCapReached, GPUHours
+from .train import GPUHours
 
 
 UNITS = {
@@ -676,24 +676,19 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
 
 def run(stage: str, root: Path, dry: bool = False) -> int:
     cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "s1d.yaml").read_text())
+    stage_cfg = cfg["stages"][stage]
     if dry and root.name != "s1d_dry":
         root = root.parent / "s1d_dry"
     root.mkdir(parents=True, exist_ok=True)
     (root / "PHASE").write_text("CPU")
     if stage == "stage0":
         _append_stop_rule_once(root)
-    if cfg["stages"][stage].get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
+    if stage_cfg.get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
     ctx = {"root": root, "dry": dry, "config": cfg}
-    meter = GPUHours(root / "gpu_hours.jsonl", cfg["stages"][stage]["cap_a100_hours"], stage)
-    if os.environ.get("S1D_CAP_OVERRIDE") == "1":
-        # Auditable, accounting-neutral (0 hours) marker that the hard cap is not enforced.
-        meter.record("cap_override_active", 0.0, stage=stage, device="n/a",
-                     note="S1D_CAP_OVERRIDE enabled; per-stage A100 cap not enforced")
-    try:
-        meter.reserve(0.0)
-    except GPUCapReached:
-        return 3
+    meter = GPUHours(root / "gpu_hours.jsonl", stage_cfg["cap_a100_hours"], stage)
+    meter.record("accounting_active", 0.0, stage=stage, device="n/a",
+                 note="GPU-hour accounting enabled; execution is uncapped")
     handlers = {
         "label_draw": _unit_label_draw, "census": _unit_census, "revisions": _unit_revisions,
         "proposer_all": lambda c, o: _unit_proposer(c, o, "all-sources"),
@@ -729,8 +724,6 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
             _atomic_json(stores / f"{stage}-{unit}.json", result)
             done.write_text(time.strftime("%FT%TZ", time.gmtime()))
             (root / "CURRENT").write_text(f"{unit} done {time.strftime('%FT%TZ', time.gmtime())}")
-    except GPUCapReached:
-        return 3
     except InterruptedError:
         return 4
     if stage == "stage1":

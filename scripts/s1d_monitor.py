@@ -44,11 +44,11 @@ while True:
     tail = read(latest).splitlines()[-1:] if latest else []
     current = read(ROOT / "CURRENT")
     stage = status.split()[1] if status.startswith("RUNNING ") and len(status.split()) > 1 else "stage0"
-    caps = {"stage0": 5, "stage1": 12, "stage2": 23}
+    caps = {"stage0": "uncapped", "stage1": "uncapped", "stage2": "uncapped"}
     print(time.strftime("%H:%M:%S"), status or "STARTING", phase or "-", f"gpu {util}%",
-          f"hours {hours(stage):.3f}/{caps.get(stage, 40)}", current,
+          f"hours {hours(stage):.3f}/{caps.get(stage, 'unknown')}", current,
           tail[0][:120] if tail else "", flush=True)
-    if status.startswith(("DONE", "FAILED", "STOPPED_CAP", "STOPPED_USER", "STOPPED_RULE")):
+    if status.startswith(("DONE", "FAILED", "STOPPED_USER", "STOPPED_RULE")):
         # A just-launched background process may not have replaced the previous
         # terminal status yet. Confirm once before releasing the runtime.
         time.sleep(2)

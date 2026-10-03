@@ -327,21 +327,19 @@ def test_proposer_example_chunks_are_resumable(tmp_path, monkeypatch):
     assert [row.doc_id for row in second] == [row.doc_id for row in first]
 
 
-def test_unit_clock_records_then_stops_on_cap(tmp_path):
+def test_unit_clock_records_without_stopping_at_former_cap(tmp_path):
     from s1pii.s1d.stage0 import UnitClock
-    from s1pii.s1d.train import GPUCapReached, GPUHours
+    from s1pii.s1d.train import GPUHours
     config = {"stages": {"stage0": {"cap_a100_hours": 0}}}
     clock = UnitClock(tmp_path, config, "bounded")
     clock.last -= 1
-    with pytest.raises(GPUCapReached):
-        clock.tick(substep="chunk")
+    clock.tick(substep="chunk")
     assert GPUHours(tmp_path / "gpu_hours.jsonl", 0, "stage0").used() > 0
 
 
-def test_gpu_cap_override_preserves_accounting_and_does_not_stop(tmp_path, monkeypatch):
+def test_gpu_hours_are_accounting_only(tmp_path):
     from s1pii.s1d.stage0 import UnitClock
     from s1pii.s1d.train import GPUHours
-    monkeypatch.setenv("S1D_CAP_OVERRIDE", "1")
     path = tmp_path / "gpu_hours.jsonl"
     path.write_text(json.dumps({"stage": "stage0", "hours": 6.225}) + "\n")
     meter = GPUHours(path, 5, "stage0")
@@ -350,6 +348,13 @@ def test_gpu_cap_override_preserves_accounting_and_does_not_stop(tmp_path, monke
     clock.last -= 1
     clock.tick(substep="continues")
     assert meter.used() > 6.225
+
+
+def test_all_stages_are_configured_uncapped():
+    import yaml
+    from s1pii.s1d import run as runner
+    config = yaml.safe_load((Path(runner.__file__).parents[1] / "configs" / "s1d.yaml").read_text())
+    assert all(stage.get("enforce_cap") is False for stage in config["stages"].values())
 
 
 def test_gate_g1_caps_candidates_and_is_non_blocking():
@@ -450,10 +455,7 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source
     assert "torch.cuda.get_device_name(0)" in launch_source
-    assert "os.environ['S1D_CAP_OVERRIDE'] = '1'" in launch_source
-    assert "CAP OVERRIDE: continuing" in launch_source
     assert "STARTING {stage}" in launch_source
-    assert launch_source.index("S1D_CAP_OVERRIDE") < launch_source.index("subprocess.Popen")
     assert launch_source.index("STARTING {stage}") < launch_source.index("subprocess.Popen")
     assert launch_source.index("run_visible([sys.executable, '-c', cuda_probe])") < launch_source.index("subprocess.Popen")
 
@@ -531,10 +533,11 @@ def test_stage0_macro_stop_rule_fires_before_latency(tmp_path, monkeypatch):
     assert len(rule_rows) == 1 and rule_rows[0]["statistic"] == "macro_accuracy_over_dev_labels"
 
 
-def test_stage_cap_returns_exit_code_three(tmp_path):
-    from s1pii.s1d.run import run
-    (tmp_path / "gpu_hours.jsonl").write_text(json.dumps({"hours": 6}) + "\n")
-    assert run("stage0", tmp_path, dry=False) == 3
+def test_gpu_hours_never_stop_above_recorded_reference(tmp_path):
+    from s1pii.s1d.train import GPUHours
+    path = tmp_path / "gpu_hours.jsonl"
+    path.write_text(json.dumps({"stage": "stage0", "hours": 100}) + "\n")
+    GPUHours(path, 5, "stage0").reserve(100)
 
 
 def test_prompted_option_scorer_reuses_prefix_and_returns_56_probabilities():

@@ -25,11 +25,12 @@ max_options: 56
 stages:
   stage0:
     cap_a100_hours: 5
+    enforce_cap: false
     unit_estimates:
       proposer_all: 1.2
       proposer_no_nemotron: 1.2
       prompted_probe: 0.7
       kev_baseline: 0.4
       latency: 0.4
-  stage1: {cap_a100_hours: 12, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
-  stage2: {cap_a100_hours: 23, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}
+  stage1: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
+  stage2: {cap_a100_hours: 23, enforce_cap: false, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

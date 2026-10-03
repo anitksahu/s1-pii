@@ -26,7 +26,6 @@ if [ -f "$R/CONTROL" ] && [ "$(tr '[:lower:]' '[:upper:]' < "$R/CONTROL")" = STO
 echo CPU > "$R/PHASE"
 "$PYTHON" -m s1pii.s1d.run "$STAGE" --root "$R" >> "$LOG" 2>&1
 rc=$?
-if [ "$rc" -eq 3 ]; then status STOPPED_CAP; exit "$rc"; fi
 if [ "$rc" -eq 4 ]; then status STOPPED_USER; exit "$rc"; fi
 if [ "$rc" -eq 5 ]; then status STOPPED_RULE; exit "$rc"; fi
 [ "$rc" -eq 0 ] || fail "$STAGE" "$rc"

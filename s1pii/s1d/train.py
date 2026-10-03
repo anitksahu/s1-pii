@@ -17,10 +17,6 @@ import torch
 from ..ledger import git_sha
 
 
-class GPUCapReached(RuntimeError):
-    pass
-
-
 def seed_everything(seed: int) -> None:
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -72,10 +68,8 @@ class GPUHours:
                    if self.stage is None or row.get("stage", self.stage) == self.stage)
 
     def reserve(self, estimate: float) -> None:
-        if os.environ.get("S1D_CAP_OVERRIDE") == "1":
-            return
-        if self.used() + estimate > self.cap + 1e-12:
-            raise GPUCapReached(f"GPU-hour cap {self.cap:g} would be exceeded")
+        """Retained for callers; GPU-hour totals are accounting-only and never stop work."""
+        return
 
     def record(self, unit: str, seconds: float, **extra) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
