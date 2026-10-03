@@ -466,6 +466,12 @@ def _probability_metrics(rows, probabilities, *, temperature: float = 1.0):
             "probabilities": p.tolist()}
 
 
+def _inference_probabilities(model, window, device: torch.device, *, bf16: bool):
+    """Run pointer inference with the same mixed-precision contract used for training."""
+    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=bf16):
+        return model(window).probabilities[0].float().cpu().tolist()
+
+
 def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str = "shared"):
     from .data import pack_training_questions
     from .model import S1DModel, apply_lora, prepare_tokenizer
@@ -489,7 +495,7 @@ def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str =
             window, _ = pack_training_questions([row], tokenizer, layout=layout, device=device,
                                                 make_block_mask=not ctx["dry"],
                                                 keep_dense_mask=ctx["dry"])[0]
-            probs.append(model(window).probabilities[0].float().cpu().tolist())
+            probs.append(_inference_probabilities(model, window, device, bf16=not ctx["dry"]))
     del model
     return probs
 

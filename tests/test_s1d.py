@@ -310,6 +310,22 @@ def test_proposer_fp32_master_weights_under_autocast():
     assert {p.dtype for p in model.parameters()} == {torch.float32}
 
 
+def test_stage1_inference_autocast_handles_bf16_activations_with_fp32_head():
+    from s1pii.s1d.run import _inference_probabilities
+    class MixedDtypeModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.head = torch.nn.Linear(4, 2)
+        def forward(self, _window):
+            logits = self.head(torch.ones(1, 4, dtype=torch.bfloat16))
+            return type("Output", (), {"probabilities": logits.softmax(-1)})
+    model = MixedDtypeModel().eval()
+    with pytest.raises(RuntimeError, match="same dtype"):
+        model(None)
+    probabilities = _inference_probabilities(model, None, torch.device("cpu"), bf16=True)
+    assert len(probabilities) == 2
+    assert sum(probabilities) == pytest.approx(1.0, abs=5e-3)
+
+
 def test_proposer_example_chunks_are_resumable(tmp_path, monkeypatch):
     from s1pii.s1d import proposer
     docs = [Doc(f"d{i}", "plain", (), "synthetic", "train", f"d{i}") for i in range(3)]
