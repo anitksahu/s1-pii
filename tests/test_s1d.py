@@ -575,6 +575,22 @@ def test_dev_question_builder_has_56_options_and_equal_not_pii_rows():
     assert rows[1].question.options[rows[1].target].name == "not personal information"
 
 
+def test_dev_question_builder_uses_all_available_negatives_when_unbalanced():
+    from s1pii.s1d.data import span_evaluation_questions
+    label = HL.load()["dev_labels"][0]
+    text = "gold1 gold2 candidate"
+    gold = (Span("d", 0, 5, OTHER_PII, label, surface="gold1"),
+            Span("d", 6, 11, OTHER_PII, label, surface="gold2"))
+    candidate = Span("d", 12, 21, OTHER_PII, "candidate", surface="candidate")
+    doc = Doc("d", text, gold, "nemotron", "calib", "d")
+    with pytest.raises(ValueError, match="need 2 .* found 1"):
+        span_evaluation_questions([doc], {"d": [candidate]}, labels=[label])
+    rows = span_evaluation_questions([doc], {"d": [candidate]}, labels=[label],
+                                     require_equal_negatives=False)
+    assert len(rows) == 3
+    assert sum(row.hard_negative for row in rows) == 1
+
+
 def test_layout_ablation_uses_same_16_branch_windows_for_both_layouts(tmp_path):
     from s1pii.s1d.data import generate_questions, pack_layout_ablation_questions
     text = "email ada@example.test phone 555-0102"

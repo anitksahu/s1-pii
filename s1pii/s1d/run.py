@@ -427,7 +427,7 @@ def _dev_questions(ctx, *, descriptions: bool = True):
     docs = _stage1_docs(ctx["dry"])
     candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"], cache_name="calibration")
     rows = span_evaluation_questions(docs, candidates, labels=labels.load()["dev_labels"], seed=0,
-                                     descriptions=descriptions)
+                                     descriptions=descriptions, require_equal_negatives=False)
     if not rows or not any(row.hard_negative for row in rows):
         raise ValueError("Stage 1 dev questions require gold and not-PII candidate rows")
     return docs, rows

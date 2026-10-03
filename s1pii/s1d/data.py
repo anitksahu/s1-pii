@@ -211,7 +211,11 @@ def span_evaluation_questions(docs: Sequence[Doc], candidates: dict[str, Sequenc
     rng = random.Random(seed); rng.shuffle(negatives)
     if require_equal_negatives and len(negatives) < len(rows):
         raise ValueError(f"need {len(rows)} non-overlapping proposer candidates, found {len(negatives)}")
-    for doc, span in negatives[:len(rows) if require_equal_negatives else 0]:
+    # Use every available proposer negative up to the gold count.  Evaluation metrics report
+    # gold-label and not-PII accuracy separately, so a proposer yielding fewer candidates must
+    # not make the entire evaluation impossible.  ``require_equal_negatives`` remains available
+    # for callers that explicitly require a balanced set.
+    for doc, span in negatives[:len(rows)]:
         question = Question("choice", "Classify the marked span.", "Use its meaning and context.", options,
                             id=f"{doc.doc_id}:negative:{span.start}:{span.end}", span=(span.start, span.end))
         rows.append(TrainingQuestion(doc.doc_id, doc.text, question, option_index[heldout.NOT_PII],
