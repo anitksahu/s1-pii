@@ -1294,6 +1294,14 @@ def test_batch_audit_window_summary_flags_only_above_p95():
     assert got["high_dominant_steps"] == []
 
 
+def test_batch_audit_direct_script_imports_repo_without_editable_install(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "s1d_batch_audit.py"
+    run = subprocess.run([sys.executable, "-I", str(script), "--help"], cwd=tmp_path,
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert "--root" in run.stdout
+
+
 def test_loss_audit_parses_and_reports_departure(tmp_path):
     log = tmp_path / "stage1.log"
     rows = []
