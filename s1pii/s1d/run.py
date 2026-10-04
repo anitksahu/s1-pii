@@ -469,7 +469,8 @@ def _seen_questions(ctx, *, descriptions: bool = True):
     config = labels.load()
     seen = _seen_labels(config)
     docs = _gretel_heldout_docs(ctx)
-    return span_evaluation_questions(docs, {}, labels=seen, seed=1, descriptions=descriptions,
+    candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"], cache_name="gretel-dev")
+    return span_evaluation_questions(docs, candidates, labels=seen, seed=1, descriptions=descriptions,
                                      require_equal_negatives=False, pii_only=True)
 
 
@@ -713,7 +714,7 @@ def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str =
 # shows every option with its description under a unique numeric answer code, instructs exactly
 # one code with /no_think, scores only the answer-code distribution, and uses the same
 # 512-token span-centered window as the Stage 0 probe and the trained packer.
-_PROMPTED_SEMANTICS_VERSION = 2
+_PROMPTED_SEMANTICS_VERSION = 3
 
 
 def _prompted_answer_codes(count: int) -> list[str]:
@@ -721,7 +722,7 @@ def _prompted_answer_codes(count: int) -> list[str]:
     and ``prompted_option_distributions`` scores multi-token codes (e.g. ``"10"``) correctly."""
     if count < 2:
         raise ValueError("at least two options are required")
-    return [str(i + 1) for i in range(count)]
+    return [f"{i + 1:02d}" for i in range(count)]
 
 
 def _prompted_choice_prompt(tokenizer, state: str, surface: str, options, codes) -> str:

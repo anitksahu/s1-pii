@@ -1273,6 +1273,9 @@ def test_prompted_prompt_lists_every_option_with_codes_and_no_think():
     options = evaluation_options(descriptions=True)
     codes = _prompted_answer_codes(len(options))
     assert len(codes) == len(options) == 56 and len(set(codes)) == 56
+    tokenized = [StubTokenizer()(code)["input_ids"] for code in codes]
+    assert len({len(ids) for ids in tokenized}) == 1
+    assert not any(left.startswith(right) for left in codes for right in codes if left != right)
     prompt = _prompted_choice_prompt(_ChatTokenizer(), "a document window", "ada@example.test", options, codes)
     assert "/no_think" in prompt and prompt.endswith("<assistant>")
     assert "exactly one option number" in prompt and "Span: ada@example.test" in prompt
@@ -1344,7 +1347,7 @@ def test_gretel_calibration_slice_is_disjoint_from_training_slice(monkeypatch):
     assert held | train == {d.doc_id for d in docs}
 
 
-def test_seen_questions_never_target_heldout_and_skip_ignore_spans(monkeypatch):
+def test_seen_questions_never_target_heldout_and_skip_ignore_spans(monkeypatch, tmp_path):
     from s1pii.s1d import run as R
     cfg = HL.load()
     held = cfg["test_labels"][0]
@@ -1358,11 +1361,19 @@ def test_seen_questions_never_target_heldout_and_skip_ignore_spans(monkeypatch):
              Span(did, 12, 19, OTHER_PII, seen_label, surface="charlie"))
     doc = Doc(did, text, spans, "gretel", "train", did)
     monkeypatch.setattr(R, "_gretel_heldout_docs", lambda ctx: [doc])
-    rows = R._seen_questions({"dry": False}, descriptions=False)
+    monkeypatch.setattr(R, "_proposer_candidates", lambda *args, **kwargs: {})
+    rows = R._seen_questions({"dry": False, "root": tmp_path}, descriptions=False)
     targets = {r.question.options[r.target].name for r in rows if not r.hard_negative}
     assert held not in targets                                  # held-out never a target
     assert "city" not in targets                                # IGNORE span excluded by pii_only
     assert seen_label.replace("_", " ") in targets
+
+
+def test_dry_seen_calibration_includes_not_pii_target(tmp_path):
+    from s1pii.s1d import run as R
+    rows = R._seen_questions({"dry": True, "root": tmp_path}, descriptions=True)
+    targets = {row.question.options[row.target].name for row in rows}
+    assert HL.NOT_PII in targets and any(row.hard_negative for row in rows)
 
 
 def bench_in_dev_slice(doc_id):
