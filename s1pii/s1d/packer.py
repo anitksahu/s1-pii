@@ -106,6 +106,22 @@ def flex_block_mask(dense: torch.Tensor, device=None):
     return create_block_mask(allowed, B=1, H=None, Q_LEN=n, KV_LEN=n, device=str(dense.device))
 
 
+def flex_batch_block_mask(dense: torch.Tensor, device=None):
+    """Build one explicit BlockMask for a batch of equally padded packed windows."""
+    try:
+        from torch.nn.attention.flex_attention import create_block_mask
+    except ImportError as e:  # pragma: no cover - dependency guard
+        raise RuntimeError("torch>=2.5 with FlexAttention is required") from e
+    if dense.ndim != 3 or dense.shape[-1] != dense.shape[-2]:
+        raise ValueError("batched dense masks must have shape [batch, length, length]")
+    dense = dense.to(device or dense.device)
+    batch, length, _ = dense.shape
+    def allowed(b, _h, q, kv):
+        return dense[b, q, kv]
+    return create_block_mask(allowed, B=batch, H=None, Q_LEN=length, KV_LEN=length,
+                             device=str(dense.device))
+
+
 def length_bucket(length: int, buckets=(512, 1024, 2048, 4096, 8192)) -> int:
     return next((b for b in buckets if length <= b), 1 << (length - 1).bit_length())
 

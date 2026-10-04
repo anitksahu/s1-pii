@@ -136,42 +136,46 @@ def assert_no_heldout_leakage(questions: Sequence[TrainingQuestion], config: dic
             raise AssertionError(f"held-out span used by {row.question.id}")
 
 
+def question_pack_parts(row: TrainingQuestion, tokenizer, *, stride: int = 384, encoded=None):
+    """Return the state slice, option text, and branch text used to pack one question."""
+    from .packer import BranchText
+    encoded = encoded or tokenizer(row.state, add_special_tokens=False,
+                                   return_offsets_mapping=True, truncation=False)
+    ids = list(encoded["input_ids"])
+    offsets = list(encoded.get("offset_mapping", ()))
+    windows = [(a, min(a + 512, len(ids))) for a in range(0, max(1, len(ids)), stride)] or [(0, 0)]
+    if windows and windows[-1][1] < len(ids):
+        windows.append((max(0, len(ids) - 512), len(ids)))
+    chosen = windows[0]
+    span_text = row.question.instructions
+    left = ""
+    if row.source_span is not None:
+        start, end = row.source_span
+        span_text = row.state[start:end]
+        if offsets:
+            for window in windows:
+                wa, wb = window
+                if wa < wb and offsets[wa][0] <= start and offsets[wb - 1][1] >= end:
+                    chosen = window; break
+            first = next((i for i, (_a, b) in enumerate(offsets) if b > start), 0)
+            ca = offsets[max(chosen[0], first - 8)][0]
+            left = row.state[ca:start]
+    wa, wb = chosen
+    state = row.state[offsets[wa][0]:offsets[wb - 1][1]] if offsets and wa < wb else row.state
+    if row.source_span is None and row.question.criteria:
+        span_text = f"{span_text} {row.question.criteria}"
+    return state, tuple(o.text() for o in row.question.options), BranchText(span_text, left)
+
+
 def pack_training_questions(questions: Sequence[TrainingQuestion], tokenizer, *, stride: int = 384,
                             layout: str = "shared", device=None, make_block_mask: bool = True,
                             keep_dense_mask: bool = True):
     """Convert generated questions to real 512-token state windows and short branches."""
-    from .packer import BranchText, pack_window
+    from .packer import pack_window
     output = []
     for row in questions:
-        encoded = tokenizer(row.state, add_special_tokens=False, return_offsets_mapping=True, truncation=False)
-        ids = list(encoded["input_ids"])
-        offsets = list(encoded.get("offset_mapping", ()))
-        windows = [(a, min(a + 512, len(ids))) for a in range(0, max(1, len(ids)), stride)] or [(0, 0)]
-        if windows and windows[-1][1] < len(ids):
-            windows.append((max(0, len(ids) - 512), len(ids)))
-        chosen = windows[0]
-        span_text = row.question.instructions
-        left = ""
-        if row.source_span is not None:
-            start, end = row.source_span
-            span_text = row.state[start:end]
-            if offsets:
-                for window in windows:
-                    wa, wb = window
-                    if wa < wb and offsets[wa][0] <= start and offsets[wb - 1][1] >= end:
-                        chosen = window; break
-                first = next((i for i, (_a, b) in enumerate(offsets) if b > start), 0)
-                ca = offsets[max(chosen[0], first - 8)][0]
-                left = row.state[ca:start]
-        wa, wb = chosen
-        if offsets and wa < wb:
-            state = row.state[offsets[wa][0]:offsets[wb - 1][1]]
-        else:
-            state = row.state
-        if row.source_span is None and row.question.criteria:
-            span_text = f"{span_text} {row.question.criteria}"
-        options = [o.text() for o in row.question.options]
-        packed = pack_window(tokenizer, state, options, [BranchText(span_text, left)], state_tokens=512,
+        state, options, branch = question_pack_parts(row, tokenizer, stride=stride)
+        packed = pack_window(tokenizer, state, options, [branch], state_tokens=512,
                              layout=layout, device=device, make_block_mask=make_block_mask,
                              keep_dense_mask=keep_dense_mask)
         output.append((packed, row.target))

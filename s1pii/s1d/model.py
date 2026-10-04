@@ -92,6 +92,50 @@ class S1DModel(nn.Module):
         loss = nn.functional.cross_entropy(logits, labels.to(device)) if labels is not None else None
         return PointerOutput(logits, logits.softmax(-1), hidden if output_hidden_states else None, loss)
 
+    def forward_many(self, windows: list[PackedWindow]) -> list[PointerOutput]:
+        """Evaluate equal-length windows in one backbone call with an explicit batched mask."""
+        if not windows:
+            return []
+        lengths = {len(window.input_ids) for window in windows}
+        if len(lengths) != 1:
+            raise ValueError("forward_many requires one packed-length bucket")
+        device = next(self.parameters()).device
+        input_ids = torch.stack([window.input_ids for window in windows]).to(device)
+        position_ids = torch.stack([window.position_ids for window in windows]).to(device)
+        dense = torch.stack([window.dense_mask for window in windows]).to(device)
+        implementation = getattr(self.backbone.config, "_attn_implementation", "")
+        if device.type == "cpu" and implementation != "flex_attention":
+            dtype = self.backbone.get_input_embeddings().weight.dtype
+            attention_mask = torch.zeros_like(dense, dtype=dtype)
+            attention_mask.masked_fill_(~dense, torch.finfo(dtype).min)
+            attention_mask = attention_mask[:, None]
+        else:
+            from .packer import flex_batch_block_mask
+            attention_mask = flex_batch_block_mask(dense, device=device)
+        output = self.backbone(input_ids=input_ids, position_ids=position_ids,
+                               attention_mask=attention_mask, return_dict=True)
+        hidden = output.last_hidden_state
+        decision_counts = [len(window.decide_indices) for window in windows]
+        option_counts = [len(window.option_indices) for window in windows]
+        decisions = self.decision_projection(torch.cat([
+            hidden[index, window.decide_indices.to(device)] for index, window in enumerate(windows)
+        ]))
+        options = self.option_projection(torch.cat([
+            hidden[index, window.option_indices.to(device)] for index, window in enumerate(windows)
+        ]))
+        decision_rows = decisions.split(decision_counts)
+        option_rows = options.split(option_counts)
+        results = []
+        for window, decision, option in zip(windows, decision_rows, option_rows):
+            if window.layout == "kev":
+                option = option.view(decision.shape[0], -1, self.hidden_size)
+                logits = torch.einsum("jd,jkd->jk", decision, option)
+            else:
+                logits = decision @ option.T
+            logits = logits / math.sqrt(self.hidden_size) + self.pointer_bias
+            results.append(PointerOutput(logits, logits.softmax(-1)))
+        return results
+
 
 def apply_lora(model: S1DModel, trainable_token_indices: list[int], rank: int = 32) -> S1DModel:
     """Attach PEFT LoRA to attention and MLP projections and train reserved rows."""

@@ -204,6 +204,38 @@ def test_packed_equals_separate(tiny):
     assert torch.allclose(together, separate, atol=1e-5, rtol=0)
 
 
+def test_forward_many_matches_individual_windows(tiny):
+    tok = StubTokenizer(); opts = ("person", "phone", "not personal information")
+    windows = [pack_window(tok, state, opts, (branch,), make_block_mask=False)
+               for state, branch in (("Ada called 555", "Ada"), ("Jo called 444", "444"))]
+    with torch.no_grad():
+        individual = [tiny(window).probabilities for window in windows]
+        batched = [output.probabilities for output in tiny.forward_many(windows)]
+    assert all(torch.allclose(a, b, atol=1e-5, rtol=0) for a, b in zip(individual, batched))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="batched FlexAttention requires CUDA")
+def test_forward_many_flex_cuda_matches_individual_windows():
+    from s1pii.s1d.packer import flex_block_mask
+    from transformers import Qwen3Config
+    cfg = Qwen3Config(vocab_size=128, hidden_size=16, intermediate_size=32, num_hidden_layers=1,
+                      num_attention_heads=2, num_key_value_heads=2, head_dim=8,
+                      max_position_embeddings=2048, use_cache=False, attention_dropout=0)
+    model = S1DModel.from_config(cfg).cuda().bfloat16().eval(); tok = StubTokenizer()
+    options = ("person", "phone", "not personal information")
+    windows = [pack_window(tok, state, options, (branch,), device="cuda", make_block_mask=False)
+               for state, branch in (("Ada called 555", "Ada"), ("Jo called 444", "444"))]
+    with torch.no_grad():
+        batched = [output.probabilities.float() for output in model.forward_many(windows)]
+        individual = []
+        for window in windows:
+            window.attention_mask = flex_block_mask(window.dense_mask, device="cuda")
+            individual.append(model(window).probabilities.float())
+    assert all((a - b).abs().max() <= 2e-2 for a, b in zip(individual, batched))
+    assert all((a.argmax(-1) == b.argmax(-1)).float().mean() >= 0.995
+               for a, b in zip(individual, batched))
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="FlexAttention bf16 is unavailable on CPU")
 def test_bf16_permutation_and_separate_tolerances():
     from transformers import Qwen3Config
@@ -576,6 +608,94 @@ def test_prompted_option_scorer_reuses_prefix_and_returns_56_probabilities():
     assert probabilities.shape == (56,)
     assert probabilities.sum().item() == pytest.approx(1.0)
     assert model.calls == 1
+
+
+def test_prompted_option_scorer_batches_multitoken_continuations():
+    from s1pii.s1d.infer import prompted_option_distribution
+    class Cache:
+        def batch_repeat_interleave(self, repeats): self.repeats = repeats
+    class Tokenizer:
+        pad_token_id = 0
+        def __call__(self, text, **kwargs):
+            ids = [1, 2] if text == "prompt" else [3] + [4] * int(text[-1])
+            return {"input_ids": torch.tensor([ids])}
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(())); self.shapes = []
+        def forward(self, input_ids, past_key_values=None, **kwargs):
+            self.shapes.append(tuple(input_ids.shape))
+            logits = torch.zeros(input_ids.shape[0], input_ids.shape[1], 16)
+            return type("Output", (), {"logits": logits, "past_key_values": Cache()})
+    model = Model()
+    probabilities = prompted_option_distribution(model, Tokenizer(), "prompt", ["o0", "o1", "o2", "o3"])
+    assert probabilities.tolist() == pytest.approx([0.25] * 4)
+    assert model.shapes == [(1, 2), (3, 3)]
+
+
+def test_prompted_option_continuation_batches_are_memory_bounded():
+    from s1pii.s1d.infer import prompted_option_distribution
+    class Cache:
+        def batch_repeat_interleave(self, repeats): self.repeats = repeats
+    class Tokenizer:
+        pad_token_id = 0
+        def __call__(self, text, **kwargs):
+            ids = [1, 2] if text == "prompt" else [3, 4]
+            return {"input_ids": torch.tensor([ids])}
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(())); self.batch_sizes = []
+        def forward(self, input_ids, past_key_values=None, **kwargs):
+            self.batch_sizes.append(input_ids.shape[0])
+            logits = torch.zeros(input_ids.shape[0], input_ids.shape[1], 8)
+            return type("Output", (), {"logits": logits, "past_key_values": Cache()})
+    model = Model()
+    prompted_option_distribution(model, Tokenizer(), "prompt", [f"option-{i}" for i in range(18)])
+    assert model.batch_sizes == [1, 8, 8, 2]
+
+
+def test_evaluation_windows_group_branches_by_document_and_preserve_order():
+    from s1pii.s1d.data import span_evaluation_questions
+    from s1pii.s1d.run import _evaluation_window_specs
+    label = HL.load()["dev_labels"][0]
+    text = "first and second"
+    spans = (Span("d", 0, 5, OTHER_PII, label, surface="first"),
+             Span("d", 10, 16, OTHER_PII, label, surface="second"))
+    rows = span_evaluation_questions([Doc("d", text, spans, "nemotron", "calib", "d")], {},
+                                     labels=[label], require_equal_negatives=False)
+    specs = _evaluation_window_specs(rows, StubTokenizer(), layout="shared")
+    assert len(specs) == 1
+    _state, options, branches, indices = specs[0]
+    assert len(options) == 56 and len(branches) == 2 and indices == (0, 1)
+
+
+def test_grouped_evaluation_resumes_from_partial_window_cache(tmp_path):
+    from s1pii.s1d.data import span_evaluation_questions
+    from s1pii.s1d.run import (_eval_cache_path, _score_loaded_trained,
+                               _write_eval_cache)
+    label = HL.load()["dev_labels"][0]
+    docs = []
+    for index in range(2):
+        text = f"secret{index}"
+        span = Span(f"d{index}", 0, len(text), OTHER_PII, label, surface=text)
+        docs.append(Doc(f"d{index}", text, (span,), "nemotron", "calib", f"d{index}"))
+    rows = span_evaluation_questions(docs, {}, labels=[label], require_equal_negatives=False)
+    ctx = {"root": tmp_path, "dry": True}
+    key, split, fingerprint = "trained-test", "dev", "fingerprint"
+    first = [1 / 56] * 56
+    _write_eval_cache(_eval_cache_path(ctx, key, split), fingerprint,
+                      [first, None], completed=1, total=2)
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(())); self.calls = 0
+        def forward(self, packed):
+            self.calls += 1
+            probabilities = torch.full((len(packed.decide_indices), 56), 1 / 56)
+            return type("Output", (), {"probabilities": probabilities})
+    model = Model()
+    probabilities = _score_loaded_trained(ctx, model, StubTokenizer(), rows, layout="shared",
+                                          key=key, split=split, fingerprint=fingerprint)
+    assert model.calls == 1
+    assert probabilities[0] == first and probabilities[1] == pytest.approx(first)
 
 
 def test_dev_question_builder_has_56_options_and_equal_not_pii_rows():

@@ -472,15 +472,145 @@ def _inference_probabilities(model, window, device: torch.device, *, bf16: bool)
         return model(window).probabilities[0].float().cpu().tolist()
 
 
-def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str = "shared"):
-    from .data import pack_training_questions
+_EVAL_CACHE_VERSION = 2
+
+
+def _eval_fingerprint(rows, identity: dict) -> str:
+    from .data import question_set_hash
+    value = {"version": _EVAL_CACHE_VERSION, "questions": question_set_hash(rows), **identity}
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+
+
+def _eval_cache_path(ctx, key: str, split: str) -> Path:
+    safe = key.replace("/", "_").replace(":", "_")
+    return ctx["root"] / "stores" / "stage1-dev-eval" / f"{safe}-{split}.json"
+
+
+def _read_eval_cache(path: Path, fingerprint: str, count: int):
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    probabilities = value.get("probabilities")
+    if (value.get("version") != _EVAL_CACHE_VERSION or value.get("fingerprint") != fingerprint
+            or not isinstance(probabilities, list) or len(probabilities) != count):
+        return None
+    return value
+
+
+def _write_eval_cache(path: Path, fingerprint: str, probabilities, completed: int, total: int) -> None:
+    _atomic_json(path, {"version": _EVAL_CACHE_VERSION, "fingerprint": fingerprint,
+                        "completed": completed, "total": total, "probabilities": probabilities})
+
+
+def _check_eval_stop(ctx) -> None:
+    control = ctx["root"] / "CONTROL"
+    if control.exists() and control.read_text().strip().upper() == "STOP":
+        raise InterruptedError("STOP requested")
+
+
+def _evaluation_window_specs(rows, tokenizer, *, layout: str):
+    """Group questions sharing one state slice into real multi-branch inference windows."""
+    from .data import question_pack_parts
+    encoded = {}
+    groups = OrderedDict()
+    for index, row in enumerate(rows):
+        document_key = (row.doc_id, row.state)
+        if document_key not in encoded:
+            encoded[document_key] = tokenizer(row.state, add_special_tokens=False,
+                                              return_offsets_mapping=True, truncation=False)
+        state, options, branch = question_pack_parts(row, tokenizer, encoded=encoded[document_key])
+        groups.setdefault((row.doc_id, state, options), []).append((index, branch))
+    limit = 64 if layout == "shared" else 16
+    specs = []
+    for (_doc_id, state, options), entries in groups.items():
+        for first in range(0, len(entries), limit):
+            chunk = entries[first:first + limit]
+            specs.append((state, options, tuple(branch for _index, branch in chunk),
+                          tuple(index for index, _branch in chunk)))
+    return specs
+
+
+def _score_loaded_trained(ctx, model, tokenizer, rows, *, layout: str, key: str, split: str,
+                          fingerprint: str):
+    from .packer import pack_window
+    path = _eval_cache_path(ctx, key, split)
+    specs = _evaluation_window_specs(rows, tokenizer, layout=layout)
+    cached = _read_eval_cache(path, fingerprint, len(rows))
+    probabilities = cached["probabilities"] if cached else [None] * len(rows)
+    completed = min(int(cached.get("completed", 0)), len(specs)) if cached else 0
+    if completed == len(specs) and all(row is not None for row in probabilities):
+        print(f"{key} {split}: cached {len(rows)} questions in {len(specs)} windows", flush=True)
+        return probabilities
+    device = next(model.parameters()).device
+    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, "stage1")
+    last_accounted = time.monotonic()
+    batch_size = 8 if layout == "shared" else 1
+    with torch.no_grad():
+        for first in range(completed, len(specs), batch_size):
+            _check_eval_stop(ctx)
+            chunk = specs[first:first + batch_size]
+            packed_rows = [pack_window(tokenizer, state, options, branches, state_tokens=512,
+                                       layout=layout, device=device, make_block_mask=False,
+                                       keep_dense_mask=True)
+                           for state, options, branches, _indices in chunk]
+            by_length = OrderedDict()
+            for local_index, packed in enumerate(packed_rows):
+                by_length.setdefault(len(packed.input_ids), []).append((local_index, packed))
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                enabled=device.type == "cuda"):
+                chunk_outputs = [None] * len(packed_rows)
+                for same_length in by_length.values():
+                    local_indices, windows = zip(*same_length)
+                    if hasattr(model, "forward_many"):
+                        outputs = model.forward_many(list(windows))
+                    else:  # small test doubles
+                        outputs = [model(window) for window in windows]
+                    for local_index, output in zip(local_indices, outputs):
+                        chunk_outputs[local_index] = output.probabilities.float().cpu().tolist()
+            for (_state, _options, _branches, indices), batch in zip(chunk, chunk_outputs):
+                for row_index, values in zip(indices, batch):
+                    probabilities[row_index] = values
+            done = first + len(chunk)
+            if done % 32 == 0 or done == len(specs):
+                now = time.monotonic()
+                meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage="stage1",
+                             device=str(device), windows=done, total_windows=len(specs))
+                last_accounted = now
+                _write_eval_cache(path, fingerprint, probabilities, done, len(specs))
+                print(f"{key} {split}: {done}/{len(specs)} windows, {len(rows)} questions", flush=True)
+    return probabilities
+
+
+def _score_trained_sets(ctx, row_sets: dict[str, list], *, model_id: str, run_dir: Path,
+                        layout: str = "shared"):
     from .model import S1DModel, apply_lora, prepare_tokenizer
+    revision = "local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"]
+    manifest = json.loads((run_dir / "manifest.json").read_text()) if (run_dir / "manifest.json").exists() else {}
+    identity = {"kind": "trained", "model": model_id, "revision": revision, "layout": layout,
+                "packing": {"state_tokens": 512, "stride": 384,
+                            "branches_per_window": 64 if layout == "shared" else 16,
+                            "window_batch_size": 8 if layout == "shared" else 1},
+                "run_hashes": manifest.get("hashes", {}),
+                "step": (run_dir / "done").read_text().strip() if (run_dir / "done").exists() else "dry"}
+    key = f"trained-{model_id.rsplit('-', 1)[-1]}-{run_dir.name}-{layout}"
+    fingerprints = {split: _eval_fingerprint(rows, identity) for split, rows in row_sets.items()}
+    output = {}
+    missing = {}
+    for split, rows in row_sets.items():
+        cached = _read_eval_cache(_eval_cache_path(ctx, key, split), fingerprints[split], len(rows))
+        if cached and cached.get("completed") == cached.get("total") \
+                and all(row is not None for row in cached["probabilities"]):
+            output[split] = cached["probabilities"]
+        else:
+            missing[split] = rows
+    if not missing:
+        return output
     if ctx["dry"]:
         from .latency import _DryTokenizer, _tiny_model
         tokenizer, model = _DryTokenizer(), _tiny_model()
     else:
         from transformers import AutoTokenizer
-        revision = ctx["config"]["models"][model_id]["revision"]
         tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
         model = S1DModel.from_pretrained(model_id, revision)
     indices = prepare_tokenizer(tokenizer, model); apply_lora(model, indices, rank=32)
@@ -489,36 +619,90 @@ def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str =
         model.load_state_dict(torch.load(checkpoint, map_location="cpu", weights_only=False)["trainable_model"],
                               strict=False)
     device = torch.device("cpu" if ctx["dry"] else "cuda"); model.to(device).eval()
-    probs = []
-    with torch.no_grad():
-        for row in rows:
-            window, _ = pack_training_questions([row], tokenizer, layout=layout, device=device,
-                                                make_block_mask=not ctx["dry"],
-                                                keep_dense_mask=ctx["dry"])[0]
-            probs.append(_inference_probabilities(model, window, device, bf16=not ctx["dry"]))
-    del model
-    return probs
+    (ctx["root"] / "PHASE").write_text("GPU" if device.type == "cuda" else "CPU")
+    try:
+        for split, rows in missing.items():
+            output[split] = _score_loaded_trained(ctx, model, tokenizer, rows, layout=layout,
+                                                  key=key, split=split,
+                                                  fingerprint=fingerprints[split])
+    finally:
+        (ctx["root"] / "PHASE").write_text("CPU")
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    for split, probabilities in output.items():
+        if any(row is None for row in probabilities):
+            raise RuntimeError(f"{key} {split}: incomplete probability cache")
+    return output
 
 
-def _score_prompted_base(ctx, rows, model_id: str):
+def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str = "shared"):
+    return _score_trained_sets(ctx, {"rows": rows}, model_id=model_id,
+                               run_dir=run_dir, layout=layout)["rows"]
+
+
+def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
     if ctx["dry"]:
-        return [[1 / len(row.question.options)] * len(row.question.options) for row in rows]
+        return {split: [[1 / len(row.question.options)] * len(row.question.options) for row in rows]
+                for split, rows in row_sets.items()}
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from .infer import prompted_option_distribution
     revision = ctx["config"]["models"][model_id]["revision"]
+    identity = {"kind": "prompted", "model": model_id, "revision": revision}
+    key = f"prompted-{model_id.rsplit('-', 1)[-1]}"
+    fingerprints = {split: _eval_fingerprint(rows, identity) for split, rows in row_sets.items()}
+    output, missing = {}, {}
+    for split, rows in row_sets.items():
+        cached = _read_eval_cache(_eval_cache_path(ctx, key, split), fingerprints[split], len(rows))
+        if cached and cached.get("completed") == len(rows) and all(p is not None for p in cached["probabilities"]):
+            output[split] = cached["probabilities"]
+        else:
+            missing[split] = rows
+    if not missing:
+        return output
     tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
     model = AutoModelForCausalLM.from_pretrained(model_id, revision=revision, dtype=torch.bfloat16).cuda().eval()
-    result = []
-    for row in rows:
-        options = [option.name for option in row.question.options]
-        prompt = ("Classify the marked span. /no_think\nDocument:\n" + row.state +
-                  f"\nSpan: {row.state[row.source_span[0]:row.source_span[1]]}\nAnswer:")
-        if hasattr(tokenizer, "apply_chat_template"):
-            prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False,
-                                                   add_generation_prompt=True, enable_thinking=False)
-        result.append(prompted_option_distribution(model, tokenizer, prompt, options, device="cuda").tolist())
-    del model; torch.cuda.empty_cache()
-    return result
+    (ctx["root"] / "PHASE").write_text("GPU")
+    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, "stage1")
+    try:
+        for split, rows in missing.items():
+            path = _eval_cache_path(ctx, key, split)
+            cached = _read_eval_cache(path, fingerprints[split], len(rows))
+            probabilities = cached["probabilities"] if cached else [None] * len(rows)
+            completed = min(int(cached.get("completed", 0)), len(rows)) if cached else 0
+            last_accounted = time.monotonic()
+            for index in range(completed, len(rows)):
+                _check_eval_stop(ctx)
+                row = rows[index]
+                options = [option.name for option in row.question.options]
+                prompt = ("Classify the marked span. /no_think\nDocument:\n" + row.state +
+                          f"\nSpan: {row.state[row.source_span[0]:row.source_span[1]]}\nAnswer:")
+                if hasattr(tokenizer, "apply_chat_template"):
+                    prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False,
+                                                           add_generation_prompt=True, enable_thinking=False)
+                probabilities[index] = prompted_option_distribution(
+                    model, tokenizer, prompt, options, device="cuda").tolist()
+                done = index + 1
+                if done % 32 == 0 or done == len(rows):
+                    now = time.monotonic()
+                    meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage="stage1",
+                                 device="cuda", questions=done, total_questions=len(rows))
+                    last_accounted = now
+                    _write_eval_cache(path, fingerprints[split], probabilities, done, len(rows))
+                    print(f"{key} {split}: {done}/{len(rows)} questions", flush=True)
+            output[split] = probabilities
+    finally:
+        (ctx["root"] / "PHASE").write_text("CPU")
+        del model
+        torch.cuda.empty_cache()
+    for split, probabilities in output.items():
+        if any(row is None for row in probabilities):
+            raise RuntimeError(f"{key} {split}: incomplete probability cache")
+    return output
+
+
+def _score_prompted_base(ctx, rows, model_id: str):
+    return _score_prompted_sets(ctx, {"rows": rows}, model_id)["rows"]
 
 
 def _unit_layout_ablation(ctx, _out):
@@ -558,22 +742,23 @@ def _unit_dev_eval(ctx, _out):
     from .infer import fit_temperatures
     for model_id in ctx["config"]["models"]:
         size = model_id.rsplit("-", 1)[-1]
-        prompted_seen = _score_prompted_base(ctx, seen_rows, model_id) if seen_rows else []
+        prompted_scores = _score_prompted_sets(ctx, {"seen": seen_rows, "dev": rows}, model_id)
+        prompted_seen = prompted_scores["seen"]
         prompted_temp = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for p in prompted_seen],
                                          [row.target for row in seen_rows], ["choice"] * len(seen_rows))["choice"]
-        prompted[size] = _probability_metrics(rows, _score_prompted_base(ctx, rows, model_id),
+        prompted[size] = _probability_metrics(rows, prompted_scores["dev"],
                                                temperature=prompted_temp)
         prompted[size]["temperature"] = prompted_temp
         for seed in (1, 2):
             key = f"{size}-s{seed}"
             run_dir = models_root / key
-            seen_probabilities = _score_trained_run(ctx, seen_rows, model_id=model_id,
-                                                    run_dir=run_dir) if seen_rows else []
+            scores = _score_trained_sets(ctx, {"seen": seen_rows, "dev": rows}, model_id=model_id,
+                                         run_dir=run_dir)
+            seen_probabilities = scores["seen"]
             temperature = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for p in seen_probabilities],
                                            [row.target for row in seen_rows],
                                            ["choice"] * len(seen_rows))["choice"]
-            trained[key] = _probability_metrics(rows, _score_trained_run(
-                ctx, rows, model_id=model_id, run_dir=run_dir), temperature=temperature)
+            trained[key] = _probability_metrics(rows, scores["dev"], temperature=temperature)
             trained[key]["temperature"] = temperature
     latency = json.loads((ctx["root"] / "stores" / "stage0-latency.json").read_text()) if not ctx["dry"] else {
         "proposer_included": True,

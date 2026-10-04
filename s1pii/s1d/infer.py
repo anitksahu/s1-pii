@@ -71,23 +71,53 @@ def span_redaction_scores(response: DecisionResponse) -> list[float | None]:
 
 @torch.no_grad()
 def prompted_option_distribution(model, tokenizer, prompt: str, options: Sequence[str], *, device=None) -> torch.Tensor:
-    """Length-normalised option-name likelihoods from one reused prompt KV cache."""
+    """Length-normalised option likelihoods with one prefix pass and one batched continuation pass."""
     if len(options) < 2:
         raise ValueError("at least two prompted options are required")
     device = device or next(model.parameters()).device
     prompt_ids = tokenizer(prompt, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
     prefix = model(input_ids=prompt_ids, use_cache=True, return_dict=True)
-    scores = []
-    for option in options:
-        ids = tokenizer(option, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
-        if ids.shape[1] == 0:
-            raise ValueError("prompted options must tokenize to at least one token")
-        token_scores = [prefix.logits[:, -1].float().log_softmax(-1).gather(1, ids[:, :1])]
-        if ids.shape[1] > 1:
-            continuation = model(input_ids=ids[:, :-1], past_key_values=copy.deepcopy(prefix.past_key_values),
+    option_ids = [tokenizer(option, add_special_tokens=False, return_tensors="pt")["input_ids"][0].to(device)
+                  for option in options]
+    if any(ids.numel() == 0 for ids in option_ids):
+        raise ValueError("prompted options must tokenize to at least one token")
+    first_logits = prefix.logits[:, -1].float().log_softmax(-1)[0]
+    totals = [first_logits[ids[0]] for ids in option_ids]
+    long = [index for index, ids in enumerate(option_ids) if ids.numel() > 1]
+    if long and hasattr(prefix.past_key_values, "batch_repeat_interleave"):
+        # Repeating a long-document KV cache for all 56 options can OOM the 4B model.  Eight
+        # continuations keeps peak cache memory bounded while retaining GPU parallelism.
+        for first in range(0, len(long), 8):
+            chunk = long[first:first + 8]
+            past = copy.deepcopy(prefix.past_key_values)
+            past.batch_repeat_interleave(len(chunk))
+            width = max(option_ids[index].numel() - 1 for index in chunk)
+            pad = getattr(tokenizer, "pad_token_id", None)
+            continuation_ids = torch.full((len(chunk), width), 0 if pad is None else int(pad),
+                                          dtype=torch.long, device=device)
+            for batch_index, option_index in enumerate(chunk):
+                ids = option_ids[option_index]
+                continuation_ids[batch_index, :ids.numel() - 1] = ids[:-1]
+            continuation = model(input_ids=continuation_ids, past_key_values=past,
                                  use_cache=False, return_dict=True).logits.float().log_softmax(-1)
-            token_scores.append(continuation.gather(-1, ids[:, 1:].unsqueeze(-1)).squeeze(-1))
-        scores.append(torch.cat(token_scores, dim=1).mean())
+            for batch_index, option_index in enumerate(chunk):
+                ids = option_ids[option_index]
+                positions = torch.arange(ids.numel() - 1, device=device)
+                totals[option_index] = totals[option_index] + continuation[batch_index, positions, ids[1:]].sum()
+    else:
+        # Compatibility fallback for legacy tuple caches and the tiny CPU test doubles.
+        for option_index in long:
+            ids = option_ids[option_index]
+            continuation = model(input_ids=ids[:-1].unsqueeze(0),
+                                 past_key_values=copy.deepcopy(prefix.past_key_values),
+                                 use_cache=False, return_dict=True).logits[0].float().log_softmax(-1)
+            positions = torch.arange(ids.numel() - 1, device=device)
+            totals[option_index] = totals[option_index] + continuation[positions, ids[1:]].sum()
+    scores = []
+    for total, ids in zip(totals, option_ids):
+        if ids.numel() == 0:  # guarded above; keeps static analyzers honest
+            raise ValueError("prompted options must tokenize to at least one token")
+        scores.append(total / ids.numel())
     return torch.stack(scores).softmax(0).cpu()
 
 
