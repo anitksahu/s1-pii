@@ -16,6 +16,7 @@ import yaml
 
 from ..schema import Doc, Span, OTHER_PII
 from ..ledger import append
+from ..v2 import labels as v2
 from . import labels
 from .data import assert_no_heldout_leakage, generate_questions
 from .train import GPUHours
@@ -28,6 +29,8 @@ UNITS = {
     "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
+
+_TRAINING_SEMANTICS_VERSION = 2
 
 
 def _atomic_json(path: Path, value) -> None:
@@ -344,11 +347,16 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     from .train import TrainConfig, seed_everything, train
     dry = ctx["dry"]
     revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
+    size = model_id.rsplit("-", 1)[-1]
+    token_budget = (4096 if dry else
+                    int(ctx["config"]["training"]["token_budget_by_size"][size]))
     selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
     selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), seed)
     # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
     # revision and layout all match; mismatches (including a stale checkpoint) are archived aside.
-    expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout}
+    expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout,
+                       "training_semantics": str(_TRAINING_SEMANTICS_VERSION),
+                       "token_budget": str(token_budget)}
     if _reuse_or_reset_run(run_dir, expected_hashes):
         return json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
     seed_everything(seed)
@@ -364,20 +372,20 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     if branches_per_window > 1 and not dry:
         packed = _LazyPackedRows(selected_count, lambda index: pack_layout_ablation_questions(
             selected, tokenizer, windows=1, seed=seed + index, layout=layout,
-            branches_per_window=branches_per_window, device=device, make_block_mask=True,
-            keep_dense_mask=False, window_offset=index)[0])
+            branches_per_window=branches_per_window, device=device, make_block_mask=False,
+            keep_dense_mask=True, window_offset=index)[0])
     elif branches_per_window > 1:
         packed = pack_layout_ablation_questions(selected, tokenizer, windows=selected_count, seed=seed,
                                                 layout=layout, branches_per_window=branches_per_window,
                                                 device=device, make_block_mask=False)
     elif not dry:
         packed = _LazyPackedRows(selected_count, lambda index: pack_training_questions(
-            [selected[index]], tokenizer, layout=layout, device=device, make_block_mask=True,
-            keep_dense_mask=False)[0])
+            [selected[index]], tokenizer, layout=layout, device=device, make_block_mask=False,
+            keep_dense_mask=True)[0])
     else:
         packed = pack_training_questions(selected, tokenizer, layout=layout, device=device,
                                          make_block_mask=not dry)
-    config = TrainConfig(seed=seed, token_budget=4096 if dry else 8192, epochs=1,
+    config = TrainConfig(seed=seed, token_budget=token_budget, epochs=1,
                          stage="stage1", unit=f"{model_id}-s{seed}-{layout}",
                          cap_hours=ctx["config"]["stages"]["stage1"]["cap_a100_hours"],
                          control_path=str(ctx["root"] / "CONTROL"), checkpoint_every=100)
@@ -418,7 +426,9 @@ def _unit_train_sizes(ctx, _out):
             results[key] = _train_stage1_run(ctx, questions, model_id=model_id, seed=seed,
                                              layout="shared", window_count=16000,
                                              run_dir=models_root / key)
-    return {"implementation_version": 5, "variant": "no-nemotron", "windows_per_run": 16000,
+    return {"implementation_version": 6, "variant": "no-nemotron", "windows_per_run": 16000,
+            "training_semantics": _TRAINING_SEMANTICS_VERSION,
+            "token_budget_by_size": ctx["config"]["training"]["token_budget_by_size"],
             "seeds": [1, 2], "runs": results}
 
 
@@ -433,17 +443,36 @@ def _dev_questions(ctx, *, descriptions: bool = True):
     return docs, rows
 
 
-def _seen_questions(ctx, *, descriptions: bool = True):
-    from .data import span_evaluation_questions
+def _gretel_heldout_docs(ctx) -> list[Doc]:
+    """The deterministic 2% Gretel dev slice that every training run excludes.
+
+    ``training_docs`` trains on ``dev_slice(...)[1]``; this returns ``dev_slice(...)[0]``, so the
+    calibration/sanity spans are genuinely held out yet in-domain for the no-nemotron models."""
     if ctx["dry"]:
-        docs = _dry_docs()
-    else:
-        docs = _stage1_docs(False)
-    held = labels.load()
-    seen = [name for name in labels.training_vocabulary(held)
-            if name not in set(held["dev_labels"] + held["test_labels"])]
+        return _dry_docs()
+    from .. import bench
+    from ..data import loaders as L
+    return bench.dev_slice(L.load("gretel", "train", purpose="eval"))[0]
+
+
+def _seen_labels(config: dict) -> list[str]:
+    """Trained-vocabulary option labels, with every held-out dev/test label removed so the
+    calibration set can never leak a held-out name, and restricted to the frozen 56-way option
+    set so every gold target is expressible by both the trained and the prompted scorer."""
+    held = set(config["dev_labels"]) | set(config["test_labels"])
+    option_names = {label.name for label in v2.c3_label_set(False).labels}
+    return [name for name in labels.training_vocabulary(config)
+            if name not in held and name in option_names]
+
+
+def _seen_questions(ctx, *, descriptions: bool = True):
+    """Held-out in-domain Gretel calibration questions over trained-vocabulary labels only."""
+    from .data import span_evaluation_questions
+    config = labels.load()
+    seen = _seen_labels(config)
+    docs = _gretel_heldout_docs(ctx)
     return span_evaluation_questions(docs, {}, labels=seen, seed=1, descriptions=descriptions,
-                                     require_equal_negatives=False)
+                                     require_equal_negatives=False, pii_only=True)
 
 
 def _probability_metrics(rows, probabilities, *, temperature: float = 1.0):
@@ -464,6 +493,46 @@ def _probability_metrics(rows, probabilities, *, temperature: float = 1.0):
             "ece": expected_calibration_error(p, targets),
             "doc_bootstrap": document_bootstrap(dict(by_doc), seed=0, samples=100 if len(rows) < 20 else 2000),
             "probabilities": p.tolist()}
+
+
+def _sanity_metrics(rows, probabilities, *, temperature: float = 1.0) -> dict:
+    """In-domain accuracy of a trained model on held-out Gretel gold spans.
+
+    Accurate here means a Nemotron dev-label failure is genuine cross-domain generalization;
+    inaccurate here means the evaluation/packing is broken. Reported separately from the
+    Nemotron dev result so the two are never conflated. Handles a gold-only set (no proposer
+    negatives) without NaNs: ``not_pii_accuracy`` is ``None`` when there are no negative rows."""
+    import numpy as np
+    total = len(rows)
+    gold = [i for i, row in enumerate(rows) if not row.hard_negative]
+    negative = [i for i, row in enumerate(rows) if row.hard_negative]
+    if not gold:
+        return {"questions": total, "gold_questions": 0, "negative_questions": len(negative),
+                "macro_accuracy": None, "accuracy": None, "not_pii_rate": None,
+                "not_pii_accuracy": None, "per_label_accuracy": {}, "prediction_distribution": {},
+                "labels": []}
+    p = torch.as_tensor(probabilities, dtype=torch.float32)
+    p = (p.clamp_min(1e-30).log() / temperature).softmax(-1).numpy()
+    pred = p.argmax(1)
+    options = rows[0].question.options
+    not_pii_index = next((i for i, option in enumerate(options) if option.name == labels.NOT_PII), None)
+    by_label = defaultdict(list)
+    for i in gold:
+        by_label[rows[i].question.options[rows[i].target].name].append(float(pred[i] == rows[i].target))
+    distribution: dict[str, int] = {}
+    for i in gold:
+        name = options[int(pred[i])].name
+        distribution[name] = distribution.get(name, 0) + 1
+    macro = float(np.mean([np.mean(values) for values in by_label.values()]))
+    accuracy = float(np.mean([pred[i] == rows[i].target for i in gold]))
+    not_pii_rate = (float(np.mean([pred[i] == not_pii_index for i in gold]))
+                    if not_pii_index is not None else None)
+    not_pii_accuracy = (float(np.mean([pred[i] == rows[i].target for i in negative])) if negative else None)
+    return {"questions": total, "gold_questions": len(gold), "negative_questions": len(negative),
+            "macro_accuracy": macro, "accuracy": accuracy, "not_pii_rate": not_pii_rate,
+            "not_pii_accuracy": not_pii_accuracy,
+            "per_label_accuracy": {name: float(np.mean(values)) for name, values in by_label.items()},
+            "prediction_distribution": distribution, "labels": sorted(by_label)}
 
 
 def _inference_probabilities(model, window, device: torch.device, *, bf16: bool):
@@ -641,6 +710,48 @@ def _score_trained_run(ctx, rows, *, model_id: str, run_dir: Path, layout: str =
                                run_dir=run_dir, layout=layout)["rows"]
 
 
+# Bumped whenever the prompted probe's prompt/scoring semantics change, so the eval cache
+# rejects probabilities produced by the old (option-less, raw-label-likelihood) baseline. v2
+# shows every option with its description under a unique numeric answer code, instructs exactly
+# one code with /no_think, scores only the answer-code distribution, and uses the same
+# 512-token span-centered window as the Stage 0 probe and the trained packer.
+_PROMPTED_SEMANTICS_VERSION = 2
+
+
+def _prompted_answer_codes(count: int) -> list[str]:
+    """Unique, tokeniser-robust answer codes. A-Z cannot address 56 options; numeric codes can,
+    and ``prompted_option_distributions`` scores multi-token codes (e.g. ``"10"``) correctly."""
+    if count < 2:
+        raise ValueError("at least two options are required")
+    return [str(i + 1) for i in range(count)]
+
+
+def _prompted_choice_prompt(tokenizer, state: str, surface: str, options, codes) -> str:
+    """Mirror the valid Stage 0 probe: list every option with its description under its answer
+    code, instruct exactly one code, and disable thinking."""
+    lines = []
+    for code, option in zip(codes, options):
+        name = option.name.replace("_", " ")
+        lines.append(f"{code}. {name}: {option.description}" if option.description else f"{code}. {name}")
+    text = ("Classify the marked span using exactly one option number. /no_think\n\n"
+            f"Document:\n{state}\n\nSpan: {surface}\n\nOptions:\n" + "\n".join(lines)
+            + "\n\nAnswer with the single option number.")
+    if hasattr(tokenizer, "apply_chat_template"):
+        return tokenizer.apply_chat_template([{"role": "user", "content": text}], tokenize=False,
+                                             add_generation_prompt=True, enable_thinking=False)
+    return text + "\nAnswer:"
+
+
+def _prompted_span_window(tokenizer, row, state_tokens: int) -> tuple[str, str]:
+    """The same 512-token span-centered document window the Stage 0 probe uses, so the prompted
+    baseline never scores against an unbounded full document."""
+    from .stage0 import span_window
+    start, end = row.source_span
+    window = span_window(tokenizer, {"doc_id": row.doc_id, "state": row.state,
+                                     "start": start, "end": end}, state_tokens)
+    return window["state"], window["state"][window["start"]:window["end"]]
+
+
 def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
     if ctx["dry"]:
         return {split: [[1 / len(row.question.options)] * len(row.question.options) for row in rows]
@@ -648,7 +759,10 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from .infer import prompted_option_distributions
     revision = ctx["config"]["models"][model_id]["revision"]
-    identity = {"kind": "prompted", "model": model_id, "revision": revision}
+    state_tokens = ctx["config"]["state_tokens"]
+    identity = {"kind": "prompted", "model": model_id, "revision": revision,
+                "prompt_semantics": _PROMPTED_SEMANTICS_VERSION, "state_tokens": state_tokens,
+                "scoring": "answer_code_distribution"}
     key = f"prompted-{model_id.rsplit('-', 1)[-1]}"
     fingerprints = {split: _eval_fingerprint(rows, identity) for split, rows in row_sets.items()}
     output, missing = {}, {}
@@ -661,6 +775,8 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
     if not missing:
         return output
     tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
+    if getattr(tokenizer, "pad_token_id", None) is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
     model = AutoModelForCausalLM.from_pretrained(model_id, revision=revision, dtype=torch.bfloat16).cuda().eval()
     (ctx["root"] / "PHASE").write_text("GPU")
     meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, "stage1")
@@ -675,19 +791,17 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
             for first in range(completed, len(rows), prompt_batch_size):
                 _check_eval_stop(ctx)
                 chunk = rows[first:first + prompt_batch_size]
-                options = [option.name for option in chunk[0].question.options]
-                if any([option.name for option in row.question.options] != options for row in chunk):
+                options = chunk[0].question.options
+                names = tuple(option.name for option in options)
+                if any(tuple(o.name for o in row.question.options) != names for row in chunk):
                     raise ValueError("prompt batches require one shared option set")
+                codes = _prompted_answer_codes(len(options))
                 prompts = []
                 for row in chunk:
-                    prompt = ("Classify the marked span. /no_think\nDocument:\n" + row.state +
-                              f"\nSpan: {row.state[row.source_span[0]:row.source_span[1]]}\nAnswer:")
-                    if hasattr(tokenizer, "apply_chat_template"):
-                        prompt = tokenizer.apply_chat_template(
-                            [{"role": "user", "content": prompt}], tokenize=False,
-                            add_generation_prompt=True, enable_thinking=False)
-                    prompts.append(prompt)
-                batch = prompted_option_distributions(model, tokenizer, prompts, options,
+                    state, surface = _prompted_span_window(tokenizer, row, state_tokens)
+                    prompts.append(_prompted_choice_prompt(tokenizer, state, surface, options, codes))
+                # Score only the answer-code distribution, never the raw option-name likelihood.
+                batch = prompted_option_distributions(model, tokenizer, prompts, codes,
                                                        device="cuda", max_expanded_batch=16).tolist()
                 probabilities[first:first + len(chunk)] = batch
                 done = first + len(chunk)
@@ -737,37 +851,40 @@ def _unit_layout_ablation(ctx, _out):
         differences.setdefault(row.doc_id, []).append(kev - shared)
     from .infer import document_bootstrap
     interval = document_bootstrap(differences, seed=17, samples=100 if ctx["dry"] else 2000, side="lower")
-    return {"implementation_version": 5, "windows_per_run": 4000, "sampled_spans_per_window": 16,
+    return {"implementation_version": 6, "windows_per_run": 4000, "sampled_spans_per_window": 16,
             "metrics": metrics, "difference": interval,
             "stage2_layout": "kev" if interval["one_sided_lower_95"] > 0.02 else "shared"}
 
 
 def _unit_dev_eval(ctx, _out):
     _, rows = _dev_questions(ctx, descriptions=True)
-    seen_rows = _seen_questions(ctx, descriptions=True)
+    # Held-out in-domain Gretel spans: temperatures are fitted here (never on Nemotron, which the
+    # no-nemotron models never saw) and the sanity check below reports in-domain accuracy on them.
+    calib_rows = _seen_questions(ctx, descriptions=True)
     models_root = ctx["root"] / "models" / "stage1"
-    trained, prompted = {}, {}
+    trained, prompted, sanity = {}, {}, {}
     from .infer import fit_temperatures
+
+    def _temperature(probabilities):
+        return fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for p in probabilities],
+                                [row.target for row in calib_rows],
+                                ["choice"] * len(calib_rows))["choice"]
+
     for model_id in ctx["config"]["models"]:
         size = model_id.rsplit("-", 1)[-1]
-        prompted_scores = _score_prompted_sets(ctx, {"seen": seen_rows, "dev": rows}, model_id)
-        prompted_seen = prompted_scores["seen"]
-        prompted_temp = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for p in prompted_seen],
-                                         [row.target for row in seen_rows], ["choice"] * len(seen_rows))["choice"]
-        prompted[size] = _probability_metrics(rows, prompted_scores["dev"],
-                                               temperature=prompted_temp)
+        prompted_scores = _score_prompted_sets(ctx, {"calib": calib_rows, "dev": rows}, model_id)
+        prompted_temp = _temperature(prompted_scores["calib"])
+        prompted[size] = _probability_metrics(rows, prompted_scores["dev"], temperature=prompted_temp)
         prompted[size]["temperature"] = prompted_temp
         for seed in (1, 2):
             key = f"{size}-s{seed}"
             run_dir = models_root / key
-            scores = _score_trained_sets(ctx, {"seen": seen_rows, "dev": rows}, model_id=model_id,
+            scores = _score_trained_sets(ctx, {"calib": calib_rows, "dev": rows}, model_id=model_id,
                                          run_dir=run_dir)
-            seen_probabilities = scores["seen"]
-            temperature = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for p in seen_probabilities],
-                                           [row.target for row in seen_rows],
-                                           ["choice"] * len(seen_rows))["choice"]
+            temperature = _temperature(scores["calib"])
             trained[key] = _probability_metrics(rows, scores["dev"], temperature=temperature)
             trained[key]["temperature"] = temperature
+            sanity[key] = _sanity_metrics(calib_rows, scores["calib"], temperature=temperature)
     latency = json.loads((ctx["root"] / "stores" / "stage0-latency.json").read_text()) if not ctx["dry"] else {
         "proposer_included": True,
         "models": {name: {"p95_ms_per_window": 1.0} for name in ctx["config"]["models"]}}
@@ -805,9 +922,15 @@ def _unit_dev_eval(ctx, _out):
     chosen = eligible[0] if eligible else order[-1]
     trained_accuracy = pooled[chosen]["macro_accuracy"]
     prompted_accuracy = prompted[chosen]["macro_accuracy"]
-    return {"implementation_version": 5, "split": "nemotron-calib", "questions": len(rows),
+    calibration = {"source": "gretel", "split": "dev_slice", "held_out_from_training": True,
+                   "questions": len(calib_rows),
+                   "gold_questions": sum(not row.hard_negative for row in calib_rows),
+                   "labels": sorted({row.question.options[row.target].name
+                                     for row in calib_rows if not row.hard_negative})}
+    return {"implementation_version": 7, "split": "nemotron-calib", "questions": len(rows),
             "not_pii_questions": sum(row.hard_negative for row in rows),
             "trained": trained, "prompted": prompted, "pooled": pooled, "rule_outcomes": outcomes,
+            "calibration": calibration, "in_domain_sanity": sanity,
             "chosen_size": chosen, "trained_accuracy": trained_accuracy,
             "prompted_accuracy": prompted_accuracy, "stop_rule": trained_accuracy < prompted_accuracy}
 
@@ -953,8 +1076,10 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
             except (OSError, ValueError):
                 return False
         if stage == "stage1":
+            # The data-template repair invalidates both training units and the resulting eval.
+            required = {"train_sizes": 6, "layout_ablation": 6, "dev_eval": 7}.get(unit, 6)
             try:
-                return json.loads(result_path.read_text()).get("implementation_version") == 5
+                return json.loads(result_path.read_text()).get("implementation_version") == required
             except (OSError, ValueError):
                 return False
         # Stage 2 still has no production implementation. Dry runs may resume its stubs.

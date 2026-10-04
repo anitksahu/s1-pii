@@ -7,6 +7,7 @@ import json
 import os
 import random
 import time
+from collections import OrderedDict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, Sequence
@@ -39,6 +40,33 @@ def token_batches(rows: Sequence, token_budget: int, length=lambda x: len(x.inpu
         batch.append(rows[i]); used += n
     if batch:
         yield batch
+
+
+def length_bucket_batches(rows: Sequence, token_budget: int, length=lambda x: len(x.input_ids), *,
+                          seed: int = 0, shuffle: bool = True) -> Iterator[list]:
+    """Deterministic real batches with one padded length and bounded aggregate tokens.
+
+    Rows are materialized once in shuffled order. Keeping a small pending batch per length avoids
+    rebuilding lazy packed windows and avoids padding short windows to the longest random row.
+    """
+    order = list(range(len(rows)))
+    if shuffle:
+        random.Random(seed).shuffle(order)
+    pending: OrderedDict[int, tuple[list, int]] = OrderedDict()
+    for i in order:
+        row = rows[i]
+        n = int(length(row))
+        if n > token_budget:
+            raise ValueError(f"one example ({n} tokens) exceeds token budget {token_budget}")
+        batch, used = pending.get(n, ([], 0))
+        if batch and used + n > token_budget:
+            yield batch
+            batch, used = [], 0
+        batch.append(row)
+        pending[n] = (batch, used + n)
+    for batch, _used in pending.values():
+        if batch:
+            yield batch
 
 
 @dataclass
@@ -115,7 +143,8 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
     meter = GPUHours(gpu_hours_path, config.cap_hours, config.stage); meter.reserve(config.estimated_hours)
     model.enable_training_memory_features()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); model.to(device).train()
-    optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad), lr=config.learning_rate)
+    optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),
+                                  lr=config.learning_rate, fused=device.type == "cuda")
     start_step = 0
     checkpoint = out / "checkpoint.pt"
     if checkpoint.exists():
@@ -125,8 +154,9 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
     meta = manifest(config, hashes or {}, model)
     last_accounted = time.monotonic(); step = 0
     for epoch in range(config.epochs):
-        for batch in token_batches(packed_rows, config.token_budget,
-                                   length=lambda x: len(x[0].input_ids), seed=config.seed + epoch):
+        for batch in length_bucket_batches(packed_rows, config.token_budget,
+                                           length=lambda x: len(x[0].input_ids),
+                                           seed=config.seed + epoch):
             if config.control_path and Path(config.control_path).exists() \
                     and Path(config.control_path).read_text().strip().upper() == "STOP":
                 raise InterruptedError("STOP requested")
@@ -134,12 +164,19 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
             step += 1
             if step <= start_step: continue
             optimizer.zero_grad(set_to_none=True)
-            losses = []
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
                                 enabled=config.bf16 and device.type == "cuda"):
-                for packed, target in batch:
-                    target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
-                    losses.append(model(packed, labels=target).loss)
+                windows = [packed for packed, _target in batch]
+                targets = [target for _packed, target in batch]
+                can_batch = (hasattr(model, "forward_many")
+                             and all(window.dense_mask.numel() for window in windows))
+                if can_batch:
+                    losses = [output.loss for output in model.forward_many(windows, targets=targets)]
+                else:
+                    losses = []
+                    for packed, target in batch:
+                        target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
+                        losses.append(model(packed, labels=target).loss)
                 loss = torch.stack(losses).mean()
             loss.backward(); optimizer.step()
             now = time.monotonic()

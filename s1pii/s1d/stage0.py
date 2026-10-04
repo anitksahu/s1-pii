@@ -92,7 +92,8 @@ def span_window(tokenizer, row: dict, max_tokens: int) -> dict:
 
 def _description(name: str, config: dict | None = None) -> str:
     cfg = config or load()
-    return ("the span is not personal information" if name == NOT_PII
+    from .data import NOT_PII_DESCRIPTION
+    return (NOT_PII_DESCRIPTION if name == NOT_PII
             else cfg["frozen"][name]["description"])
 
 

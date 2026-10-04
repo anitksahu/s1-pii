@@ -214,6 +214,30 @@ def test_forward_many_matches_individual_windows(tiny):
     assert all(torch.allclose(a, b, atol=1e-5, rtol=0) for a, b in zip(individual, batched))
 
 
+def test_forward_many_training_loss_matches_individual_and_backpropagates(tiny):
+    tok = StubTokenizer(); opts = ("person", "phone", "not personal information")
+    windows = [pack_window(tok, state, opts, (branch,), make_block_mask=False)
+               for state, branch in (("Ada called 555", "Ada"), ("Jo called 444", "444"))]
+    targets = [0, 1]
+    with torch.no_grad():
+        expected = torch.stack([tiny(window, labels=torch.tensor([target])).loss
+                                for window, target in zip(windows, targets)]).mean()
+    tiny.zero_grad(set_to_none=True)
+    outputs = tiny.forward_many(windows, targets=targets)
+    actual = torch.stack([output.loss for output in outputs]).mean()
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=0)
+    actual.backward()
+    assert tiny.pointer_bias.grad is not None
+
+
+def test_length_bucket_batches_are_real_equal_length_batches():
+    from s1pii.s1d.train import length_bucket_batches
+    batches = list(length_bucket_batches([4, 2, 4, 2, 4, 2], 8, length=lambda value: value,
+                                         shuffle=False))
+    assert sorted(value for batch in batches for value in batch) == [2, 2, 2, 4, 4, 4]
+    assert all(len(set(batch)) == 1 and sum(batch) <= 8 for batch in batches)
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="batched FlexAttention requires CUDA")
 def test_forward_many_flex_cuda_matches_individual_windows():
     from s1pii.s1d.packer import flex_block_mask
@@ -312,6 +336,36 @@ def test_training_question_windowing_uses_descriptions_and_left_context(tmp_path
     choice = [r for r in rows if r.question.type.value == "choice"]
     packed_rows = pack_training_questions(choice, StubTokenizer(), make_block_mask=False)
     assert packed_rows and packed_rows[0][0].true_length < len(packed_rows[0][0].input_ids)
+
+
+def test_choice_option_templates_cannot_reveal_hard_negative(tmp_path):
+    from s1pii.s1d.data import NOT_PII_DESCRIPTION, evaluation_options, span_evaluation_questions
+    text = "ada@example.test " + " ".join(f"word{i}" for i in range(30))
+    gold = Span("d", 0, 16, OTHER_PII, "email", surface="ada@example.test")
+    candidates = [Span("d", start, start + len(word), OTHER_PII, "candidate", surface=word)
+                  for word in (f"word{i}" for i in range(20))
+                  for start in [text.index(word)]]
+    doc = Doc("d", text, (gold,), "gretel", "train", "d")
+    rows = generate_questions([doc], seed=11, min_options=2, max_options=16,
+                              hard_negative_hook=lambda _doc: candidates,
+                              ledger_path=tmp_path / "ledger.jsonl")
+    choices = [row for row in rows if row.source_span is not None]
+    positives = [row for row in choices if not row.hard_negative]
+    negatives = [row for row in choices if row.hard_negative]
+    assert positives and negatives
+    for row in choices:
+        not_pii = [option for option in row.question.options if option.name == HL.NOT_PII]
+        assert len(not_pii) == 1 and not_pii[0].description == NOT_PII_DESCRIPTION
+        assert row.question.criteria == "Use its meaning and context."
+    # The old shortcut had one fixed eight-option set for every hard negative.
+    signatures = {tuple((option.name, option.description) for option in row.question.options)
+                  for row in negatives}
+    assert len(signatures) > 1 and len({len(row.question.options) for row in negatives}) > 1
+    evaluated = span_evaluation_questions([doc], {"d": candidates[:1]}, labels=["email"],
+                                          require_equal_negatives=False)
+    assert {option.description for row in evaluated for option in row.question.options
+            if option.name == HL.NOT_PII} == {NOT_PII_DESCRIPTION}
+    assert all("_" not in option.name for option in evaluation_options())
 
 
 def test_proposer_nt1_trains_one_step():
@@ -1081,6 +1135,15 @@ def test_train_run_resumes_matching_incomplete_run(tmp_path):
     assert list(tmp_path.glob("*.stale-*")) == []
 
 
+def test_stage1_old_data_and_eval_units_are_invalidated(tmp_path):
+    from s1pii.s1d.run import _cache_is_current
+    stores = tmp_path / "stores"; stores.mkdir()
+    for unit, old_version in (("train_sizes", 5), ("layout_ablation", 5), ("dev_eval", 6)):
+        (stores / f"stage1-{unit}.done").write_text("old")
+        (stores / f"stage1-{unit}.json").write_text(json.dumps({"implementation_version": old_version}))
+        assert not _cache_is_current(tmp_path, stores, "stage1", unit, dry=False)
+
+
 def test_stage1_dry_chain_writes_all_units(tmp_path):
     root = tmp_path / "s1d_dry"; root.mkdir()
     (root / "APPROVED_stage1").write_text("approved")
@@ -1092,7 +1155,10 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
     assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
     outputs = {name: json.loads((root / "stores" / f"stage1-{name}.json").read_text())
                for name in ("train_sizes", "layout_ablation", "dev_eval")}
-    assert all(value["implementation_version"] == 5 for value in outputs.values())
+    assert outputs["train_sizes"]["implementation_version"] == 6
+    assert outputs["layout_ablation"]["implementation_version"] == 6
+    assert outputs["dev_eval"]["implementation_version"] == 7
+    assert outputs["train_sizes"]["training_semantics"] >= 2
     assert len(outputs["train_sizes"]["runs"]) == 6
     for seed in (1, 2):
         hashes = {outputs["train_sizes"]["runs"][f"{size}-s{seed}"]["hashes"]["questions"]
@@ -1102,6 +1168,12 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
     assert dev["split"] == "nemotron-calib" and dev["not_pii_questions"] > 0
     assert all(len(row) == 56 for result in dev["prompted"].values()
                for row in result["probabilities"])
+    # The calibration set is the held-out in-domain Gretel slice, never Nemotron; a sanity
+    # result is reported for every trained model/seed and never conflated with the dev result.
+    assert dev["calibration"]["source"] == "gretel" and dev["calibration"]["held_out_from_training"]
+    assert set(dev["in_domain_sanity"]) == set(dev["trained"])
+    for result in dev["in_domain_sanity"].values():
+        assert result["gold_questions"] >= 0 and "not_pii_rate" in result
     assert outputs["layout_ablation"]["stage2_layout"] in {"shared", "kev"}
 
 
@@ -1187,3 +1259,197 @@ def test_decision20_groups_follow_dev_eval_windows():
     for state, indices in groups:
         assert 0 < len(indices) <= 64
         assert all(state in rows[i].state for i in indices)
+
+
+# --------------------------------------------------------------------------- repaired prompted baseline
+
+class _ChatTokenizer(StubTokenizer):
+    def apply_chat_template(self, messages, **kwargs):
+        assert kwargs["add_generation_prompt"] and not kwargs["enable_thinking"]
+        return messages[0]["content"] + "\n<assistant>"
+
+
+def test_prompted_prompt_lists_every_option_with_codes_and_no_think():
+    from s1pii.s1d.data import evaluation_options
+    from s1pii.s1d.run import _prompted_answer_codes, _prompted_choice_prompt
+    options = evaluation_options(descriptions=True)
+    codes = _prompted_answer_codes(len(options))
+    assert len(codes) == len(options) == 56 and len(set(codes)) == 56
+    prompt = _prompted_choice_prompt(_ChatTokenizer(), "a document window", "ada@example.test", options, codes)
+    assert "/no_think" in prompt and prompt.endswith("<assistant>")
+    assert "exactly one option number" in prompt and "Span: ada@example.test" in prompt
+    # Every option is shown under its answer code with its description (not a bare label name).
+    for code, option in zip(codes, options):
+        assert f"{code}. {option.name.replace('_', ' ')}: {option.description}" in prompt
+
+
+def test_prompted_scores_rank_answer_codes_not_label_names():
+    from s1pii.s1d.infer import prompted_option_distribution
+    from s1pii.s1d.run import _prompted_answer_codes
+    codes = _prompted_answer_codes(5)
+
+    class CodeTokenizer:
+        pad_token_id = 0
+        def __call__(self, text, **kwargs):
+            ids = [1, 2] if text == "prompt" else [2 + int(text)]   # code "k" -> distinct token 2+k
+            return {"input_ids": torch.tensor([ids])}
+
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(()))
+        def forward(self, input_ids, **kwargs):
+            logits = torch.arange(64, dtype=torch.float32).repeat(1, input_ids.shape[1], 1)
+            return type("Output", (), {"logits": logits, "past_key_values": ((torch.zeros(1),),)})
+
+    probabilities = prompted_option_distribution(Model(), CodeTokenizer(), "prompt", codes)
+    assert probabilities.shape == (5,) and probabilities.sum().item() == pytest.approx(1.0)
+    # Higher answer-code token -> higher score, so the distribution is strictly ordered by code.
+    values = probabilities.tolist()
+    assert values == sorted(values) and int(probabilities.argmax()) == 4
+
+
+def test_prompted_window_is_bounded_around_span():
+    from types import SimpleNamespace
+    from s1pii.s1d.run import _prompted_span_window
+    state = "x" * 800 + "ada@example.test" + "y" * 800
+    row = SimpleNamespace(doc_id="long", state=state, source_span=(800, 816))
+    window, surface = _prompted_span_window(StubTokenizer(), row, 512)
+    assert surface == "ada@example.test" and "ada@example.test" in window
+    assert len(StubTokenizer()(window)["input_ids"]) <= 512     # bounded, not the full document
+    assert len(window) < len(state)
+
+
+# --------------------------------------------------------------------------- held-out in-domain calibration
+
+def test_seen_labels_are_trained_vocab_minus_heldout_and_are_expressible():
+    from s1pii.s1d.run import _seen_labels
+    from s1pii.v2.labels import c3_label_set
+    cfg = HL.load()
+    seen = _seen_labels(cfg)
+    option_names = {label.name for label in c3_label_set(False).labels}
+    held = set(cfg["dev_labels"]) | set(cfg["test_labels"])
+    assert seen and set(seen).isdisjoint(held)                  # no held-out dev/test leakage
+    assert set(seen) <= option_names                            # every target is expressible
+    assert set(seen) <= set(HL.training_vocabulary(cfg))        # trained vocabulary only
+
+
+def test_gretel_calibration_slice_is_disjoint_from_training_slice(monkeypatch):
+    from s1pii import bench
+    from s1pii.data import loaders as L
+    from s1pii.s1d import run as R
+    docs = [Doc(f"g{i}", "plain", (), "gretel", "train", f"g{i}") for i in range(200)]
+    monkeypatch.setattr(L, "load", lambda name, split=None, **k: docs)
+    held = {d.doc_id for d in R._gretel_heldout_docs({"dry": False})}
+    train = {d.doc_id for d in bench.dev_slice(docs)[1]}
+    assert held and train and held.isdisjoint(train)            # [0] calibration, [1] training
+    assert held == {d.doc_id for d in bench.dev_slice(docs)[0]}
+    assert held | train == {d.doc_id for d in docs}
+
+
+def test_seen_questions_never_target_heldout_and_skip_ignore_spans(monkeypatch):
+    from s1pii.s1d import run as R
+    cfg = HL.load()
+    held = cfg["test_labels"][0]
+    seen_label = R._seen_labels(cfg)[0]
+    # Build an in-domain doc that falls in the Gretel dev slice with a held-out span, an
+    # IGNORE span, and a genuine trained-vocab PII span.
+    did = next(f"g{i}" for i in range(10_000) if bench_in_dev_slice(f"g{i}"))
+    text = "alpha bravo charlie"
+    spans = (Span(did, 0, 5, OTHER_PII, held, surface="alpha"),
+             Span(did, 6, 11, "IGNORE", "city", surface="bravo"),
+             Span(did, 12, 19, OTHER_PII, seen_label, surface="charlie"))
+    doc = Doc(did, text, spans, "gretel", "train", did)
+    monkeypatch.setattr(R, "_gretel_heldout_docs", lambda ctx: [doc])
+    rows = R._seen_questions({"dry": False}, descriptions=False)
+    targets = {r.question.options[r.target].name for r in rows if not r.hard_negative}
+    assert held not in targets                                  # held-out never a target
+    assert "city" not in targets                                # IGNORE span excluded by pii_only
+    assert seen_label.replace("_", " ") in targets
+
+
+def bench_in_dev_slice(doc_id):
+    from s1pii.bench import in_dev_slice
+    return in_dev_slice(doc_id)
+
+
+# --------------------------------------------------------------------------- sanity metrics
+
+def test_sanity_metrics_without_negatives_do_not_crash():
+    import math
+    from s1pii.s1d.data import span_evaluation_questions
+    from s1pii.s1d.run import _seen_labels, _sanity_metrics
+    cfg = HL.load(); label = _seen_labels(cfg)[0]
+    text = "alpha bravo"
+    gold = (Span("d", 0, 5, OTHER_PII, label, surface="alpha"),)
+    rows = span_evaluation_questions([Doc("d", text, gold, "gretel", "train", "d")], {},
+                                     labels=[label], require_equal_negatives=False, pii_only=True)
+    assert rows and all(not r.hard_negative for r in rows)      # gold-only, no proposer negatives
+    # a confident-but-wrong probability row must not NaN or crash
+    probabilities = [[1.0 if i == 0 else 0.0 for i in range(56)] for _ in rows]
+    metrics = _sanity_metrics(rows, probabilities)
+    assert metrics["negative_questions"] == 0 and metrics["not_pii_accuracy"] is None
+    assert math.isfinite(metrics["macro_accuracy"]) and math.isfinite(metrics["accuracy"])
+    assert math.isfinite(metrics["not_pii_rate"])
+    assert sum(metrics["prediction_distribution"].values()) == metrics["gold_questions"]
+
+
+# --------------------------------------------------------------------------- cache invalidation / versioning
+
+def test_prompted_cache_identity_rejects_stale_semantics():
+    from s1pii.s1d.run import (_PROMPTED_SEMANTICS_VERSION, _eval_fingerprint,
+                               _read_eval_cache, _write_eval_cache)
+    assert _PROMPTED_SEMANTICS_VERSION >= 2
+    from s1pii.s1d.data import span_evaluation_questions
+    label = HL.load()["dev_labels"][0]
+    rows = span_evaluation_questions([Doc("d", "secret here", (Span("d", 0, 6, OTHER_PII, label, surface="secret"),),
+                                          "nemotron", "calib", "d")], {}, labels=[label],
+                                     require_equal_negatives=False)
+    old = _eval_fingerprint(rows, {"kind": "prompted", "model": "m", "revision": "r"})
+    new = _eval_fingerprint(rows, {"kind": "prompted", "model": "m", "revision": "r",
+                                   "prompt_semantics": _PROMPTED_SEMANTICS_VERSION,
+                                   "state_tokens": 512, "scoring": "answer_code_distribution"})
+    assert old != new                                           # changed semantics -> changed identity
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "cache.json"
+        _write_eval_cache(path, old, [[1 / 56] * 56] * len(rows), len(rows), len(rows))
+        assert _read_eval_cache(path, old, len(rows)) is not None      # same fingerprint reused
+        assert _read_eval_cache(path, new, len(rows)) is None          # stale semantics rejected
+
+
+# --------------------------------------------------------------------------- grouped eval == training packing
+
+def test_grouped_evaluation_matches_training_packing(tiny):
+    from s1pii.s1d.data import pack_training_questions, span_evaluation_questions
+    from s1pii.s1d.packer import pack_window
+    from s1pii.s1d.run import _evaluation_window_specs
+    label = "email"; tok = StubTokenizer()
+    short = "ada@ex.test and bob@ex.test today"
+    short_spans = (Span("short", 0, 11, OTHER_PII, label, surface=short[0:11]),
+                   Span("short", 16, 27, OTHER_PII, label, surface=short[16:27]))
+    long_text = "x" * 600 + "carol@ex.test" + "y" * 160
+    long_spans = (Span("long", 600, 613, OTHER_PII, label, surface="carol@ex.test"),)
+    docs = [Doc("short", short, short_spans, "gretel", "calib", "short"),
+            Doc("long", long_text, long_spans, "gretel", "calib", "long")]
+    rows = span_evaluation_questions(docs, {}, labels=[label], require_equal_negatives=False)
+    assert len(rows) == 3
+    with torch.no_grad():
+        training = [tiny(packed).probabilities[0]
+                    for packed, _target in pack_training_questions(rows, tok, make_block_mask=False)]
+        specs = _evaluation_window_specs(rows, tok, layout="shared")
+        grouped = [None] * len(rows)
+        for state, options, branches, indices in specs:
+            packed = pack_window(tok, state, options, branches, state_tokens=512, layout="shared",
+                                 make_block_mask=False, keep_dense_mask=True)
+            probabilities = tiny.forward_many([packed])[0].probabilities
+            for row_index, branch_probabilities in zip(indices, probabilities):
+                grouped[row_index] = branch_probabilities
+    # The short doc groups two branches in one window; the long doc selects a later stride window.
+    assert len(specs) == 2
+    assert any(len(indices) == 2 for _s, _o, _b, indices in specs)
+    long_state = next(state for state, _o, _b, _i in specs if "carol@ex.test" in state)
+    assert tok(long_state)["input_ids"] and len(tok(long_state)["input_ids"]) <= 512
+    for trained_probs, grouped_probs in zip(training, grouped):
+        assert grouped_probs is not None
+        assert torch.allclose(trained_probs, grouped_probs, atol=1e-4, rtol=0)

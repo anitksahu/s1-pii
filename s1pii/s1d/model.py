@@ -92,10 +92,16 @@ class S1DModel(nn.Module):
         loss = nn.functional.cross_entropy(logits, labels.to(device)) if labels is not None else None
         return PointerOutput(logits, logits.softmax(-1), hidden if output_hidden_states else None, loss)
 
-    def forward_many(self, windows: list[PackedWindow]) -> list[PointerOutput]:
-        """Evaluate equal-length windows in one backbone call with an explicit batched mask."""
+    def forward_many(self, windows: list[PackedWindow], *, targets: list | None = None) -> list[PointerOutput]:
+        """Run equal-length windows in one backbone call with an explicit batched mask.
+
+        Supplying one target tensor per window retains the exact per-window loss semantics used
+        by ``forward`` while allowing training to use a real GPU batch.
+        """
         if not windows:
             return []
+        if targets is not None and len(targets) != len(windows):
+            raise ValueError("forward_many requires one target per window")
         lengths = {len(window.input_ids) for window in windows}
         if len(lengths) != 1:
             raise ValueError("forward_many requires one packed-length bucket")
@@ -126,14 +132,23 @@ class S1DModel(nn.Module):
         decision_rows = decisions.split(decision_counts)
         option_rows = options.split(option_counts)
         results = []
-        for window, decision, option in zip(windows, decision_rows, option_rows):
+        for index, (window, decision, option) in enumerate(zip(windows, decision_rows, option_rows)):
             if window.layout == "kev":
                 option = option.view(decision.shape[0], -1, self.hidden_size)
                 logits = torch.einsum("jd,jkd->jk", decision, option)
             else:
                 logits = decision @ option.T
             logits = logits / math.sqrt(self.hidden_size) + self.pointer_bias
-            results.append(PointerOutput(logits, logits.softmax(-1)))
+            loss = None
+            if targets is not None:
+                target = targets[index]
+                if torch.is_tensor(target):
+                    target = target.to(device)
+                else:
+                    target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target],
+                                             device=device)
+                loss = nn.functional.cross_entropy(logits, target)
+            results.append(PointerOutput(logits, logits.softmax(-1), loss=loss))
         return results
 
 

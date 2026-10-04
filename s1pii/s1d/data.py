@@ -14,6 +14,8 @@ from ..v2 import labels as v2
 from . import labels as heldout
 from .schema import Option, Question, QuestionType
 
+NOT_PII_DESCRIPTION = "the span is not PII"
+
 
 @dataclass(frozen=True)
 class TrainingQuestion:
@@ -37,6 +39,34 @@ def _option(raw: str, rng: random.Random) -> Option:
              if x.lower().replace("_", " ") not in forbidden]
     name = rng.choice(texts or [description])
     return Option(name, description)
+
+
+def not_pii_option(*, descriptions: bool = True) -> Option:
+    """The one canonical negative option used by training, calibration, and evaluation."""
+    return Option(heldout.NOT_PII, NOT_PII_DESCRIPTION if descriptions else "")
+
+
+def _choice_options(vocabulary: Sequence[str], rng: random.Random, *, min_options: int,
+                    max_options: int, target_raw: str | None) -> tuple[tuple[Option, ...], int]:
+    """Build indistinguishable positive/negative Choice option sets.
+
+    ``target_raw=None`` denotes a hard negative, making NOT_PII the target. Both cases use the
+    same option-count draw, option renderer, NOT_PII wording, and final shuffle.
+    """
+    n = rng.randint(min_options, min(max_options, len(vocabulary) + 1))
+    if target_raw is None:
+        distractors = list(vocabulary)
+        rng.shuffle(distractors)
+        raws = distractors[: n - 1]
+    else:
+        distractors = [raw for raw in vocabulary if not v2.compatible(raw, target_raw)]
+        rng.shuffle(distractors)
+        raws = [target_raw, *distractors[: max(0, n - 2)]]
+    tagged = [(_option(raw, rng), target_raw is not None and i == 0) for i, raw in enumerate(raws)]
+    tagged.append((not_pii_option(), target_raw is None))
+    rng.shuffle(tagged)
+    return (tuple(option for option, _target in tagged),
+            next(i for i, (_option_, target) in enumerate(tagged) if target))
 
 
 def _overlaps(span: Span, held: Sequence[Span]) -> bool:
@@ -70,27 +100,21 @@ def generate_questions(docs: Iterable[Doc], *, seed: int = 0, variant: str = "al
         positives = [s for s in doc.pii_spans() if _raw(s) in v2.NATIVE and _raw(s) not in evaluation_only
                      and s not in forbidden]
         for span in positives:
-            n = rng.randint(min_options, min(max_options, len(vocabulary) + 1))
-            distractors = [x for x in vocabulary if not v2.compatible(x, _raw(span))]
-            rng.shuffle(distractors)
-            raws = [_raw(span), *distractors[:max(0, n - 2)]]
-            opts = [_option(x, rng) for x in raws] + [Option(heldout.NOT_PII, "the span is not PII")]
-            target_name = opts[0].name
-            rng.shuffle(opts)
+            opts, target = _choice_options(vocabulary, rng, min_options=min_options,
+                                           max_options=max_options, target_raw=_raw(span))
             q = Question(QuestionType.CHOICE, "Classify the marked span.", "Use its meaning and context.",
-                         tuple(opts), id=f"{doc.doc_id}:{span.start}:{span.end}", span=(span.start, span.end))
-            output.append(TrainingQuestion(doc.doc_id, doc.text, q,
-                                           next(i for i, o in enumerate(opts) if o.name == target_name),
+                         opts, id=f"{doc.doc_id}:{span.start}:{span.end}", span=(span.start, span.end))
+            output.append(TrainingQuestion(doc.doc_id, doc.text, q, target,
                                            (span.start, span.end), False, forbidden_ranges))
         if hard_negative_hook:
             for span in hard_negative_hook(doc):
                 if _overlaps(span, doc.spans):
                     continue
-                distractors = vocabulary[:max(1, min(max_options - 1, 7))]
-                opts = [_option(x, rng) for x in distractors] + [Option(heldout.NOT_PII)]
-                q = Question("choice", "Classify the marked span.", options=tuple(opts),
+                opts, target = _choice_options(vocabulary, rng, min_options=min_options,
+                                               max_options=max_options, target_raw=None)
+                q = Question("choice", "Classify the marked span.", "Use its meaning and context.", opts,
                              id=f"{doc.doc_id}:hn:{span.start}:{span.end}", span=(span.start, span.end))
-                output.append(TrainingQuestion(doc.doc_id, doc.text, q, len(opts) - 1,
+                output.append(TrainingQuestion(doc.doc_id, doc.text, q, target,
                                                (span.start, span.end), True, forbidden_ranges))
         if forbidden:
             continue
@@ -185,22 +209,34 @@ def pack_training_questions(questions: Sequence[TrainingQuestion], tokenizer, *,
 def evaluation_options(*, descriptions: bool = True) -> tuple[Option, ...]:
     """Frozen 55-way C3 option set plus the required not-PII option."""
     names = [label.name for label in v2.c3_label_set(False).labels]
-    options = [Option(name, v2.NATIVE[name][1] if descriptions else "") for name in names]
-    options.append(Option(heldout.NOT_PII, "the span is not personal information" if descriptions else ""))
+    options = [Option(name.replace("_", " "), v2.NATIVE[name][1] if descriptions else "") for name in names]
+    options.append(not_pii_option(descriptions=descriptions))
     return tuple(options)
+
+
+def evaluation_option_index() -> dict[str, int]:
+    """Canonical raw label to its fixed evaluation-option position."""
+    names = [label.name for label in v2.c3_label_set(False).labels]
+    return {name: i for i, name in enumerate([*names, heldout.NOT_PII])}
 
 
 def span_evaluation_questions(docs: Sequence[Doc], candidates: dict[str, Sequence[Span]], *,
                               labels: Sequence[str], seed: int = 0,
                               descriptions: bool = True,
-                              require_equal_negatives: bool = True) -> list[TrainingQuestion]:
-    """Gold-label questions plus an equal count of candidate spans disjoint from all gold."""
+                              require_equal_negatives: bool = True,
+                              pii_only: bool = False) -> list[TrainingQuestion]:
+    """Gold-label questions plus an equal count of candidate spans disjoint from all gold.
+
+    ``pii_only`` restricts gold spans to genuine PII (``Doc.pii_spans``), excluding IGNORE
+    quasi-identifiers and NOT_PII; the in-domain calibration/sanity set uses it so temperature
+    is fitted only on labels the model was actually trained to point at."""
     wanted = {name.lower() for name in labels}
     options = evaluation_options(descriptions=descriptions)
-    option_index = {option.name: i for i, option in enumerate(options)}
+    option_index = evaluation_option_index()
     rows, negatives = [], []
     for doc in docs:
-        for span in doc.spans:
+        gold_spans = doc.pii_spans() if pii_only else doc.spans
+        for span in gold_spans:
             raw = _raw(span)
             if raw not in wanted:
                 continue
@@ -235,7 +271,7 @@ def pack_layout_ablation_questions(questions: Sequence[TrainingQuestion], tokeni
     from .packer import BranchText, pack_window
     options = evaluation_options(descriptions=False)
     option_names = [option.name for option in options]
-    option_index = {name: i for i, name in enumerate(option_names)}
+    option_index = evaluation_option_index()
     description_to_raw = {description: name for name, (_node, description, _p) in v2.NATIVE.items()}
     by_doc = {}
     for row in questions:
