@@ -16,9 +16,14 @@ import argparse
 import collections
 import dataclasses
 import json
+import os
 import random
 import time
 from pathlib import Path
+
+# Colab terminal processes do not inherit environment variables assigned by a
+# notebook Python process.  Cell 1 always syncs the data to this location.
+os.environ.setdefault("S1PII_DATA", "/content/s1pii_data")
 
 import torch
 import yaml
@@ -39,6 +44,11 @@ ap.add_argument("--gretel-docs", type=int, default=400)
 args = ap.parse_args()
 
 ROOT, SCR, N = args.root, args.scratch, args.n
+nemotron_calib = Path(os.environ["S1PII_DATA"]) / "splits" / "nemotron-calib.jsonl"
+if not nemotron_calib.exists():
+    raise FileNotFoundError(
+        f"Missing {nemotron_calib}. Run Cell 1 of notebooks/06_s1d.ipynb to sync S1PII_DATA, then rerun."
+    )
 SCR.mkdir(parents=True, exist_ok=True)
 link = SCR / "models" / "proposer-no-nemotron"
 if not link.exists():
