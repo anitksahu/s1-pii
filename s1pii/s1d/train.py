@@ -185,7 +185,8 @@ def _grad_norm(parameters) -> float:
 def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hours_path: Path,
           *, hashes: dict[str, str] | None = None,
           checkpoint_callback: Callable[[object, int, dict], None] | None = None,
-          callback_every: int | None = None) -> dict:
+          callback_every: int | None = None,
+          step_callback: Callable[[object, int, dict, Sequence], None] | None = None) -> dict:
     """Train/resume pointer CE. Each row is ``(PackedWindow, target_index)``."""
     data_seed, _init_seed, order_seed = config.seeds()
     seed_everything(order_seed)
@@ -230,13 +231,14 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
                                 enabled=config.bf16 and device.type == "cuda"):
                 can_batch = (hasattr(model, "forward_many")
-                             and all(packed.dense_mask.numel() for packed, _target in batch))
+                             and all(item[0].dense_mask.numel() for item in batch))
                 if can_batch:
                     # Preserve the original optimizer-batch membership and loss reduction. Only
                     # equal padded lengths share a backbone call; their losses are then averaged
                     # across the unchanged outer batch exactly as before.
                     groups = OrderedDict()
-                    for packed, target in batch:
+                    for item in batch:
+                        packed, target = item[:2]
                         groups.setdefault(len(packed.input_ids), []).append((packed, target))
                     losses = []
                     for group in groups.values():
@@ -245,7 +247,8 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
                         losses.extend(output.loss for output in outputs)
                 else:
                     losses = []
-                    for packed, target in batch:
+                    for item in batch:
+                        packed, target = item[:2]
                         target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
                         losses.append(model(packed, labels=target).loss)
                 loss = torch.stack(losses).mean()
@@ -265,6 +268,12 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
                      "learning_rates": learning_rates}
             if step == 1 or step % 25 == 0:
                 print(f"{config.unit}: step {step} loss {stats['loss']:.6f}", flush=True)
+            if step_callback is not None:
+                state = _rng_state()
+                try:
+                    step_callback(model, step, stats, batch)
+                finally:
+                    _set_rng_state(state); model.train()
             if step % config.checkpoint_every == 0:
                 save_checkpoint(model, optimizer, step, out, meta, scheduler)
             if checkpoint_callback is not None and callback_every and step % callback_every == 0:

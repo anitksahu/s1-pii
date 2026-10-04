@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Sequence
@@ -138,6 +139,40 @@ def question_set_hash(questions: Sequence[TrainingQuestion]) -> str:
         d["question"]["type"] = str(q.question.type.value)
         rows.append(d)
     return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
+
+
+def training_batch_composition(rows: Sequence[TrainingQuestion]) -> dict:
+    """Composition of one optimizer microbatch, using canonical Choice target labels."""
+    description_to_raw = {description: raw for raw, (_node, description, _paraphrases) in v2.NATIVE.items()}
+    kinds = Counter()
+    targets = Counter()
+    option_counts = []
+    for row in rows:
+        if row.question.type is QuestionType.NOUL:
+            kind = "noul"
+        elif row.question.type is QuestionType.SCORE:
+            kind = "score"
+        elif row.hard_negative:
+            kind = "hard_negative"
+        else:
+            kind = "positive"
+        kinds[kind] += 1
+        option_counts.append(len(row.question.options))
+        if row.question.type is QuestionType.CHOICE:
+            option = row.question.options[row.target]
+            target = (heldout.NOT_PII if option.name == heldout.NOT_PII
+                      else description_to_raw.get(option.description, option.name))
+            targets[target] += 1
+    choice_count = sum(targets.values())
+    dominant = targets.most_common(1)
+    return {"question_count": len(rows),
+            "counts": {name: kinds.get(name, 0)
+                       for name in ("positive", "hard_negative", "noul", "score")},
+            "choice_count": choice_count,
+            "not_pii_target_share": targets.get(heldout.NOT_PII, 0) / choice_count if choice_count else None,
+            "dominant_target_label": dominant[0][0] if dominant else None,
+            "dominant_target_share": dominant[0][1] / choice_count if dominant else None,
+            "mean_option_count": sum(option_counts) / len(option_counts) if option_counts else None}
 
 
 def assert_no_heldout_leakage(questions: Sequence[TrainingQuestion], config: dict | None = None) -> None:

@@ -41,6 +41,7 @@ stage1_pilot:
   # selection preserves the original batch trajectory and leaves max_steps as the only cap.
   max_steps: 330
   checkpoint_every: 50
+  probe_questions: 32
   warmup_fraction: 0.06
   gradient_clip: 1.0
   lora_learning_rate: 0.0002

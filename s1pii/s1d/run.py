@@ -32,7 +32,7 @@ UNITS = {
 }
 
 _TRAINING_SEMANTICS_VERSION = 2
-_PILOT_SEMANTICS_VERSION = 2
+_PILOT_SEMANTICS_VERSION = 3
 
 
 def _atomic_json(path: Path, value) -> None:
@@ -377,6 +377,7 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                       order_seed: int | None = None, optimizer_condition: str = "old",
                       initial_state_path: Path | None = None, max_steps: int | None = None,
                       callback=None, callback_every: int | None = None,
+                      step_callback=None,
                       extra_hashes: dict[str, str] | None = None) -> dict:
     from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
     from .train import TrainConfig, train
@@ -424,12 +425,17 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                                                 layout=layout, branches_per_window=branches_per_window,
                                                 device=device, make_block_mask=False)
     elif not dry:
-        packed = _LazyPackedRows(selected_count, lambda index: pack_training_questions(
-            [selected[index]], tokenizer, layout=layout, device=device, make_block_mask=False,
-            keep_dense_mask=True)[0])
+        def build_one(index):
+            item = pack_training_questions(
+                [selected[index]], tokenizer, layout=layout, device=device, make_block_mask=False,
+                keep_dense_mask=True)[0]
+            return (*item, selected[index]) if initial_state_path is not None else item
+        packed = _LazyPackedRows(selected_count, build_one)
     else:
         packed = pack_training_questions(selected, tokenizer, layout=layout, device=device,
                                          make_block_mask=not dry)
+        if initial_state_path is not None:
+            packed = [(*item, row) for item, row in zip(packed, selected)]
     pilot = ctx["config"].get("stage1_pilot", {})
     stage_name = "stage1_pilot" if initial_state_path is not None else "stage1"
     unit = f"{model_id}-s{seed}-{layout}"
@@ -453,7 +459,7 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     try:
         result = train(model, packed, config, run_dir, ctx["root"] / "gpu_hours.jsonl",
                        hashes=expected_hashes, checkpoint_callback=callback,
-                       callback_every=callback_every)
+                       callback_every=callback_every, step_callback=step_callback)
     finally:
         (ctx["root"] / "PHASE").write_text("CPU")
     del model
@@ -461,7 +467,8 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     return result | ({"initial_state_sha256": loaded_initial_hash} if loaded_initial_hash else {})
 
 
-def _training_questions(ctx, seed: int | None = None, *, data_seed: int | None = None):
+def _training_questions(ctx, seed: int | None = None, *, data_seed: int | None = None,
+                        require_candidate_cache: bool = False):
     from .data import generate_questions
     if data_seed is None:
         data_seed = 0 if seed is None else seed
@@ -472,7 +479,8 @@ def _training_questions(ctx, seed: int | None = None, *, data_seed: int | None =
         docs, _ = training_docs(V1Config(variant="no-nemotron", seed=data_seed))
         counts = dict(__import__("collections").Counter(doc.dataset for doc in docs))
         print(f"stage1 training documents: {len(docs)} source_counts={counts}", flush=True)
-        candidates = _proposer_candidates(ctx["root"], docs, False, cache_name="training")
+        candidates = _proposer_candidates(ctx["root"], docs, False, cache_name="training",
+                                          require_cache=require_candidate_cache)
     return generate_questions(docs, seed=data_seed, variant="no-nemotron", min_options=2, max_options=64,
                               hard_negative_hook=lambda doc: candidates.get(doc.doc_id, ()),
                               ledger_path=ctx["root"] / "ledger.jsonl")
@@ -619,6 +627,54 @@ def _prepare_pilot_eval_tokenizer(tokenizer):
     return tokenizer
 
 
+def _pilot_probe_rows(rows, count: int = 32):
+    """Deterministic balanced probe, preferring document-dense rows to minimize windows."""
+    def take(candidates, n):
+        by_doc = defaultdict(list)
+        for row in candidates:
+            by_doc[row.doc_id].append(row)
+        output = []
+        for _doc_id, doc_rows in sorted(by_doc.items(), key=lambda item: (-len(item[1]), item[0])):
+            output.extend(doc_rows[:max(0, n - len(output))])
+            if len(output) >= n:
+                break
+        return output
+    if count < 2 or count % 2:
+        raise ValueError("pilot probe size must be a positive even number")
+    half = count // 2
+    gold = take([row for row in rows if not row.hard_negative], half)
+    negative = take([row for row in rows if row.hard_negative], half)
+    if len(gold) != half or len(negative) != half:
+        raise ValueError(f"pilot probe needs {half} gold and {half} not-PII rows; "
+                         f"found {len(gold)} and {len(negative)}")
+    return gold + negative
+
+
+def _pilot_probe_metrics(rows, probabilities) -> dict:
+    if len(rows) != len(probabilities) or not rows:
+        raise ValueError("pilot probe rows and probabilities must have the same nonzero length")
+    picks = []
+    not_pii_picks = 0
+    not_pii_probabilities = []
+    for row, values in zip(rows, probabilities):
+        p = torch.as_tensor(values, dtype=torch.float32)
+        if p.numel() != len(row.question.options):
+            raise ValueError("pilot probe probability width does not match its question")
+        pred = int(p.argmax())
+        not_pii = next(i for i, option in enumerate(row.question.options)
+                       if option.name == labels.NOT_PII)
+        picks.append(row.question.options[pred].name)
+        not_pii_picks += pred == not_pii
+        not_pii_probabilities.append(float(p[not_pii]))
+    counts = __import__("collections").Counter(picks)
+    dominant, dominant_count = counts.most_common(1)[0]
+    return {"questions": len(rows),
+            "not_pii_pick_rate": not_pii_picks / len(rows),
+            "dominant_option": dominant,
+            "dominant_option_share": dominant_count / len(rows),
+            "mean_not_pii_probability": sum(not_pii_probabilities) / len(rows)}
+
+
 def _unit_stage1_pilot(ctx, out):
     """Paired old/stable optimizer pilot with frozen data, initialization, and dropout RNG."""
     from .train import _trainable_state
@@ -632,14 +688,20 @@ def _unit_stage1_pilot(ctx, out):
     model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
     questions = _training_questions(ctx, data_seed=data_seed)
     sanity_rows = _seen_questions(ctx, descriptions=True)
+    probe_count = 4 if ctx["dry"] else int(spec.get("probe_questions", 32))
+    probe_rows = _pilot_probe_rows(sanity_rows, probe_count)
+    from .data import question_set_hash, training_batch_composition
+    probe_hash = question_set_hash(probe_rows)
     output = {"implementation_version": 1, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
               "data_seed": data_seed, "order_seed": order_seed,
               "max_steps": max_steps, "checkpoint_every": every,
+              "probe": {"questions": len(probe_rows), "question_set_sha256": probe_hash,
+                        "timing": "immediately after each optimizer update"},
               "collapse_thresholds": spec["collapse"], "sizes": sizes, "runs": {}}
     try:
         previous = json.loads(out.read_text())
         identity = ("implementation_version", "pilot_semantics", "data_seed", "order_seed", "max_steps",
-                    "checkpoint_every", "collapse_thresholds", "sizes")
+                    "checkpoint_every", "probe", "collapse_thresholds", "sizes")
         if all(previous.get(key) == output.get(key) for key in identity):
             output = previous
     except (OSError, ValueError):
@@ -681,6 +743,51 @@ def _unit_stage1_pilot(ctx, out):
             for condition in ("old", "stable"):
                 condition_output = pair_output["conditions"].setdefault(condition, {"checkpoints": []})
                 checkpoints = condition_output["checkpoints"]
+                optimizer_spec = {
+                    "condition": condition, "max_steps": max_steps, "checkpoint_every": every,
+                    "warmup_fraction": spec["warmup_fraction"], "gradient_clip": spec["gradient_clip"],
+                    "lora_learning_rate": spec["lora_learning_rate"],
+                    "pointer_learning_rate": spec["pointer_learning_rate"],
+                    "token_learning_rate": spec["token_learning_rate"],
+                }
+                optimizer_sha = hashlib.sha256(json.dumps(
+                    optimizer_spec, sort_keys=True).encode()).hexdigest()
+                step_identity = {"pilot_semantics": _PILOT_SEMANTICS_VERSION, "pair": pair,
+                                 "condition": condition, "initial_state": initial["sha256"],
+                                 "probe": probe_hash, "optimizer": optimizer_sha,
+                                 "data_seed": data_seed, "order_seed": order_seed,
+                                 "windows": int(spec["windows"])}
+                step_fingerprint = hashlib.sha256(json.dumps(
+                    step_identity, sort_keys=True).encode()).hexdigest()
+                step_log = (ctx["root"] / "stores" / "stage1-pilot-step-logs" /
+                            f"v{_PILOT_SEMANTICS_VERSION}-{pair}-{condition}-"
+                            f"{step_fingerprint[:12]}.jsonl")
+                step_log.parent.mkdir(parents=True, exist_ok=True)
+                logged_steps = set()
+                if step_log.exists():
+                    previous_steps = [json.loads(line) for line in step_log.read_text().splitlines()
+                                      if line.strip()]
+                    if any(row.get("run_fingerprint") != step_fingerprint for row in previous_steps):
+                        raise RuntimeError(f"pilot step-log identity mismatch at {step_log}")
+                    logged_steps = {row["step"] for row in previous_steps}
+                condition_output["step_log"] = str(step_log.relative_to(ctx["root"]))
+                probe_cache = {}
+
+                def log_step(model, step, stats, batch, *, pair=pair, condition=condition,
+                             logged_steps=logged_steps, probe_cache=probe_cache):
+                    if step in logged_steps:
+                        return
+                    model.eval()
+                    probabilities = _score_pilot_probe(model, eval_tokenizer, probe_rows, probe_cache)
+                    composition = training_batch_composition([item[2] for item in batch])
+                    row = {"version": 1, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
+                           "run_fingerprint": step_fingerprint,
+                           "pair": pair, "condition": condition, "step": step,
+                           **stats, "batch": composition,
+                           "probe": _pilot_probe_metrics(probe_rows, probabilities)}
+                    with step_log.open("a", encoding="utf-8") as handle:
+                        handle.write(json.dumps(row, sort_keys=True) + "\n"); handle.flush()
+                    logged_steps.add(step)
 
                 def evaluate(model, step, stats, *, pair=pair, condition=condition,
                              checkpoints=checkpoints, initial_sha=initial["sha256"]):
@@ -699,24 +806,17 @@ def _unit_stage1_pilot(ctx, out):
                     _atomic_json(out, output)
 
                 run_dir = pilot_root / pair / condition
-                optimizer_spec = {
-                    "condition": condition, "max_steps": max_steps, "checkpoint_every": every,
-                    "warmup_fraction": spec["warmup_fraction"], "gradient_clip": spec["gradient_clip"],
-                    "lora_learning_rate": spec["lora_learning_rate"],
-                    "pointer_learning_rate": spec["pointer_learning_rate"],
-                    "token_learning_rate": spec["token_learning_rate"],
-                }
                 result = _train_stage1_run(
                     ctx, questions, model_id=model_id, seed=data_seed, data_seed=data_seed,
                     init_seed=init_seed, order_seed=order_seed, layout="shared",
                     window_count=int(spec["windows"]), run_dir=run_dir,
                     optimizer_condition=condition, initial_state_path=init_path,
                     max_steps=max_steps, callback=evaluate, callback_every=every,
+                    step_callback=log_step,
                     extra_hashes={"pilot_condition": condition, "initial_state": initial["sha256"],
                                   "order_seed": str(order_seed),
                                   "pilot_semantics": str(_PILOT_SEMANTICS_VERSION),
-                                  "optimizer_spec": hashlib.sha256(json.dumps(
-                                      optimizer_spec, sort_keys=True).encode()).hexdigest()})
+                                  "optimizer_spec": optimizer_sha})
                 condition_output["training"] = result
                 if result["initial_state_sha256"] != initial["sha256"]:
                     raise RuntimeError("paired conditions did not load the registered initial state")
@@ -787,6 +887,38 @@ def _evaluation_window_specs(rows, tokenizer, *, layout: str):
             specs.append((state, options, tuple(branch for _index, branch in chunk),
                           tuple(index for index, _branch in chunk)))
     return specs
+
+
+def _score_pilot_probe(model, tokenizer, rows, cache: dict):
+    """Score the fixed per-step probe in memory, without disk I/O or RNG side effects."""
+    from .packer import pack_window
+    device = next(model.parameters()).device
+    if "packed" not in cache:
+        specs = _evaluation_window_specs(rows, tokenizer, layout="shared")
+        packed = [pack_window(tokenizer, state, options, branches, state_tokens=512,
+                              layout="shared", device=device, make_block_mask=False,
+                              keep_dense_mask=True)
+                  for state, options, branches, _indices in specs]
+        cache.update(specs=specs, packed=packed)
+    probabilities = [None] * len(rows)
+    by_length = OrderedDict()
+    for index, packed in enumerate(cache["packed"]):
+        by_length.setdefault(len(packed.input_ids), []).append((index, packed))
+    with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                         enabled=device.type == "cuda"):
+        outputs = [None] * len(cache["packed"])
+        for group in by_length.values():
+            indices, windows = zip(*group)
+            group_outputs = (model.forward_many(list(windows)) if hasattr(model, "forward_many")
+                             else [model(window) for window in windows])
+            for index, output in zip(indices, group_outputs):
+                outputs[index] = output.probabilities.float().cpu().tolist()
+    for (_state, _options, _branches, indices), values in zip(cache["specs"], outputs):
+        for row_index, row_values in zip(indices, values):
+            probabilities[row_index] = row_values
+    if any(values is None for values in probabilities):
+        raise RuntimeError("pilot probe scoring left an incomplete row")
+    return probabilities
 
 
 def _score_loaded_trained(ctx, model, tokenizer, rows, *, layout: str, key: str, split: str,

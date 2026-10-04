@@ -9,10 +9,11 @@ import torch
 
 from s1pii.schema import Doc, OTHER_PII, Span
 from s1pii.s1d import labels as HL
-from s1pii.s1d.data import assert_no_heldout_leakage, generate_questions, pack_training_questions
+from s1pii.s1d.data import (TrainingQuestion, assert_no_heldout_leakage, generate_questions,
+                            pack_training_questions, training_batch_composition)
 from s1pii.s1d.model import S1DModel, apply_lora, has_lm_head, prepare_tokenizer
 from s1pii.s1d.packer import BranchText, SPECIAL_TOKENS, pack_separate, pack_window
-from s1pii.s1d.schema import Question, answer
+from s1pii.s1d.schema import Option, Question, answer
 
 
 class StubTokenizer:
@@ -1230,12 +1231,67 @@ def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp
             assert condition["checkpoints"]
             assert {"loss", "grad_norm", "learning_rates", "metrics", "collapsed"} <= \
                    set(condition["checkpoints"][0])
+            step_log = root / condition["step_log"]
+            step_rows = [json.loads(line) for line in step_log.read_text().splitlines()]
+            assert [row["step"] for row in step_rows] == list(
+                range(1, condition["training"]["steps"] + 1))
+            assert all({"batch", "probe"} <= set(row) for row in step_rows)
+            assert all(row["probe"]["questions"] == result["probe"]["questions"]
+                       for row in step_rows)
     # Force the outer unit to re-enter while its four inner training runs are complete. This
     # exercises cached-condition reuse and must retain the paired initial-state integrity check.
     (root / "stores" / "stage1_pilot-paired_optimizer.done").unlink()
     resumed = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,
                              capture_output=True, text=True)
     assert resumed.returncode == 0, resumed.stdout + resumed.stderr + "\n" + log
+
+
+def test_training_batch_composition_and_probe_metrics():
+    from s1pii.s1d import run as runner
+    from s1pii.v2.labels import NATIVE
+    email = Option("email address", NATIVE["email"][1])
+    none = Option(HL.NOT_PII, "the span is not PII")
+    positive = TrainingQuestion("a", "state", Question("choice", "Classify", options=(email, none)), 0)
+    negative = TrainingQuestion("b", "state", Question("choice", "Classify", options=(email, none)), 1,
+                                hard_negative=True)
+    noul = TrainingQuestion("c", "state", Question("noul", "PII?"), 0)
+    score = TrainingQuestion("d", "state", Question("score", "Risk", options=("low", "high")), 1)
+    composition = training_batch_composition([positive, negative, noul, score])
+    assert composition["question_count"] == 4
+    assert composition["counts"] == {"positive": 1, "hard_negative": 1, "noul": 1, "score": 1}
+    assert composition["choice_count"] == 2
+    assert composition["not_pii_target_share"] == 0.5
+    assert composition["dominant_target_label"] in {"email", HL.NOT_PII}
+    assert composition["dominant_target_share"] == 0.5
+    metrics = runner._pilot_probe_metrics(
+        [positive, negative], [[0.8, 0.2], [0.1, 0.9]])
+    assert metrics == {"questions": 2, "not_pii_pick_rate": 0.5,
+                       "dominant_option": "email address", "dominant_option_share": 0.5,
+                       "mean_not_pii_probability": pytest.approx(0.55)}
+    reversed_negative = TrainingQuestion(
+        "b", "state", Question("choice", "Classify", options=(none, email)), 0,
+        hard_negative=True)
+    ragged = TrainingQuestion(
+        "c", "state", Question("choice", "Classify",
+                                options=(Option("phone"), none, Option("email"))), 1)
+    metrics = runner._pilot_probe_metrics(
+        [reversed_negative, ragged], [[0.9, 0.1], [0.1, 0.8, 0.1]])
+    assert metrics["not_pii_pick_rate"] == 1.0
+    assert metrics["mean_not_pii_probability"] == pytest.approx(0.85)
+    assert metrics["dominant_option"] == HL.NOT_PII
+
+
+def test_batch_audit_window_summary_flags_only_above_p95():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s1d_batch_audit", "scripts/s1d_batch_audit.py")
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    steps = [{"step": i, "not_pii_target_share": i / 10,
+              "dominant_target_share": (11 - i) / 10} for i in range(1, 11)]
+    got = module.window_summary(steps, checkpoint=10, width=5,
+                                not_pii_p95=0.8, dominant_p95=0.8)
+    assert got["steps"] == [6, 7, 8, 9, 10]
+    assert got["high_not_pii_steps"] == [9, 10]
+    assert got["high_dominant_steps"] == []
 
 
 def test_loss_audit_parses_and_reports_departure(tmp_path):
