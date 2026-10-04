@@ -1135,6 +1135,8 @@ def test_decision20_parser_excludes_errors_and_mismatched_options():
                                question=Question("choice", "Classify", "", options))
     rows = [row(0), row(1), row(2)]
     assert "[[a0@x.org]]" in instruction(rows[0])
+    windowed = instruction(rows[0], "a0@x.org")
+    assert '"...[[a0@x.org]]..."' in windowed  # no context quoted beyond the state window
     assert criteria(rows[0]) == {"email": "email address", "not personal information": "not PII"}
     calls = []
     def system_one(*, state, questions):
@@ -1150,3 +1152,38 @@ def test_decision20_parser_excludes_errors_and_mismatched_options():
     failed = failed_distribution(rows[1])
     assert abs(sum(failed) - 1) < 1e-9 and failed[rows[1].target] == 0.0
     assert max(range(len(failed)), key=failed.__getitem__) != rows[1].target
+
+
+def test_decision20_resume_keeps_prior_answers_and_errors():
+    from types import SimpleNamespace
+    from s1pii.s1d.decision20 import score_groups
+    from s1pii.s1d.schema import Option, Question
+    options = (Option("email", "email address"), Option("not personal information", "not PII"))
+    rows = [SimpleNamespace(doc_id="d", state="mail a@x.org now", source_span=(5, 12), target=0,
+                            question=Question("choice", "Classify", "", options)) for _ in range(3)]
+    seen = []
+    def system_one(*, state, questions):
+        seen.append(sorted(questions))
+        return {"answers": {q: {"type": "choice", "probabilities": {"email": 0.7, "not personal information": 0.3}}
+                            for q in questions}}
+    groups = [("s0", [0]), ("s1", [1]), ("s2", [2])]
+    checkpoints = []
+    probs, errors = score_groups(SimpleNamespace(system_one=system_one), rows, groups, start=1,
+                                 out=[[0.1, 0.9], None, None], errors={"max_length_exceeded": 2},
+                                 on_group=lambda done, p, e: checkpoints.append((done, e)))
+    assert seen == [["q1"], ["q2"]]  # group 0 is not re-scored
+    assert probs == [[0.1, 0.9], [0.7, 0.3], [0.7, 0.3]]
+    assert errors == {"max_length_exceeded": 2}
+    assert [done for done, _ in checkpoints] == [2, 3]
+
+
+def test_decision20_groups_follow_dev_eval_windows():
+    from s1pii.s1d import run as R
+    ctx = {"dry": True, "root": None, "config": {}}
+    _docs, rows = R._dev_questions({**ctx, "root": __import__("pathlib").Path("/tmp/s1d_dry_groups")})
+    groups = R._decision20_groups(ctx, rows)
+    covered = sorted(i for _state, indices in groups for i in indices)
+    assert covered == list(range(len(rows)))
+    for state, indices in groups:
+        assert 0 < len(indices) <= 64
+        assert all(state in rows[i].state for i in indices)

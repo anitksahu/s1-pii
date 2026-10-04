@@ -812,44 +812,106 @@ def _unit_dev_eval(ctx, _out):
             "prompted_accuracy": prompted_accuracy, "stop_rule": trained_accuracy < prompted_accuracy}
 
 
+def _decision20_window_tokenizer(ctx) -> tuple[str, str]:
+    """The pinned Qwen3 tokenizer whose 512-token windows dev_eval uses."""
+    model_id = next(iter(ctx["config"]["models"]))
+    return model_id, ("local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"])
+
+
+def _decision20_groups(ctx, rows):
+    """(state window text, row indices) per dev_eval window, from the Qwen3 tokenizer windows."""
+    if ctx["dry"]:
+        from .latency import _DryTokenizer
+        tokenizer = _DryTokenizer()
+    else:
+        from transformers import AutoTokenizer
+        tok_id, tok_rev = _decision20_window_tokenizer(ctx)
+        tokenizer = AutoTokenizer.from_pretrained(tok_id, revision=tok_rev)
+    return [(state, indices) for state, _options, _branches, indices
+            in _evaluation_window_specs(rows, tokenizer, layout="shared")]
+
+
+def _score_decision20_sets(ctx, row_sets: dict[str, list], model_id: str, revision: str):
+    """Probabilities per split for one Decision 2.0 model, resumable through the eval cache."""
+    from .decision20 import load, score_groups
+    tok_id, tok_rev = _decision20_window_tokenizer(ctx)
+    identity = {"kind": "decision20", "model": model_id, "revision": revision, "state": "dev_eval-windows",
+                "tokenizer": tok_id, "tokenizer_revision": tok_rev, "state_tokens": 512, "stride": 384,
+                "branches_per_window": 64}
+    key = "decision20-" + model_id.rsplit("/", 1)[-1]
+    output, errors, missing = {}, {}, {}
+    for split, rows in row_sets.items():
+        fingerprint = _eval_fingerprint(rows, identity)
+        cached = _read_eval_cache(_eval_cache_path(ctx, key, split), fingerprint, len(rows))
+        if cached and cached.get("completed") == cached.get("total") and "errors" in cached:
+            output[split], errors[split] = cached["probabilities"], cached["errors"]
+        else:
+            missing[split] = (rows, fingerprint)
+    if not missing:
+        return output, errors
+    if ctx["dry"]:
+        from types import SimpleNamespace
+
+        def system_one(*, state, questions):
+            return {"answers": {qid: {"type": "choice", "probabilities":
+                                      {name: 1 / len(q["criteria"]) for name in q["criteria"]}}
+                                for qid, q in questions.items()}}
+        model = SimpleNamespace(system_one=system_one)
+    else:
+        model = load(model_id, revision)
+    (ctx["root"] / "PHASE").write_text("CPU" if ctx["dry"] else "GPU")
+    try:
+        for split, (rows, fingerprint) in missing.items():
+            path = _eval_cache_path(ctx, key, split)
+            groups = _decision20_groups(ctx, rows)
+            partial = _read_eval_cache(path, fingerprint, len(rows))
+            start = min(int(partial.get("completed", 0)), len(groups)) if partial else 0
+
+            def checkpoint(done, probabilities, split_errors, total=len(groups)):
+                if done % 32 == 0 or done == total:
+                    _atomic_json(path, {"version": _EVAL_CACHE_VERSION, "fingerprint": fingerprint,
+                                        "completed": done, "total": total, "probabilities": probabilities,
+                                        "errors": split_errors})
+                    print(f"{key} {split}: {done}/{total} windows", flush=True)
+                _check_eval_stop(ctx)
+            probabilities, split_errors = score_groups(
+                model, rows, groups, on_group=checkpoint, start=start,
+                out=partial["probabilities"] if partial else None,
+                errors=partial.get("errors") if partial else None)
+            output[split], errors[split] = probabilities, split_errors
+    finally:
+        (ctx["root"] / "PHASE").write_text("CPU")
+        del model
+        if not ctx["dry"] and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return output, errors
+
+
 def _unit_decision20(ctx, _out):
-    """Zero-shot Decision 2.0 System One models on the exact dev_eval questions."""
-    from .decision20 import failed_distribution, load, score_rows
+    """Zero-shot Decision 2.0 System One models on the exact dev_eval questions and windows."""
+    from .decision20 import failed_distribution
     from .infer import fit_temperatures
     _, rows = _dev_questions(ctx, descriptions=True)
     seen_rows = _seen_questions(ctx, descriptions=True)
     results = {}
     for model_id, spec in ctx["config"]["external"]["decision20"].items():
-        if ctx["dry"]:
-            from types import SimpleNamespace
-
-            def system_one(*, state, questions):
-                return {"answers": {qid: {"type": "choice", "probabilities":
-                                          {name: 1 / len(q["criteria"]) for name in q["criteria"]}}
-                                    for qid, q in questions.items()}}
-            model = SimpleNamespace(system_one=system_one)
-        else:
-            model = load(model_id, spec["revision"])
-        seen_probs, seen_errors = score_rows(model, seen_rows)
-        dev_probs, dev_errors = score_rows(model, rows)
-        del model
-        if not ctx["dry"] and torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        seen_kept = [(r, p) for r, p in zip(seen_rows, seen_probs) if p is not None]
+        scores, errors = _score_decision20_sets(ctx, {"seen": seen_rows, "dev": rows}, model_id, spec["revision"])
+        seen_kept = [(r, p) for r, p in zip(seen_rows, scores["seen"]) if p is not None]
         temperature = fit_temperatures([torch.tensor(p).clamp_min(1e-30).log() for _, p in seen_kept],
                                        [r.target for r, _ in seen_kept],
                                        ["choice"] * len(seen_kept))["choice"] if seen_kept else 1.0
-        answered = sum(p is not None for p in dev_probs)
+        answered = sum(p is not None for p in scores["dev"])
         if answered == 0:
-            raise RuntimeError(f"{model_id}: no valid answers on {len(rows)} dev questions: {dev_errors}")
-        full = [p if p is not None else failed_distribution(r) for r, p in zip(rows, dev_probs)]
+            raise RuntimeError(f"{model_id}: no valid answers on {len(rows)} dev questions: {errors['dev']}")
+        full = [p if p is not None else failed_distribution(r) for r, p in zip(rows, scores["dev"])]
         metrics = _probability_metrics(rows, full, temperature=temperature)
         metrics.update({"revision": spec["revision"], "temperature": temperature,
                         "answered": answered, "questions": len(rows),
-                        "dev_errors": dev_errors, "seen_errors": seen_errors})
+                        "dev_errors": errors["dev"], "seen_errors": errors["seen"]})
         results[model_id] = metrics
-    return {"implementation_version": 1, "split": "nemotron-calib", "questions": len(rows),
-            "not_pii_questions": sum(row.hard_negative for row in rows), "models": results}
+    return {"implementation_version": 2, "split": "nemotron-calib", "state": "dev_eval 512-token windows",
+            "questions": len(rows), "not_pii_questions": sum(row.hard_negative for row in rows),
+            "models": results}
 
 
 def _unimplemented(ctx, _out, name):
@@ -887,7 +949,7 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if stage != "stage0":
         if stage == "comparators1":
             try:
-                return json.loads(result_path.read_text()).get("implementation_version") == 1
+                return json.loads(result_path.read_text()).get("implementation_version") == 2
             except (OSError, ValueError):
                 return False
         if stage == "stage1":
