@@ -9,6 +9,7 @@ import random
 import time
 from collections import OrderedDict
 from dataclasses import asdict, dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Callable, Iterable, Iterator, Sequence
 
@@ -64,6 +65,7 @@ class TrainConfig:
     token_learning_rate: float = 2e-4
     warmup_fraction: float = 0.06
     gradient_clip: float | None = None
+    gradient_accumulation: int = 1
     max_steps: int | None = None
 
     def seeds(self) -> tuple[int, int, int]:
@@ -132,12 +134,14 @@ def _set_rng_state(state: dict) -> None:
         torch.cuda.set_rng_state_all(state["cuda"])
 
 
-def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict, scheduler=None) -> None:
+def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict, scheduler=None, *,
+                    microbatches_seen: int = 0, questions_seen: int = 0) -> None:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "checkpoint.pt.part"
     torch.save({"trainable_model": _trainable_state(model), "optimizer": optimizer.state_dict(),
                 "scheduler": scheduler.state_dict() if scheduler is not None else None,
-                "rng": _rng_state(), "step": step}, tmp)
+                "rng": _rng_state(), "step": step, "microbatches_seen": microbatches_seen,
+                "questions_seen": questions_seen}, tmp)
     os.replace(tmp, out / "checkpoint.pt")
     (out / "manifest.json").write_text(json.dumps(meta, indent=2, sort_keys=True))
 
@@ -182,13 +186,38 @@ def _grad_norm(parameters) -> float:
     return float(torch.stack(norms).norm(2)) if norms else 0.0
 
 
+def optimizer_batches(microbatches: Iterable[list], accumulation: int) -> Iterator[list[list]]:
+    """Group consecutive token-budget microbatches into one optimizer update."""
+    if accumulation < 1:
+        raise ValueError("gradient accumulation must be positive")
+    iterator = iter(microbatches)
+    while group := list(islice(iterator, accumulation)):
+        yield group
+
+
+def question_weighted_mean(values: Sequence, counts: Sequence[int]):
+    """Mean of microbatch means, weighted by their question counts."""
+    if len(values) != len(counts) or not values or any(count < 1 for count in counts):
+        raise ValueError("values and positive question counts must have the same nonzero length")
+    total = sum(counts)
+    return sum(value * (count / total) for value, count in zip(values, counts))
+
+
+def _item_question_count(item) -> int:
+    target = item[1]
+    return len(target) if isinstance(target, (list, tuple)) else 1
+
+
 def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hours_path: Path,
           *, hashes: dict[str, str] | None = None,
           checkpoint_callback: Callable[[object, int, dict], None] | None = None,
           callback_every: int | None = None,
+          callback_every_microbatches: int | None = None,
           step_callback: Callable[[object, int, dict, Sequence], None] | None = None) -> dict:
     """Train/resume pointer CE. Each row is ``(PackedWindow, target_index)``."""
     data_seed, _init_seed, order_seed = config.seeds()
+    if callback_every_microbatches and callback_every_microbatches % config.gradient_accumulation:
+        raise ValueError("exposure checkpoints must align with optimizer-update boundaries")
     seed_everything(order_seed)
     meter = GPUHours(gpu_hours_path, config.cap_hours, config.stage); meter.reserve(config.estimated_hours)
     model.enable_training_memory_features()
@@ -200,10 +229,13 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
                                       lr=config.learning_rate, fused=device.type == "cuda")
     else:
         raise ValueError(f"unknown optimizer condition {config.optimizer_condition!r}")
+    microbatch_count = sum(1 for _ in token_batches(
+        packed_rows, config.token_budget, length=lambda x: len(x[0].input_ids), seed=data_seed))
+    update_count = ((microbatch_count + config.gradient_accumulation - 1)
+                    // config.gradient_accumulation) * config.epochs
+    total_steps = min(update_count, config.max_steps) if config.max_steps is not None else update_count
     scheduler = None
     if config.optimizer_condition == "stable":
-        total_steps = config.max_steps or sum(1 for _ in token_batches(
-            packed_rows, config.token_budget, length=lambda x: len(x[0].input_ids), seed=data_seed)) * config.epochs
         scheduler = _linear_schedule(optimizer, total_steps=total_steps,
                                      warmup_fraction=config.warmup_fraction)
     start_step = 0
@@ -217,42 +249,60 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
         if state.get("rng") is not None:
             _set_rng_state(state["rng"])
     meta = manifest(config, hashes or {}, model)
+    warmup_steps = max(1, round(total_steps * config.warmup_fraction)) if scheduler else 0
     last_accounted = time.monotonic(); step = 0; stats = None
+    microbatches_seen = 0; questions_seen = 0; last_callback_step = 0
     for epoch in range(config.epochs):
-        for batch in token_batches(packed_rows, config.token_budget,
-                                   length=lambda x: len(x[0].input_ids), seed=data_seed + epoch):
+        microbatches = token_batches(packed_rows, config.token_budget,
+                                     length=lambda x: len(x[0].input_ids), seed=data_seed + epoch)
+        for update_batches in optimizer_batches(microbatches, config.gradient_accumulation):
             if config.control_path and Path(config.control_path).exists() \
                     and Path(config.control_path).read_text().strip().upper() == "STOP":
                 raise InterruptedError("STOP requested")
             meter.reserve(0.0)
             step += 1
-            if step <= start_step: continue
+            flat_batch = [item for batch in update_batches for item in batch]
+            update_questions = sum(_item_question_count(item) for item in flat_batch)
+            microbatches_seen += len(update_batches); questions_seen += update_questions
+            if step <= start_step:
+                continue
             optimizer.zero_grad(set_to_none=True)
-            with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
-                                enabled=config.bf16 and device.type == "cuda"):
-                can_batch = (hasattr(model, "forward_many")
-                             and all(item[0].dense_mask.numel() for item in batch))
-                if can_batch:
-                    # Preserve the original optimizer-batch membership and loss reduction. Only
-                    # equal padded lengths share a backbone call; their losses are then averaged
-                    # across the unchanged outer batch exactly as before.
-                    groups = OrderedDict()
-                    for item in batch:
-                        packed, target = item[:2]
-                        groups.setdefault(len(packed.input_ids), []).append((packed, target))
-                    losses = []
-                    for group in groups.values():
-                        outputs = model.forward_many([packed for packed, _target in group],
-                                                     targets=[target for _packed, target in group])
-                        losses.extend(output.loss for output in outputs)
-                else:
-                    losses = []
-                    for item in batch:
-                        packed, target = item[:2]
-                        target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
-                        losses.append(model(packed, labels=target).loss)
-                loss = torch.stack(losses).mean()
-            loss.backward()
+            microbatch_losses = []
+            microbatch_questions = []
+            for batch in update_batches:
+                if config.control_path and Path(config.control_path).exists() \
+                        and Path(config.control_path).read_text().strip().upper() == "STOP":
+                    raise InterruptedError("STOP requested")
+                with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                    enabled=config.bf16 and device.type == "cuda"):
+                    can_batch = (hasattr(model, "forward_many")
+                                 and all(item[0].dense_mask.numel() for item in batch))
+                    if can_batch:
+                        groups = OrderedDict()
+                        for item in batch:
+                            packed, target = item[:2]
+                            groups.setdefault(len(packed.input_ids), []).append((packed, target))
+                        losses = []
+                        counts = []
+                        for group in groups.values():
+                            outputs = model.forward_many([packed for packed, _target in group],
+                                                         targets=[target for _packed, target in group])
+                            losses.extend(output.loss for output in outputs)
+                            counts.extend(_item_question_count(item) for item in group)
+                    else:
+                        losses = []
+                        counts = []
+                        for item in batch:
+                            packed, target = item[:2]
+                            target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
+                            losses.append(model(packed, labels=target).loss)
+                            counts.append(_item_question_count(item))
+                    loss = question_weighted_mean(losses, counts)
+                batch_questions = sum(counts)
+                (loss * (batch_questions / update_questions)).backward()
+                microbatch_losses.append(float(loss.detach()))
+                microbatch_questions.append(batch_questions)
+            loss_value = float(question_weighted_mean(microbatch_losses, microbatch_questions))
             grad_norm = _grad_norm(model.parameters())
             learning_rates = {str(group.get("name", "all")): float(group["lr"])
                               for group in optimizer.param_groups}
@@ -264,34 +314,45 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
             now = time.monotonic()
             meter.record(config.unit, now - last_accounted, stage=config.stage, device=str(device), step=step)
             last_accounted = now
-            stats = {"loss": float(loss.detach()), "grad_norm": grad_norm,
-                     "learning_rates": learning_rates}
+            stats = {"loss": loss_value, "grad_norm": grad_norm,
+                     "learning_rates": learning_rates,
+                     "question_count": update_questions, "questions_seen": questions_seen,
+                     "microbatch_count": len(update_batches),
+                     "microbatches_seen": microbatches_seen}
             if step == 1 or step % 25 == 0:
                 print(f"{config.unit}: step {step} loss {stats['loss']:.6f}", flush=True)
             if step_callback is not None:
                 state = _rng_state()
                 try:
-                    step_callback(model, step, stats, batch)
+                    step_callback(model, step, stats, flat_batch)
                 finally:
                     _set_rng_state(state); model.train()
             if step % config.checkpoint_every == 0:
-                save_checkpoint(model, optimizer, step, out, meta, scheduler)
-            if checkpoint_callback is not None and callback_every and step % callback_every == 0:
+                save_checkpoint(model, optimizer, step, out, meta, scheduler,
+                                microbatches_seen=microbatches_seen, questions_seen=questions_seen)
+            should_callback = ((callback_every and step % callback_every == 0)
+                               or (callback_every_microbatches
+                                   and microbatches_seen % callback_every_microbatches == 0))
+            if checkpoint_callback is not None and should_callback:
                 state = _rng_state()
                 try:
                     checkpoint_callback(model, step, stats)
                 finally:
                     _set_rng_state(state); model.train()
+                last_callback_step = step
             if config.max_steps is not None and step >= config.max_steps:
                 break
         if config.max_steps is not None and step >= config.max_steps:
             break
-    if checkpoint_callback is not None and stats is not None and (not callback_every or step % callback_every):
+    if checkpoint_callback is not None and stats is not None and last_callback_step != step:
         state = _rng_state()
         try:
             checkpoint_callback(model, step, stats)
         finally:
             _set_rng_state(state); model.train()
-    save_checkpoint(model, optimizer, step, out, meta, scheduler)
+    save_checkpoint(model, optimizer, step, out, meta, scheduler,
+                    microbatches_seen=microbatches_seen, questions_seen=questions_seen)
     (out / "done").write_text(str(step))
-    return {**meta, "steps": step}
+    return {**meta, "steps": step, "optimizer_updates": step,
+            "microbatches": microbatches_seen, "questions_seen": questions_seen,
+            "warmup_updates": warmup_steps}

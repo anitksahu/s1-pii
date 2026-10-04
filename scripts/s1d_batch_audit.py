@@ -52,8 +52,11 @@ def main(argv=None):
     ap.add_argument("--out", type=Path)
     args = ap.parse_args(argv)
     root = args.root; out = args.out or root / "stores" / "stage1-pilot-batch-audit.json"
-    result_path = root / "stores" / "stage1_pilot-paired_optimizer.json"
+    legacy = root / "stores" / "stage1_pilot-paired_optimizer-v1.json"
+    result_path = legacy if legacy.exists() else root / "stores" / "stage1_pilot-paired_optimizer.json"
     pilot_result = json.loads(result_path.read_text())
+    if pilot_result.get("implementation_version") != 1:
+        raise RuntimeError(f"batch audit requires the completed 330-step v1 pilot: {result_path}")
     cfg = yaml.safe_load((Path(R.__file__).resolve().parents[1] / "configs" / "s1d.yaml").read_text())
     spec = cfg["stage1_pilot"]; data_seed = int(spec["data_seed"])
     ctx = {"root": root, "dry": False, "config": cfg}

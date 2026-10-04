@@ -32,7 +32,7 @@ UNITS = {
 }
 
 _TRAINING_SEMANTICS_VERSION = 2
-_PILOT_SEMANTICS_VERSION = 3
+_PILOT_SEMANTICS_VERSION = 4
 
 
 def _atomic_json(path: Path, value) -> None:
@@ -377,7 +377,13 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                       order_seed: int | None = None, optimizer_condition: str = "old",
                       initial_state_path: Path | None = None, max_steps: int | None = None,
                       callback=None, callback_every: int | None = None,
+                      callback_every_microbatches: int | None = None,
                       step_callback=None,
+                      gradient_accumulation: int = 1,
+                      unit_suffix: str | None = None,
+                      lora_learning_rate: float | None = None,
+                      pointer_learning_rate: float | None = None,
+                      token_learning_rate: float | None = None,
                       extra_hashes: dict[str, str] | None = None) -> dict:
     from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
     from .train import TrainConfig, train
@@ -397,6 +403,14 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     expected_hashes.update(extra_hashes or {})
     if _reuse_or_reset_run(run_dir, expected_hashes):
         cached = json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
+        checkpoint = torch.load(run_dir / "checkpoint.pt", map_location="cpu", weights_only=False)
+        steps = int(checkpoint["step"])
+        warmup = (max(1, round(steps * float(cached["config"]["warmup_fraction"])))
+                  if cached["config"]["optimizer_condition"] == "stable" else 0)
+        cached.update(steps=steps, optimizer_updates=steps,
+                      microbatches=int(checkpoint.get("microbatches_seen", 0)),
+                      questions_seen=int(checkpoint.get("questions_seen", 0)),
+                      warmup_updates=warmup)
         if initial_state_path is not None:
             cached["initial_state_sha256"] = expected_hashes["initial_state"]
         return cached
@@ -440,26 +454,32 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     stage_name = "stage1_pilot" if initial_state_path is not None else "stage1"
     unit = f"{model_id}-s{seed}-{layout}"
     if initial_state_path is not None:
-        unit += f"-{optimizer_condition}"
+        unit += f"-{unit_suffix or optimizer_condition}"
     config = TrainConfig(seed=seed, data_seed=data_seed, init_seed=init_seed, order_seed=order_seed,
                          token_budget=token_budget, epochs=1,
                          stage=stage_name, unit=unit,
                          cap_hours=ctx["config"]["stages"][stage_name]["cap_a100_hours"],
                          control_path=str(ctx["root"] / "CONTROL"),
-                         checkpoint_every=callback_every or 100,
+                         checkpoint_every=int(pilot.get("checkpoint_every_updates", callback_every or 100)),
                          optimizer_condition=optimizer_condition,
-                         lora_learning_rate=float(pilot.get("lora_learning_rate", 2e-4)),
-                         pointer_learning_rate=float(pilot.get("pointer_learning_rate", 5e-5)),
-                         token_learning_rate=float(pilot.get("token_learning_rate", 2e-4)),
+                         lora_learning_rate=float(lora_learning_rate if lora_learning_rate is not None
+                                                  else pilot.get("lora_learning_rate", 2e-4)),
+                         pointer_learning_rate=float(pointer_learning_rate if pointer_learning_rate is not None
+                                                     else pilot.get("pointer_learning_rate", 5e-5)),
+                         token_learning_rate=float(token_learning_rate if token_learning_rate is not None
+                                                   else pilot.get("token_learning_rate", 2e-4)),
                          warmup_fraction=float(pilot.get("warmup_fraction", 0.06)),
                          gradient_clip=(float(pilot.get("gradient_clip", 1.0))
                                         if optimizer_condition == "stable" else None),
+                         gradient_accumulation=gradient_accumulation,
                          max_steps=max_steps)
     (ctx["root"] / "PHASE").write_text("GPU")
     try:
         result = train(model, packed, config, run_dir, ctx["root"] / "gpu_hours.jsonl",
                        hashes=expected_hashes, checkpoint_callback=callback,
-                       callback_every=callback_every, step_callback=step_callback)
+                       callback_every=callback_every,
+                       callback_every_microbatches=callback_every_microbatches,
+                       step_callback=step_callback)
     finally:
         (ctx["root"] / "PHASE").write_text("CPU")
     del model
@@ -676,12 +696,11 @@ def _pilot_probe_metrics(rows, probabilities) -> dict:
 
 
 def _unit_stage1_pilot(ctx, out):
-    """Paired old/stable optimizer pilot with frozen data, initialization, and dropout RNG."""
+    """Paired equal-exposure stability pilot with frozen data, initialization, and RNG."""
     from .train import _trainable_state
     spec = ctx["config"]["stage1_pilot"]
     data_seed = int(spec["data_seed"]); order_seed = int(spec["order_seed"])
-    max_steps = 2 if ctx["dry"] else int(spec["max_steps"])
-    every = 1 if ctx["dry"] else int(spec["checkpoint_every"])
+    sanity_every = 8 if ctx["dry"] else int(spec["sanity_every_microbatches"])
     sizes = ["1.7B"]
     if os.environ.get("S1D_PILOT_4B") == "1":
         sizes.append("4B")
@@ -692,21 +711,47 @@ def _unit_stage1_pilot(ctx, out):
     probe_rows = _pilot_probe_rows(sanity_rows, probe_count)
     from .data import question_set_hash, training_batch_composition
     probe_hash = question_set_hash(probe_rows)
-    output = {"implementation_version": 1, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
+    conditions = {
+        "stable": {"gradient_accumulation": 1,
+                   "lora_learning_rate": float(spec["lora_learning_rate"]),
+                   "pointer_learning_rate": float(spec["pointer_learning_rate"]),
+                   "token_learning_rate": float(spec["token_learning_rate"])},
+        "stable_acc8": {"gradient_accumulation": 8,
+                        "lora_learning_rate": float(spec["lora_learning_rate"]),
+                        "pointer_learning_rate": float(spec["pointer_learning_rate"]),
+                        "token_learning_rate": float(spec["token_learning_rate"])},
+        "stable_lr5": {"gradient_accumulation": 1,
+                       "lora_learning_rate": 5e-5,
+                       "pointer_learning_rate": 5e-5,
+                       "token_learning_rate": 5e-5},
+    }
+    optimizer_common = {"warmup_fraction": float(spec["warmup_fraction"]),
+                        "gradient_clip": float(spec["gradient_clip"]),
+                        "checkpoint_every_updates": int(spec["checkpoint_every_updates"])}
+    output = {"implementation_version": 2, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
               "data_seed": data_seed, "order_seed": order_seed,
-              "max_steps": max_steps, "checkpoint_every": every,
+              "windows": int(spec["windows"]), "full_selection": True,
+              "sanity_every_microbatches": sanity_every,
+              "conditions": conditions, "optimizer_common": optimizer_common,
               "probe": {"questions": len(probe_rows), "question_set_sha256": probe_hash,
                         "timing": "immediately after each optimizer update"},
+              "fixed_rule": "no collapsed sanity checkpoint after warmup, in both init seeds",
               "collapse_thresholds": spec["collapse"], "sizes": sizes, "runs": {}}
     try:
         previous = json.loads(out.read_text())
-        identity = ("implementation_version", "pilot_semantics", "data_seed", "order_seed", "max_steps",
-                    "checkpoint_every", "probe", "collapse_thresholds", "sizes")
+        if previous.get("implementation_version") != output["implementation_version"]:
+            legacy = out.with_name(f"{out.stem}-v{previous.get('implementation_version', 'unknown')}.json")
+            if not legacy.exists():
+                shutil.copy2(out, legacy)
+        identity = ("implementation_version", "pilot_semantics", "data_seed", "order_seed",
+                    "windows", "full_selection", "sanity_every_microbatches", "conditions",
+                    "optimizer_common", "probe", "fixed_rule", "collapse_thresholds", "sizes")
         if all(previous.get(key) == output.get(key) for key in identity):
             output = previous
     except (OSError, ValueError):
         pass
-    pilot_root = ctx["root"] / "models" / "stage1-pilot"
+    pilot_root = ctx["root"] / "models" / "stage1-pilot-v2"
+    initial_root = ctx["root"] / "models" / "stage1-pilot" / "initial"
     for size in sizes:
         model_id = model_ids[size]
         if ctx["dry"]:
@@ -719,7 +764,7 @@ def _unit_stage1_pilot(ctx, out):
         for init_seed in map(int, spec["init_seeds"]):
             pair = f"{size}-init{init_seed}"
             revision = "local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"]
-            init_path = (pilot_root / "initial" /
+            init_path = (initial_root /
                          f"v{_TRAINING_SEMANTICS_VERSION}-{revision[:12]}-{pair}.pt")
             if not init_path.exists():
                 _tokenizer, initial_model = _build_stage1_model(ctx, model_id, init_seed)
@@ -740,15 +785,14 @@ def _unit_stage1_pilot(ctx, out):
                 pair, {"initial_state_sha256": initial["sha256"], "conditions": {}})
             if pair_output["initial_state_sha256"] != initial["sha256"]:
                 raise RuntimeError("saved pilot output refers to a different initial state")
-            for condition in ("old", "stable"):
+            for condition, condition_spec in conditions.items():
                 condition_output = pair_output["conditions"].setdefault(condition, {"checkpoints": []})
                 checkpoints = condition_output["checkpoints"]
                 optimizer_spec = {
-                    "condition": condition, "max_steps": max_steps, "checkpoint_every": every,
-                    "warmup_fraction": spec["warmup_fraction"], "gradient_clip": spec["gradient_clip"],
-                    "lora_learning_rate": spec["lora_learning_rate"],
-                    "pointer_learning_rate": spec["pointer_learning_rate"],
-                    "token_learning_rate": spec["token_learning_rate"],
+                    "condition": condition, "full_selection": True,
+                    "sanity_every_microbatches": sanity_every,
+                    **optimizer_common,
+                    **condition_spec,
                 }
                 optimizer_sha = hashlib.sha256(json.dumps(
                     optimizer_spec, sort_keys=True).encode()).hexdigest()
@@ -772,9 +816,11 @@ def _unit_stage1_pilot(ctx, out):
                     logged_steps = {row["step"] for row in previous_steps}
                 condition_output["step_log"] = str(step_log.relative_to(ctx["root"]))
                 probe_cache = {}
+                step_handle = step_log.open("a", encoding="utf-8", buffering=1)
 
                 def log_step(model, step, stats, batch, *, pair=pair, condition=condition,
-                             logged_steps=logged_steps, probe_cache=probe_cache):
+                             logged_steps=logged_steps, probe_cache=probe_cache,
+                             step_handle=step_handle):
                     if step in logged_steps:
                         return
                     model.eval()
@@ -785,19 +831,22 @@ def _unit_stage1_pilot(ctx, out):
                            "pair": pair, "condition": condition, "step": step,
                            **stats, "batch": composition,
                            "probe": _pilot_probe_metrics(probe_rows, probabilities)}
-                    with step_log.open("a", encoding="utf-8") as handle:
-                        handle.write(json.dumps(row, sort_keys=True) + "\n"); handle.flush()
+                    step_handle.write(json.dumps(row, sort_keys=True) + "\n")
                     logged_steps.add(step)
 
                 def evaluate(model, step, stats, *, pair=pair, condition=condition,
                              checkpoints=checkpoints, initial_sha=initial["sha256"]):
+                    if any(row["step"] == step for row in checkpoints):
+                        return
                     model.eval()
                     identity = {"kind": "stage1-pilot", "pair": pair, "condition": condition,
-                                "step": step, "initial_state_sha256": initial_sha}
+                                "step": step, "questions_seen": stats["questions_seen"],
+                                "initial_state_sha256": initial_sha,
+                                "pilot_semantics": _PILOT_SEMANTICS_VERSION}
                     fingerprint = _eval_fingerprint(sanity_rows, identity)
                     probabilities = _score_loaded_trained(
                         ctx, model, eval_tokenizer, sanity_rows, layout="shared",
-                        key=f"pilot-{pair}-{condition}-step{step}", split="sanity",
+                        key=f"pilot-v{_PILOT_SEMANTICS_VERSION}-{pair}-{condition}-step{step}", split="sanity",
                         fingerprint=fingerprint)
                     metrics = _sanity_metrics(sanity_rows, probabilities)
                     collapsed, reasons = _collapse_flag(metrics, spec["collapse"])
@@ -806,21 +855,39 @@ def _unit_stage1_pilot(ctx, out):
                     _atomic_json(out, output)
 
                 run_dir = pilot_root / pair / condition
-                result = _train_stage1_run(
-                    ctx, questions, model_id=model_id, seed=data_seed, data_seed=data_seed,
-                    init_seed=init_seed, order_seed=order_seed, layout="shared",
-                    window_count=int(spec["windows"]), run_dir=run_dir,
-                    optimizer_condition=condition, initial_state_path=init_path,
-                    max_steps=max_steps, callback=evaluate, callback_every=every,
-                    step_callback=log_step,
-                    extra_hashes={"pilot_condition": condition, "initial_state": initial["sha256"],
-                                  "order_seed": str(order_seed),
-                                  "pilot_semantics": str(_PILOT_SEMANTICS_VERSION),
-                                  "optimizer_spec": optimizer_sha})
+                try:
+                    result = _train_stage1_run(
+                        ctx, questions, model_id=model_id, seed=data_seed, data_seed=data_seed,
+                        init_seed=init_seed, order_seed=order_seed, layout="shared",
+                        window_count=int(spec["windows"]), run_dir=run_dir,
+                        optimizer_condition="stable", unit_suffix=condition, initial_state_path=init_path,
+                        max_steps=None, callback=evaluate,
+                        callback_every_microbatches=sanity_every,
+                        step_callback=log_step,
+                        gradient_accumulation=int(condition_spec["gradient_accumulation"]),
+                        lora_learning_rate=float(condition_spec["lora_learning_rate"]),
+                        pointer_learning_rate=float(condition_spec["pointer_learning_rate"]),
+                        token_learning_rate=float(condition_spec["token_learning_rate"]),
+                        extra_hashes={"pilot_condition": condition, "initial_state": initial["sha256"],
+                                      "order_seed": str(order_seed),
+                                      "pilot_semantics": str(_PILOT_SEMANTICS_VERSION),
+                                      "optimizer_spec": optimizer_sha})
+                finally:
+                    step_handle.close()
                 condition_output["training"] = result
+                eligible = [row for row in checkpoints if row["step"] > result["warmup_updates"]]
+                condition_output["fixed_after_warmup"] = bool(eligible) and not any(
+                    row["collapsed"] for row in eligible)
                 if result["initial_state_sha256"] != initial["sha256"]:
                     raise RuntimeError("paired conditions did not load the registered initial state")
                 _atomic_json(out, output)
+    output["condition_outcomes"] = {
+        condition: {"fixed_both_seeds": all(
+            output["runs"][pair]["conditions"][condition].get("fixed_after_warmup", False)
+            for pair in output["runs"] if pair.startswith("1.7B-init"))}
+        for condition in conditions
+    }
+    _atomic_json(out, output)
     return output
 
 
@@ -1393,7 +1460,7 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if stage != "stage0":
         if stage == "stage1_pilot":
             try:
-                return json.loads(result_path.read_text()).get("implementation_version") == 1
+                return json.loads(result_path.read_text()).get("implementation_version") == 2
             except (OSError, ValueError):
                 return False
         if stage == "comparators1":

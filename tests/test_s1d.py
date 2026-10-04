@@ -243,6 +243,17 @@ def test_stage1_seed_defaults_preserve_legacy_stream():
     assert TrainConfig(seed=7, data_seed=3, init_seed=4, order_seed=5).seeds() == (3, 4, 5)
 
 
+def test_accumulation_groups_and_question_weighted_loss():
+    from s1pii.s1d.train import optimizer_batches, question_weighted_mean
+    assert list(optimizer_batches([[1], [2, 3], [4], [5, 6]], 3)) == [
+        [[1], [2, 3], [4]], [[5, 6]]]
+    parameter = torch.tensor(1.0, requires_grad=True)
+    loss = question_weighted_mean([2 * parameter, 4 * parameter], [1, 3])
+    assert float(loss.detach()) == pytest.approx(3.5)
+    loss.backward()
+    assert float(parameter.grad) == pytest.approx(3.5)
+
+
 def test_pilot_eval_tokenizer_registers_reserved_tokens():
     from s1pii.s1d.run import _prepare_pilot_eval_tokenizer
     tokenizer = StubTokenizer(); tokenizer.vocab.clear()
@@ -1212,6 +1223,10 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
 def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp_path):
     root = tmp_path / "s1d_dry"; root.mkdir()
     (root / "APPROVED_stage1_pilot").write_text("approved")
+    stores = root / "stores"; stores.mkdir()
+    (stores / "stage1_pilot-paired_optimizer.json").write_text(json.dumps(
+        {"implementation_version": 1, "legacy": "preserved"}))
+    (stores / "stage1_pilot-paired_optimizer.done").write_text("old")
     env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
            "PYTHON": sys.executable}
     run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,
@@ -1219,14 +1234,24 @@ def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp
     log = (root / "logs" / "stage1_pilot.log").read_text()
     assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
     result = json.loads((root / "stores" / "stage1_pilot-paired_optimizer.json").read_text())
+    assert result["implementation_version"] == 2
+    assert json.loads((root / "stores" / "stage1_pilot-paired_optimizer-v1.json").read_text()) \
+        == {"implementation_version": 1, "legacy": "preserved"}
     assert result["collapse_thresholds"] == {
         "gold_accuracy_below": 0.5, "not_pii_rate_above": 0.3, "single_option_rate_above": 0.6}
     assert set(result["runs"]) == {"1.7B-init1", "1.7B-init2"}
     for pair in result["runs"].values():
         conditions = pair["conditions"]
-        assert set(conditions) == {"old", "stable"}
+        assert set(conditions) == {"stable", "stable_acc8", "stable_lr5"}
         hashes = {condition["training"]["initial_state_sha256"] for condition in conditions.values()}
         assert hashes == {pair["initial_state_sha256"]}
+        assert len({condition["training"]["questions_seen"]
+                    for condition in conditions.values()}) == 1
+        assert conditions["stable_acc8"]["training"]["optimizer_updates"] <= \
+               conditions["stable"]["training"]["optimizer_updates"]
+        checkpoint_exposures = [{row["questions_seen"] for row in condition["checkpoints"]}
+                                for condition in conditions.values()]
+        assert checkpoint_exposures[1:] == checkpoint_exposures[:-1]
         for condition in conditions.values():
             assert condition["checkpoints"]
             assert {"loss", "grad_norm", "learning_rates", "metrics", "collapsed"} <= \
@@ -1236,9 +1261,11 @@ def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp
             assert [row["step"] for row in step_rows] == list(
                 range(1, condition["training"]["steps"] + 1))
             assert all({"batch", "probe"} <= set(row) for row in step_rows)
+            assert all(row["question_count"] == row["batch"]["question_count"]
+                       for row in step_rows)
             assert all(row["probe"]["questions"] == result["probe"]["questions"]
                        for row in step_rows)
-    # Force the outer unit to re-enter while its four inner training runs are complete. This
+    # Force the outer unit to re-enter while its six inner training runs are complete. This
     # exercises cached-condition reuse and must retain the paired initial-state integrity check.
     (root / "stores" / "stage1_pilot-paired_optimizer.done").unlink()
     resumed = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,

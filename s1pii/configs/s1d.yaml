@@ -37,10 +37,10 @@ stage1_pilot:
   init_seeds: [1, 2]
   order_seed: 1
   windows: 16000
-  # Set from the committed CPU loss audit before the production pilot. The full 16k-window
-  # selection preserves the original batch trajectory and leaves max_steps as the only cap.
-  max_steps: 330
-  checkpoint_every: 50
+  # All conditions consume the complete, identical 16k selection. Forty-eight original
+  # token-budget microbatches is about 600 questions and is divisible by acc8.
+  sanity_every_microbatches: 48
+  checkpoint_every_updates: 25
   probe_questions: 32
   warmup_fraction: 0.06
   gradient_clip: 1.0
