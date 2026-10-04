@@ -70,55 +70,88 @@ def span_redaction_scores(response: DecisionResponse) -> list[float | None]:
 
 
 @torch.no_grad()
-def prompted_option_distribution(model, tokenizer, prompt: str, options: Sequence[str], *, device=None) -> torch.Tensor:
-    """Length-normalised option likelihoods with one prefix pass and one batched continuation pass."""
+def prompted_option_distributions(model, tokenizer, prompts: Sequence[str], options: Sequence[str], *,
+                                  device=None, max_expanded_batch: int = 16) -> torch.Tensor:
+    """Score shared options for a batch of prompts with bounded KV-cache expansion."""
+    if not prompts:
+        return torch.empty((0, len(options)))
     if len(options) < 2:
         raise ValueError("at least two prompted options are required")
+    if max_expanded_batch < len(prompts):
+        raise ValueError("max_expanded_batch must cover the prompt batch")
     device = device or next(model.parameters()).device
-    prompt_ids = tokenizer(prompt, add_special_tokens=False, return_tensors="pt")["input_ids"].to(device)
-    prefix = model(input_ids=prompt_ids, use_cache=True, return_dict=True)
+    encoded_prompts = [tokenizer(prompt, add_special_tokens=False, return_tensors="pt")["input_ids"][0]
+                       for prompt in prompts]
+    width = max(ids.numel() for ids in encoded_prompts)
+    pad = getattr(tokenizer, "pad_token_id", None)
+    prompt_ids = torch.full((len(prompts), width), 0 if pad is None else int(pad),
+                            dtype=torch.long, device=device)
+    prompt_mask = torch.zeros_like(prompt_ids)
+    for batch_index, ids in enumerate(encoded_prompts):
+        prompt_ids[batch_index, -ids.numel():] = ids.to(device)
+        prompt_mask[batch_index, -ids.numel():] = 1
+    prompt_positions = prompt_mask.cumsum(-1).sub(1).clamp_min(0)
+    prefix = model(input_ids=prompt_ids, attention_mask=prompt_mask, position_ids=prompt_positions,
+                   use_cache=True, return_dict=True, logits_to_keep=1)
     option_ids = [tokenizer(option, add_special_tokens=False, return_tensors="pt")["input_ids"][0].to(device)
                   for option in options]
     if any(ids.numel() == 0 for ids in option_ids):
         raise ValueError("prompted options must tokenize to at least one token")
-    first_logits = prefix.logits[:, -1].float().log_softmax(-1)[0]
-    totals = [first_logits[ids[0]] for ids in option_ids]
+    first_logits = prefix.logits[:, -1].float().log_softmax(-1)
+    first_tokens = torch.stack([ids[0] for ids in option_ids])
+    totals = first_logits[:, first_tokens].clone()
     long = [index for index, ids in enumerate(option_ids) if ids.numel() > 1]
     if long and hasattr(prefix.past_key_values, "batch_repeat_interleave"):
-        # Repeating a long-document KV cache for all 56 options can OOM the 4B model.  Eight
-        # continuations keeps peak cache memory bounded while retaining GPU parallelism.
-        for first in range(0, len(long), 8):
-            chunk = long[first:first + 8]
+        option_batch = max(1, max_expanded_batch // len(prompts))
+        for first in range(0, len(long), option_batch):
+            chunk = long[first:first + option_batch]
             past = copy.deepcopy(prefix.past_key_values)
             past.batch_repeat_interleave(len(chunk))
-            width = max(option_ids[index].numel() - 1 for index in chunk)
-            pad = getattr(tokenizer, "pad_token_id", None)
-            continuation_ids = torch.full((len(chunk), width), 0 if pad is None else int(pad),
+            continuation_width = max(option_ids[index].numel() - 1 for index in chunk)
+            expanded = len(prompts) * len(chunk)
+            continuation_ids = torch.full((expanded, continuation_width), 0 if pad is None else int(pad),
                                           dtype=torch.long, device=device)
-            for batch_index, option_index in enumerate(chunk):
-                ids = option_ids[option_index]
-                continuation_ids[batch_index, :ids.numel() - 1] = ids[:-1]
-            continuation = model(input_ids=continuation_ids, past_key_values=past,
+            continuation_mask = torch.zeros_like(continuation_ids)
+            for prompt_index in range(len(prompts)):
+                for option_offset, option_index in enumerate(chunk):
+                    expanded_index = prompt_index * len(chunk) + option_offset
+                    ids = option_ids[option_index]
+                    continuation_ids[expanded_index, :ids.numel() - 1] = ids[:-1]
+                    continuation_mask[expanded_index, :ids.numel() - 1] = 1
+            full_mask = torch.cat((prompt_mask.repeat_interleave(len(chunk), dim=0), continuation_mask), dim=1)
+            continuation_positions = full_mask.cumsum(-1).sub(1).clamp_min(0)[:, -continuation_width:]
+            continuation = model(input_ids=continuation_ids, attention_mask=full_mask,
+                                 position_ids=continuation_positions, past_key_values=past,
                                  use_cache=False, return_dict=True).logits.float().log_softmax(-1)
-            for batch_index, option_index in enumerate(chunk):
-                ids = option_ids[option_index]
-                positions = torch.arange(ids.numel() - 1, device=device)
-                totals[option_index] = totals[option_index] + continuation[batch_index, positions, ids[1:]].sum()
+            for prompt_index in range(len(prompts)):
+                for option_offset, option_index in enumerate(chunk):
+                    expanded_index = prompt_index * len(chunk) + option_offset
+                    ids = option_ids[option_index]
+                    positions = torch.arange(ids.numel() - 1, device=device)
+                    totals[prompt_index, option_index] += continuation[
+                        expanded_index, positions, ids[1:]].sum()
     else:
-        # Compatibility fallback for legacy tuple caches and the tiny CPU test doubles.
+        if len(prompts) > 1 and long:
+            # Legacy tuple caches cannot be expanded by prompt; retain exact scalar behavior.
+            return torch.cat([prompted_option_distributions(model, tokenizer, [prompt], options,
+                                                             device=device,
+                                                             max_expanded_batch=max_expanded_batch)
+                              for prompt in prompts])
         for option_index in long:
             ids = option_ids[option_index]
             continuation = model(input_ids=ids[:-1].unsqueeze(0),
                                  past_key_values=copy.deepcopy(prefix.past_key_values),
                                  use_cache=False, return_dict=True).logits[0].float().log_softmax(-1)
             positions = torch.arange(ids.numel() - 1, device=device)
-            totals[option_index] = totals[option_index] + continuation[positions, ids[1:]].sum()
-    scores = []
-    for total, ids in zip(totals, option_ids):
-        if ids.numel() == 0:  # guarded above; keeps static analyzers honest
-            raise ValueError("prompted options must tokenize to at least one token")
-        scores.append(total / ids.numel())
-    return torch.stack(scores).softmax(0).cpu()
+            totals[0, option_index] += continuation[positions, ids[1:]].sum()
+    lengths = torch.tensor([ids.numel() for ids in option_ids], device=device)
+    return (totals / lengths).softmax(1).cpu()
+
+
+@torch.no_grad()
+def prompted_option_distribution(model, tokenizer, prompt: str, options: Sequence[str], *, device=None) -> torch.Tensor:
+    """Scalar compatibility wrapper around batched prompted scoring."""
+    return prompted_option_distributions(model, tokenizer, [prompt], options, device=device)[0]
 
 
 def expected_calibration_error(probabilities: Sequence[Sequence[float]], targets: Sequence[int],

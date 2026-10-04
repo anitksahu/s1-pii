@@ -646,7 +646,7 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
         return {split: [[1 / len(row.question.options)] * len(row.question.options) for row in rows]
                 for split, rows in row_sets.items()}
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from .infer import prompted_option_distribution
+    from .infer import prompted_option_distributions
     revision = ctx["config"]["models"][model_id]["revision"]
     identity = {"kind": "prompted", "model": model_id, "revision": revision}
     key = f"prompted-{model_id.rsplit('-', 1)[-1]}"
@@ -671,18 +671,26 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
             probabilities = cached["probabilities"] if cached else [None] * len(rows)
             completed = min(int(cached.get("completed", 0)), len(rows)) if cached else 0
             last_accounted = time.monotonic()
-            for index in range(completed, len(rows)):
+            prompt_batch_size = 8
+            for first in range(completed, len(rows), prompt_batch_size):
                 _check_eval_stop(ctx)
-                row = rows[index]
-                options = [option.name for option in row.question.options]
-                prompt = ("Classify the marked span. /no_think\nDocument:\n" + row.state +
-                          f"\nSpan: {row.state[row.source_span[0]:row.source_span[1]]}\nAnswer:")
-                if hasattr(tokenizer, "apply_chat_template"):
-                    prompt = tokenizer.apply_chat_template([{"role": "user", "content": prompt}], tokenize=False,
-                                                           add_generation_prompt=True, enable_thinking=False)
-                probabilities[index] = prompted_option_distribution(
-                    model, tokenizer, prompt, options, device="cuda").tolist()
-                done = index + 1
+                chunk = rows[first:first + prompt_batch_size]
+                options = [option.name for option in chunk[0].question.options]
+                if any([option.name for option in row.question.options] != options for row in chunk):
+                    raise ValueError("prompt batches require one shared option set")
+                prompts = []
+                for row in chunk:
+                    prompt = ("Classify the marked span. /no_think\nDocument:\n" + row.state +
+                              f"\nSpan: {row.state[row.source_span[0]:row.source_span[1]]}\nAnswer:")
+                    if hasattr(tokenizer, "apply_chat_template"):
+                        prompt = tokenizer.apply_chat_template(
+                            [{"role": "user", "content": prompt}], tokenize=False,
+                            add_generation_prompt=True, enable_thinking=False)
+                    prompts.append(prompt)
+                batch = prompted_option_distributions(model, tokenizer, prompts, options,
+                                                       device="cuda", max_expanded_batch=16).tolist()
+                probabilities[first:first + len(chunk)] = batch
+                done = first + len(chunk)
                 if done % 32 == 0 or done == len(rows):
                     now = time.monotonic()
                     meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage="stage1",

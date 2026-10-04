@@ -650,7 +650,63 @@ def test_prompted_option_continuation_batches_are_memory_bounded():
             return type("Output", (), {"logits": logits, "past_key_values": Cache()})
     model = Model()
     prompted_option_distribution(model, Tokenizer(), "prompt", [f"option-{i}" for i in range(18)])
-    assert model.batch_sizes == [1, 8, 8, 2]
+    assert model.batch_sizes == [1, 16, 2]
+
+
+def test_prompted_scorer_batches_prompts_and_bounds_total_cache_expansion():
+    from s1pii.s1d.infer import prompted_option_distributions
+    class Cache:
+        def batch_repeat_interleave(self, repeats): self.repeats = repeats
+    class Tokenizer:
+        pad_token_id = 0
+        def __call__(self, text, **kwargs):
+            ids = [1] * (2 + int(text[-1])) if text.startswith("prompt") else [3, 4]
+            return {"input_ids": torch.tensor([ids])}
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__(); self.anchor = torch.nn.Parameter(torch.zeros(())); self.batch_sizes = []
+        def forward(self, input_ids, past_key_values=None, **kwargs):
+            self.batch_sizes.append(input_ids.shape[0])
+            logits = torch.zeros(input_ids.shape[0], input_ids.shape[1], 8)
+            return type("Output", (), {"logits": logits, "past_key_values": Cache()})
+    model = Model()
+    probabilities = prompted_option_distributions(
+        model, Tokenizer(), [f"prompt{i}" for i in range(4)], [f"option-{i}" for i in range(18)],
+        max_expanded_batch=16)
+    assert probabilities.shape == (4, 18)
+    assert model.batch_sizes == [4, 16, 16, 16, 16, 8]
+    assert probabilities.sum(1).tolist() == pytest.approx([1.0] * 4)
+
+
+def test_batched_prompted_scores_match_full_sequence_qwen_reference():
+    from s1pii.s1d.infer import prompted_option_distributions
+    from transformers import Qwen3Config, Qwen3ForCausalLM
+    torch.manual_seed(11)
+    config = Qwen3Config(vocab_size=64, hidden_size=16, intermediate_size=32,
+                         num_hidden_layers=1, num_attention_heads=2,
+                         num_key_value_heads=2, head_dim=8, use_cache=True,
+                         attention_dropout=0)
+    model = Qwen3ForCausalLM(config).eval()
+    mapping = {"p0": [5, 6, 7], "p1": [8, 9, 10, 11, 12],
+               "a": [13], "bb": [14, 15], "ccc": [16, 17, 18]}
+    class Tokenizer:
+        pad_token_id = 0
+        def __call__(self, text, **kwargs):
+            return {"input_ids": torch.tensor([mapping[text]])}
+    tokenizer = Tokenizer(); prompts = ["p0", "p1"]; options = ["a", "bb", "ccc"]
+    actual = prompted_option_distributions(model, tokenizer, prompts, options, max_expanded_batch=4)
+    expected = []
+    with torch.no_grad():
+        for prompt in prompts:
+            prompt_ids = mapping[prompt]; scores = []
+            for option in options:
+                option_ids = mapping[option]
+                sequence = torch.tensor([prompt_ids + option_ids[:-1]])
+                logits = model(input_ids=sequence, use_cache=False).logits[0].float().log_softmax(-1)
+                positions = torch.arange(len(prompt_ids) - 1, len(prompt_ids) - 1 + len(option_ids))
+                scores.append(logits[positions, torch.tensor(option_ids)].mean())
+            expected.append(torch.stack(scores).softmax(0))
+    assert torch.allclose(actual, torch.stack(expected), atol=1e-5, rtol=0)
 
 
 def test_evaluation_windows_group_branches_by_document_and_preserve_order():
