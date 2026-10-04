@@ -10,7 +10,7 @@ import time
 from collections import OrderedDict
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, Iterator, Sequence
+from typing import Callable, Iterable, Iterator, Sequence
 
 import numpy as np
 import torch
@@ -45,6 +45,9 @@ def token_batches(rows: Sequence, token_budget: int, length=lambda x: len(x.inpu
 @dataclass
 class TrainConfig:
     seed: int = 0
+    data_seed: int | None = None
+    init_seed: int | None = None
+    order_seed: int | None = None
     token_budget: int = 8192
     learning_rate: float = 2e-4
     epochs: int = 1
@@ -55,6 +58,19 @@ class TrainConfig:
     bf16: bool = True
     checkpoint_every: int = 100
     control_path: str = ""
+    optimizer_condition: str = "old"
+    lora_learning_rate: float = 2e-4
+    pointer_learning_rate: float = 5e-5
+    token_learning_rate: float = 2e-4
+    warmup_fraction: float = 0.06
+    gradient_clip: float | None = None
+    max_steps: int | None = None
+
+    def seeds(self) -> tuple[int, int, int]:
+        """Resolve legacy ``seed`` to all three streams unless explicitly separated."""
+        return (self.seed if self.data_seed is None else self.data_seed,
+                self.seed if self.init_seed is None else self.init_seed,
+                self.seed if self.order_seed is None else self.order_seed)
 
 
 class GPUHours:
@@ -101,34 +117,109 @@ def _trainable_state(model) -> dict[str, torch.Tensor]:
     return {name: value.detach().cpu() for name, value in model.state_dict().items() if name in trainable}
 
 
-def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict) -> None:
+def _rng_state() -> dict:
+    state = {"python": random.getstate(), "numpy": np.random.get_state(),
+             "torch": torch.random.get_rng_state()}
+    if torch.cuda.is_available():
+        state["cuda"] = torch.cuda.get_rng_state_all()
+    return state
+
+
+def _set_rng_state(state: dict) -> None:
+    random.setstate(state["python"]); np.random.set_state(state["numpy"])
+    torch.random.set_rng_state(state["torch"])
+    if torch.cuda.is_available() and "cuda" in state:
+        torch.cuda.set_rng_state_all(state["cuda"])
+
+
+def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict, scheduler=None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / "checkpoint.pt.part"
-    torch.save({"trainable_model": _trainable_state(model), "optimizer": optimizer.state_dict(), "step": step}, tmp)
+    torch.save({"trainable_model": _trainable_state(model), "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict() if scheduler is not None else None,
+                "rng": _rng_state(), "step": step}, tmp)
     os.replace(tmp, out / "checkpoint.pt")
     (out / "manifest.json").write_text(json.dumps(meta, indent=2, sort_keys=True))
 
 
+def _stable_optimizer(model, config: TrainConfig, device: torch.device):
+    groups = {"lora": [], "pointer": [], "tokens": []}
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        if "lora_" in name:
+            group = "lora"
+        elif name.startswith(("decision_projection.", "option_projection.", "pointer_bias")):
+            group = "pointer"
+        elif "trainable_tokens" in name:
+            group = "tokens"
+        else:
+            raise ValueError(f"stable optimizer has no parameter group for {name}")
+        groups[group].append(parameter)
+    rates = {"lora": config.lora_learning_rate, "pointer": config.pointer_learning_rate,
+             "tokens": config.token_learning_rate}
+    missing = [name for name, parameters in groups.items() if not parameters]
+    if missing:
+        raise ValueError(f"stable optimizer parameter groups are empty: {missing}")
+    optimizer = torch.optim.AdamW([{"params": groups[name], "lr": rates[name], "name": name}
+                                   for name in ("lora", "pointer", "tokens")],
+                                  fused=device.type == "cuda")
+    return optimizer
+
+
+def _linear_schedule(optimizer, *, total_steps: int, warmup_fraction: float):
+    warmup = max(1, round(total_steps * warmup_fraction))
+    def scale(step):
+        if step < warmup:
+            return float(step + 1) / warmup
+        return max(0.0, float(total_steps - step) / max(1, total_steps - warmup))
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, scale)
+
+
+def _grad_norm(parameters) -> float:
+    norms = [parameter.grad.detach().float().norm(2) for parameter in parameters
+             if parameter.requires_grad and parameter.grad is not None]
+    return float(torch.stack(norms).norm(2)) if norms else 0.0
+
+
 def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hours_path: Path,
-          *, hashes: dict[str, str] | None = None) -> dict:
+          *, hashes: dict[str, str] | None = None,
+          checkpoint_callback: Callable[[object, int, dict], None] | None = None,
+          callback_every: int | None = None) -> dict:
     """Train/resume pointer CE. Each row is ``(PackedWindow, target_index)``."""
-    seed_everything(config.seed)
+    data_seed, _init_seed, order_seed = config.seeds()
+    seed_everything(order_seed)
     meter = GPUHours(gpu_hours_path, config.cap_hours, config.stage); meter.reserve(config.estimated_hours)
     model.enable_training_memory_features()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu"); model.to(device).train()
-    optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),
-                                  lr=config.learning_rate, fused=device.type == "cuda")
+    if config.optimizer_condition == "stable":
+        optimizer = _stable_optimizer(model, config, device)
+    elif config.optimizer_condition == "old":
+        optimizer = torch.optim.AdamW((p for p in model.parameters() if p.requires_grad),
+                                      lr=config.learning_rate, fused=device.type == "cuda")
+    else:
+        raise ValueError(f"unknown optimizer condition {config.optimizer_condition!r}")
+    scheduler = None
+    if config.optimizer_condition == "stable":
+        total_steps = config.max_steps or sum(1 for _ in token_batches(
+            packed_rows, config.token_budget, length=lambda x: len(x[0].input_ids), seed=data_seed)) * config.epochs
+        scheduler = _linear_schedule(optimizer, total_steps=total_steps,
+                                     warmup_fraction=config.warmup_fraction)
     start_step = 0
     checkpoint = out / "checkpoint.pt"
     if checkpoint.exists():
         state = torch.load(checkpoint, map_location=device, weights_only=False)
         model.load_state_dict(state["trainable_model"], strict=False)
         optimizer.load_state_dict(state["optimizer"]); start_step = state["step"]
+        if scheduler is not None and state.get("scheduler") is not None:
+            scheduler.load_state_dict(state["scheduler"])
+        if state.get("rng") is not None:
+            _set_rng_state(state["rng"])
     meta = manifest(config, hashes or {}, model)
-    last_accounted = time.monotonic(); step = 0
+    last_accounted = time.monotonic(); step = 0; stats = None
     for epoch in range(config.epochs):
         for batch in token_batches(packed_rows, config.token_budget,
-                                   length=lambda x: len(x[0].input_ids), seed=config.seed + epoch):
+                                   length=lambda x: len(x[0].input_ids), seed=data_seed + epoch):
             if config.control_path and Path(config.control_path).exists() \
                     and Path(config.control_path).read_text().strip().upper() == "STOP":
                 raise InterruptedError("STOP requested")
@@ -158,14 +249,40 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
                         target = torch.as_tensor(target if isinstance(target, (list, tuple)) else [target])
                         losses.append(model(packed, labels=target).loss)
                 loss = torch.stack(losses).mean()
-            loss.backward(); optimizer.step()
+            loss.backward()
+            grad_norm = _grad_norm(model.parameters())
+            learning_rates = {str(group.get("name", "all")): float(group["lr"])
+                              for group in optimizer.param_groups}
+            if config.gradient_clip is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip)
+            optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
             now = time.monotonic()
             meter.record(config.unit, now - last_accounted, stage=config.stage, device=str(device), step=step)
             last_accounted = now
+            stats = {"loss": float(loss.detach()), "grad_norm": grad_norm,
+                     "learning_rates": learning_rates}
             if step == 1 or step % 25 == 0:
-                print(f"{config.unit}: step {step} loss {float(loss.detach()):.6f}", flush=True)
+                print(f"{config.unit}: step {step} loss {stats['loss']:.6f}", flush=True)
             if step % config.checkpoint_every == 0:
-                save_checkpoint(model, optimizer, step, out, meta)
-    save_checkpoint(model, optimizer, step, out, meta)
+                save_checkpoint(model, optimizer, step, out, meta, scheduler)
+            if checkpoint_callback is not None and callback_every and step % callback_every == 0:
+                state = _rng_state()
+                try:
+                    checkpoint_callback(model, step, stats)
+                finally:
+                    _set_rng_state(state); model.train()
+            if config.max_steps is not None and step >= config.max_steps:
+                break
+        if config.max_steps is not None and step >= config.max_steps:
+            break
+    if checkpoint_callback is not None and stats is not None and (not callback_every or step % callback_every):
+        state = _rng_state()
+        try:
+            checkpoint_callback(model, step, stats)
+        finally:
+            _set_rng_state(state); model.train()
+    save_checkpoint(model, optimizer, step, out, meta, scheduler)
     (out / "done").write_text(str(step))
     return {**meta, "steps": step}

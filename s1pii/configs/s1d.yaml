@@ -32,6 +32,24 @@ training:
   # Preserve the preregistered optimizer-batch schedule; equal-length rows within each batch
   # share a real A100 backbone call.
   token_budget: 8192
+stage1_pilot:
+  data_seed: 1
+  init_seeds: [1, 2]
+  order_seed: 17
+  windows: 4000
+  # Covers roughly the first 330 optimizer steps of the observed 8192-token schedule.
+  # Update only from the committed CPU loss audit before a production pilot.
+  max_steps: 330
+  checkpoint_every: 50
+  warmup_fraction: 0.06
+  gradient_clip: 1.0
+  lora_learning_rate: 0.0002
+  pointer_learning_rate: 0.00005
+  token_learning_rate: 0.0002
+  collapse:
+    gold_accuracy_below: 0.5
+    not_pii_rate_above: 0.3
+    single_option_rate_above: 0.6
 stages:
   stage0:
     cap_a100_hours: 5
@@ -43,5 +61,6 @@ stages:
       kev_baseline: 0.4
       latency: 0.4
   stage1: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
+  stage1_pilot: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {paired_optimizer: 3}}
   comparators1: {cap_a100_hours: 3, enforce_cap: false, requires_approval: false, unit_estimates: {decision20: 1.5}}
   stage2: {cap_a100_hours: 23, enforce_cap: false, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

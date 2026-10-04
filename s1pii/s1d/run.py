@@ -26,6 +26,7 @@ UNITS = {
     "stage0": ("label_draw", "census", "revisions", "prompted_probe", "kev_baseline",
                "proposer_all", "proposer_no_nemotron", "latency"),
     "stage1": ("train_sizes", "layout_ablation", "dev_eval"),
+    "stage1_pilot": ("paired_optimizer",),
     "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
@@ -207,7 +208,8 @@ def _candidate_cache_path(root: Path, docs: list[Doc], weights_sha: str, cache_n
 
 
 def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
-                         cache_name: str | None = None) -> dict[str, list[Span]]:
+                         cache_name: str | None = None,
+                         require_cache: bool = False) -> dict[str, list[Span]]:
     if dry:
         output = {}
         for doc in docs:
@@ -229,6 +231,9 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
                     for doc_id, rows in payload["candidates"].items()}
         print(f"stage1 proposer candidates: recomputing; {cache_path.name} has mining_version "
               f"{payload.get('mining_version')} != {_CANDIDATE_MINING_VERSION}", flush=True)
+    if require_cache:
+        expected = cache_path if cache_path is not None else "a named candidate cache"
+        raise FileNotFoundError(f"CPU-only audit requires the existing proposer cache: {expected}")
     meter = GPUHours(root / "gpu_hours.jsonl", 12, "stage1")
     meter.reserve(0.0)
     last_accounted = time.monotonic()
@@ -340,25 +345,21 @@ def _reuse_or_reset_run(run_dir: Path, expected: dict) -> bool:
     return False
 
 
-def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
-                      window_count: int, run_dir: Path, branches_per_window: int = 1) -> dict:
-    from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
+def _trainable_digest(state: dict[str, torch.Tensor]) -> str:
+    digest = hashlib.sha256()
+    for name, value in sorted(state.items()):
+        raw = value.detach().cpu().contiguous().reshape(-1).view(torch.uint8).numpy().tobytes()
+        digest.update(name.encode()); digest.update(str(value.dtype).encode())
+        digest.update(str(tuple(value.shape)).encode()); digest.update(raw)
+    return digest.hexdigest()
+
+
+def _build_stage1_model(ctx, model_id: str, init_seed: int):
     from .model import S1DModel, apply_lora, prepare_tokenizer
-    from .train import TrainConfig, seed_everything, train
-    dry = ctx["dry"]
-    revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
-    token_budget = 4096 if dry else int(ctx["config"]["training"]["token_budget"])
-    selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
-    selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), seed)
-    # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
-    # revision and layout all match; mismatches (including a stale checkpoint) are archived aside.
-    expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout,
-                       "training_semantics": str(_TRAINING_SEMANTICS_VERSION),
-                       "token_budget": str(token_budget)}
-    if _reuse_or_reset_run(run_dir, expected_hashes):
-        return json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
-    seed_everything(seed)
-    if dry:
+    from .train import seed_everything
+    seed_everything(init_seed)
+    revision = "local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"]
+    if ctx["dry"]:
         from .latency import _DryTokenizer, _tiny_model
         tokenizer, model = _DryTokenizer(), _tiny_model()
     else:
@@ -366,6 +367,51 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
         tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
         model = S1DModel.from_pretrained(model_id, revision)
     token_rows = prepare_tokenizer(tokenizer, model); apply_lora(model, token_rows, rank=32)
+    return tokenizer, model
+
+
+def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
+                      window_count: int, run_dir: Path, branches_per_window: int = 1,
+                      data_seed: int | None = None, init_seed: int | None = None,
+                      order_seed: int | None = None, optimizer_condition: str = "old",
+                      initial_state_path: Path | None = None, max_steps: int | None = None,
+                      callback=None, callback_every: int | None = None,
+                      extra_hashes: dict[str, str] | None = None) -> dict:
+    from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
+    from .train import TrainConfig, train
+    dry = ctx["dry"]
+    data_seed = seed if data_seed is None else data_seed
+    init_seed = seed if init_seed is None else init_seed
+    order_seed = seed if order_seed is None else order_seed
+    revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
+    token_budget = 4096 if dry else int(ctx["config"]["training"]["token_budget"])
+    selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
+    selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), data_seed)
+    # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
+    # revision and layout all match; mismatches (including a stale checkpoint) are archived aside.
+    expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout,
+                       "training_semantics": str(_TRAINING_SEMANTICS_VERSION),
+                       "token_budget": str(token_budget)}
+    expected_hashes.update(extra_hashes or {})
+    if _reuse_or_reset_run(run_dir, expected_hashes):
+        cached = json.loads((run_dir / "manifest.json").read_text()) | {"status": "cached"}
+        if initial_state_path is not None:
+            cached["initial_state_sha256"] = expected_hashes["initial_state"]
+        return cached
+    tokenizer, model = _build_stage1_model(ctx, model_id, init_seed)
+    loaded_initial_hash = None
+    if initial_state_path is not None:
+        initial = torch.load(initial_state_path, map_location="cpu", weights_only=False)
+        state = initial["trainable_model"]
+        result = model.load_state_dict(state, strict=False)
+        trainable = {name for name, parameter in model.named_parameters() if parameter.requires_grad}
+        if result.unexpected_keys or trainable - set(state):
+            raise RuntimeError(f"pilot initial state mismatch: missing trainable={sorted(trainable-set(state))[:3]} "
+                               f"unexpected={result.unexpected_keys[:3]}")
+        loaded_initial_hash = _trainable_digest({name: value for name, value in model.state_dict().items()
+                                                 if name in trainable})
+        if loaded_initial_hash != initial["sha256"]:
+            raise RuntimeError("pilot initial state changed while loading")
     device = torch.device("cpu" if dry else "cuda")
     if branches_per_window > 1 and not dry:
         packed = _LazyPackedRows(selected_count, lambda index: pack_layout_ablation_questions(
@@ -383,32 +429,50 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     else:
         packed = pack_training_questions(selected, tokenizer, layout=layout, device=device,
                                          make_block_mask=not dry)
-    config = TrainConfig(seed=seed, token_budget=token_budget, epochs=1,
-                         stage="stage1", unit=f"{model_id}-s{seed}-{layout}",
-                         cap_hours=ctx["config"]["stages"]["stage1"]["cap_a100_hours"],
-                         control_path=str(ctx["root"] / "CONTROL"), checkpoint_every=100)
+    pilot = ctx["config"].get("stage1_pilot", {})
+    stage_name = "stage1_pilot" if initial_state_path is not None else "stage1"
+    unit = f"{model_id}-s{seed}-{layout}"
+    if initial_state_path is not None:
+        unit += f"-{optimizer_condition}"
+    config = TrainConfig(seed=seed, data_seed=data_seed, init_seed=init_seed, order_seed=order_seed,
+                         token_budget=token_budget, epochs=1,
+                         stage=stage_name, unit=unit,
+                         cap_hours=ctx["config"]["stages"][stage_name]["cap_a100_hours"],
+                         control_path=str(ctx["root"] / "CONTROL"),
+                         checkpoint_every=callback_every or 100,
+                         optimizer_condition=optimizer_condition,
+                         lora_learning_rate=float(pilot.get("lora_learning_rate", 2e-4)),
+                         pointer_learning_rate=float(pilot.get("pointer_learning_rate", 5e-5)),
+                         token_learning_rate=float(pilot.get("token_learning_rate", 2e-4)),
+                         warmup_fraction=float(pilot.get("warmup_fraction", 0.06)),
+                         gradient_clip=(float(pilot.get("gradient_clip", 1.0))
+                                        if optimizer_condition == "stable" else None),
+                         max_steps=max_steps)
     (ctx["root"] / "PHASE").write_text("GPU")
     try:
         result = train(model, packed, config, run_dir, ctx["root"] / "gpu_hours.jsonl",
-                       hashes=expected_hashes)
+                       hashes=expected_hashes, checkpoint_callback=callback,
+                       callback_every=callback_every)
     finally:
         (ctx["root"] / "PHASE").write_text("CPU")
     del model
     if torch.cuda.is_available(): torch.cuda.empty_cache()
-    return result
+    return result | ({"initial_state_sha256": loaded_initial_hash} if loaded_initial_hash else {})
 
 
-def _training_questions(ctx, seed: int):
+def _training_questions(ctx, seed: int | None = None, *, data_seed: int | None = None):
     from .data import generate_questions
+    if data_seed is None:
+        data_seed = 0 if seed is None else seed
     if ctx["dry"]:
         docs = _dry_docs(); candidates = _proposer_candidates(ctx["root"], docs, True)
     else:
         from ..model.train import TrainConfig as V1Config, training_docs
-        docs, _ = training_docs(V1Config(variant="no-nemotron", seed=seed))
+        docs, _ = training_docs(V1Config(variant="no-nemotron", seed=data_seed))
         counts = dict(__import__("collections").Counter(doc.dataset for doc in docs))
         print(f"stage1 training documents: {len(docs)} source_counts={counts}", flush=True)
         candidates = _proposer_candidates(ctx["root"], docs, False, cache_name="training")
-    return generate_questions(docs, seed=seed, variant="no-nemotron", min_options=2, max_options=64,
+    return generate_questions(docs, seed=data_seed, variant="no-nemotron", min_options=2, max_options=64,
                               hard_negative_hook=lambda doc: candidates.get(doc.doc_id, ()),
                               ledger_path=ctx["root"] / "ledger.jsonl")
 
@@ -532,6 +596,122 @@ def _sanity_metrics(rows, probabilities, *, temperature: float = 1.0) -> dict:
             "not_pii_accuracy": not_pii_accuracy,
             "per_label_accuracy": {name: float(np.mean(values)) for name, values in by_label.items()},
             "prediction_distribution": distribution, "labels": sorted(by_label)}
+
+
+def _collapse_flag(metrics: dict, thresholds: dict) -> tuple[bool, list[str]]:
+    gold = max(1, int(metrics["gold_questions"])); distribution = metrics["prediction_distribution"]
+    dominant = max(distribution.values(), default=0) / gold
+    reasons = []
+    if metrics["accuracy"] < float(thresholds["gold_accuracy_below"]):
+        reasons.append("gold_accuracy")
+    if metrics["not_pii_rate"] > float(thresholds["not_pii_rate_above"]):
+        reasons.append("not_pii_rate")
+    if dominant > float(thresholds["single_option_rate_above"]):
+        reasons.append("single_option_rate")
+    return bool(reasons), reasons
+
+
+def _unit_stage1_pilot(ctx, out):
+    """Paired old/stable optimizer pilot with frozen data, initialization, and dropout RNG."""
+    from .train import _trainable_state
+    spec = ctx["config"]["stage1_pilot"]
+    data_seed = int(spec["data_seed"]); order_seed = int(spec["order_seed"])
+    max_steps = 2 if ctx["dry"] else int(spec["max_steps"])
+    every = 1 if ctx["dry"] else int(spec["checkpoint_every"])
+    sizes = ["1.7B"]
+    if os.environ.get("S1D_PILOT_4B") == "1":
+        sizes.append("4B")
+    model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
+    questions = _training_questions(ctx, data_seed=data_seed)
+    sanity_rows = _seen_questions(ctx, descriptions=True)
+    output = {"implementation_version": 1, "data_seed": data_seed, "order_seed": order_seed,
+              "max_steps": max_steps, "checkpoint_every": every,
+              "collapse_thresholds": spec["collapse"], "sizes": sizes, "runs": {}}
+    try:
+        previous = json.loads(out.read_text())
+        identity = ("implementation_version", "data_seed", "order_seed", "max_steps",
+                    "checkpoint_every", "collapse_thresholds", "sizes")
+        if all(previous.get(key) == output.get(key) for key in identity):
+            output = previous
+    except (OSError, ValueError):
+        pass
+    pilot_root = ctx["root"] / "models" / "stage1-pilot"
+    for size in sizes:
+        model_id = model_ids[size]
+        if ctx["dry"]:
+            from .latency import _DryTokenizer
+            eval_tokenizer = _DryTokenizer()
+        else:
+            from transformers import AutoTokenizer
+            eval_tokenizer = AutoTokenizer.from_pretrained(
+                model_id, revision=ctx["config"]["models"][model_id]["revision"])
+        for init_seed in map(int, spec["init_seeds"]):
+            pair = f"{size}-init{init_seed}"
+            revision = "local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"]
+            init_path = (pilot_root / "initial" /
+                         f"v{_TRAINING_SEMANTICS_VERSION}-{revision[:12]}-{pair}.pt")
+            if not init_path.exists():
+                _tokenizer, initial_model = _build_stage1_model(ctx, model_id, init_seed)
+                initial_state = _trainable_state(initial_model)
+                payload = {"version": 1, "model_id": model_id, "revision": revision,
+                           "training_semantics": _TRAINING_SEMANTICS_VERSION, "init_seed": init_seed,
+                           "trainable_model": initial_state,
+                           "sha256": _trainable_digest(initial_state)}
+                init_path.parent.mkdir(parents=True, exist_ok=True)
+                part = init_path.with_suffix(".part"); torch.save(payload, part); os.replace(part, init_path)
+                del initial_model
+                if torch.cuda.is_available(): torch.cuda.empty_cache()
+            initial = torch.load(init_path, map_location="cpu", weights_only=False)
+            if (initial.get("model_id"), initial.get("revision"), initial.get("init_seed")) != \
+                    (model_id, revision, init_seed):
+                raise RuntimeError(f"pilot initial-state metadata mismatch at {init_path}")
+            pair_output = output["runs"].setdefault(
+                pair, {"initial_state_sha256": initial["sha256"], "conditions": {}})
+            if pair_output["initial_state_sha256"] != initial["sha256"]:
+                raise RuntimeError("saved pilot output refers to a different initial state")
+            for condition in ("old", "stable"):
+                condition_output = pair_output["conditions"].setdefault(condition, {"checkpoints": []})
+                checkpoints = condition_output["checkpoints"]
+
+                def evaluate(model, step, stats, *, pair=pair, condition=condition,
+                             checkpoints=checkpoints, initial_sha=initial["sha256"]):
+                    model.eval()
+                    identity = {"kind": "stage1-pilot", "pair": pair, "condition": condition,
+                                "step": step, "initial_state_sha256": initial_sha}
+                    fingerprint = _eval_fingerprint(sanity_rows, identity)
+                    probabilities = _score_loaded_trained(
+                        ctx, model, eval_tokenizer, sanity_rows, layout="shared",
+                        key=f"pilot-{pair}-{condition}-step{step}", split="sanity",
+                        fingerprint=fingerprint)
+                    metrics = _sanity_metrics(sanity_rows, probabilities)
+                    collapsed, reasons = _collapse_flag(metrics, spec["collapse"])
+                    checkpoints.append({"step": step, **stats, "metrics": metrics,
+                                        "collapsed": collapsed, "collapse_reasons": reasons})
+                    _atomic_json(out, output)
+
+                run_dir = pilot_root / pair / condition
+                optimizer_spec = {
+                    "condition": condition, "max_steps": max_steps, "checkpoint_every": every,
+                    "warmup_fraction": spec["warmup_fraction"], "gradient_clip": spec["gradient_clip"],
+                    "lora_learning_rate": spec["lora_learning_rate"],
+                    "pointer_learning_rate": spec["pointer_learning_rate"],
+                    "token_learning_rate": spec["token_learning_rate"],
+                }
+                result = _train_stage1_run(
+                    ctx, questions, model_id=model_id, seed=data_seed, data_seed=data_seed,
+                    init_seed=init_seed, order_seed=order_seed, layout="shared",
+                    window_count=int(spec["windows"]), run_dir=run_dir,
+                    optimizer_condition=condition, initial_state_path=init_path,
+                    max_steps=max_steps, callback=evaluate, callback_every=every,
+                    extra_hashes={"pilot_condition": condition, "initial_state": initial["sha256"],
+                                  "order_seed": str(order_seed),
+                                  "optimizer_spec": hashlib.sha256(json.dumps(
+                                      optimizer_spec, sort_keys=True).encode()).hexdigest()})
+                condition_output["training"] = result
+                if result["initial_state_sha256"] != initial["sha256"]:
+                    raise RuntimeError("paired conditions did not load the registered initial state")
+                _atomic_json(out, output)
+    return output
 
 
 def _inference_probabilities(model, window, device: torch.device, *, bf16: bool):
@@ -1069,6 +1249,11 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if not (stores / f"{stage}-{unit}.done").exists() or not result_path.exists():
         return False
     if stage != "stage0":
+        if stage == "stage1_pilot":
+            try:
+                return json.loads(result_path.read_text()).get("implementation_version") == 1
+            except (OSError, ValueError):
+                return False
         if stage == "comparators1":
             try:
                 return json.loads(result_path.read_text()).get("implementation_version") == 2
@@ -1128,6 +1313,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "kev_baseline": lambda c, o: _unit_questions(c, o, "kev_baseline"),
         "latency": _unit_latency,
         "train_sizes": _unit_train_sizes,
+        "paired_optimizer": _unit_stage1_pilot,
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,

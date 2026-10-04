@@ -236,6 +236,22 @@ def test_stage1_token_budget_preserves_optimizer_schedule():
     assert config["training"]["token_budget"] == 8192
 
 
+def test_stage1_seed_defaults_preserve_legacy_stream():
+    from s1pii.s1d.train import TrainConfig
+    assert TrainConfig(seed=7).seeds() == (7, 7, 7)
+    assert TrainConfig(seed=7, data_seed=3, init_seed=4, order_seed=5).seeds() == (3, 4, 5)
+
+
+def test_explicit_data_seed_preserves_legacy_question_hash(tmp_path):
+    from s1pii.s1d import run as runner
+    from s1pii.s1d.data import question_set_hash
+    ctx = {"dry": True, "root": tmp_path}
+    legacy = runner._training_questions(ctx, 7)
+    separated = runner._training_questions(ctx, data_seed=7)
+    assert question_set_hash(runner._repeat_rows(legacy, 16, 7)) == \
+           question_set_hash(runner._repeat_rows(separated, 16, 7))
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="batched FlexAttention requires CUDA")
 def test_forward_many_flex_cuda_matches_individual_windows():
     from s1pii.s1d.packer import flex_block_mask
@@ -891,6 +907,15 @@ def test_stage1_candidate_cache_round_trips_without_gpu(tmp_path):
     assert _candidate_cache_path(root, docs, "other-sha", "calibration") != cache_path
 
 
+def test_cpu_audit_never_mines_missing_proposer_candidates(tmp_path):
+    from s1pii.s1d.run import _proposer_candidates
+    path = tmp_path / "models" / "proposer-no-nemotron" / "final"; path.mkdir(parents=True)
+    (path / "s1_manifest.json").write_text(json.dumps({"weights_sha256": "w-sha"}))
+    docs = [Doc("d0", "alpha beta", (), "gretel", "train", "d0")]
+    with pytest.raises(FileNotFoundError, match="CPU-only audit requires"):
+        _proposer_candidates(tmp_path, docs, False, cache_name="training", require_cache=True)
+
+
 def test_stage1_candidate_mining_stays_cpu_and_meters_without_cap(tmp_path, monkeypatch):
     from s1pii.s1d import run as runner
     import s1pii.model.train as v1train
@@ -1173,6 +1198,53 @@ def test_stage1_dry_chain_writes_all_units(tmp_path):
     for result in dev["in_domain_sanity"].values():
         assert result["gold_questions"] >= 0 and "not_pii_rate" in result
     assert outputs["layout_ablation"]["stage2_layout"] in {"shared", "kev"}
+
+
+def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    (root / "APPROVED_stage1_pilot").write_text("approved")
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "stage1_pilot.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    result = json.loads((root / "stores" / "stage1_pilot-paired_optimizer.json").read_text())
+    assert result["collapse_thresholds"] == {
+        "gold_accuracy_below": 0.5, "not_pii_rate_above": 0.3, "single_option_rate_above": 0.6}
+    assert set(result["runs"]) == {"1.7B-init1", "1.7B-init2"}
+    for pair in result["runs"].values():
+        conditions = pair["conditions"]
+        assert set(conditions) == {"old", "stable"}
+        hashes = {condition["training"]["initial_state_sha256"] for condition in conditions.values()}
+        assert hashes == {pair["initial_state_sha256"]}
+        for condition in conditions.values():
+            assert condition["checkpoints"]
+            assert {"loss", "grad_norm", "learning_rates", "metrics", "collapsed"} <= \
+                   set(condition["checkpoints"][0])
+    # Force the outer unit to re-enter while its four inner training runs are complete. This
+    # exercises cached-condition reuse and must retain the paired initial-state integrity check.
+    (root / "stores" / "stage1_pilot-paired_optimizer.done").unlink()
+    resumed = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,
+                             capture_output=True, text=True)
+    assert resumed.returncode == 0, resumed.stdout + resumed.stderr + "\n" + log
+
+
+def test_loss_audit_parses_and_reports_departure(tmp_path):
+    log = tmp_path / "stage1.log"
+    rows = []
+    for step, healthy, bad in ((1, .5, .5), (25, .4, 2.0), (50, .3, 2.0),
+                               (75, .3, 2.0), (100, .2, 2.0)):
+        rows += [f"Qwen/Qwen3-0.6B-s1-shared: step {step} loss {healthy}",
+                 f"Qwen/Qwen3-1.7B-s1-shared: step {step} loss {bad}"]
+    log.write_text("\n".join(rows))
+    out = tmp_path / "audit.json"
+    run = subprocess.run([sys.executable, "scripts/s1d_loss_audit.py", str(log),
+                          "--window", "1", "--consecutive", "3", "--json", str(out)],
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    result = json.loads(out.read_text())
+    assert result["runs"]["Qwen/Qwen3-1.7B-s1-shared"]["departure_step"] == 25
 
 
 def test_decision20_dry_chain_scores_dev_questions(tmp_path):

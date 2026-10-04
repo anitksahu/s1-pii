@@ -41,14 +41,11 @@ ap.add_argument("--scratch", type=Path, default=Path("/content/s1d_diag"))
 ap.add_argument("--runs", nargs="+", default=["0.6B-s2", "0.6B-s1"])
 ap.add_argument("--n", type=int, default=400)
 ap.add_argument("--gretel-docs", type=int, default=400)
+ap.add_argument("--composition-only", action="store_true",
+                help="run only the CPU training-composition audit, then exit")
 args = ap.parse_args()
 
 ROOT, SCR, N = args.root, args.scratch, args.n
-nemotron_calib = Path(os.environ["S1PII_DATA"]) / "splits" / "nemotron-calib.jsonl"
-if not nemotron_calib.exists():
-    raise FileNotFoundError(
-        f"Missing {nemotron_calib}. Run Cell 1 of notebooks/06_s1d.ipynb to sync S1PII_DATA, then rerun."
-    )
 SCR.mkdir(parents=True, exist_ok=True)
 link = SCR / "models" / "proposer-no-nemotron"
 if not link.exists():
@@ -82,7 +79,8 @@ from s1pii.model.train import TrainConfig as V1Config, training_docs
 trained_raws = {}
 for seed in sorted({int(r.rsplit("-s", 1)[1]) for r in args.runs}):
     docs, sources = training_docs(V1Config(variant="no-nemotron", seed=seed))
-    cands = R._proposer_candidates(ROOT, docs, False, cache_name="training")
+    cands = R._proposer_candidates(ROOT, docs, False, cache_name="training",
+                                   require_cache=args.composition_only)
     questions = D.generate_questions(
         docs,
         seed=seed,
@@ -113,6 +111,18 @@ for seed in sorted({int(r.rsplit("-s", 1)[1]) for r in args.runs}):
     }
     print(json.dumps({f"composition_s{seed}": report[f"composition_s{seed}"]}, indent=1), flush=True)
     del docs, cands, questions, selected
+
+if args.composition_only:
+    path = SCR / "composition.json"
+    path.write_text(json.dumps(report, indent=1, default=str))
+    print("wrote", path)
+    raise SystemExit(0)
+
+nemotron_calib = Path(os.environ["S1PII_DATA"]) / "splits" / "nemotron-calib.jsonl"
+if not nemotron_calib.exists():
+    raise FileNotFoundError(
+        f"Missing {nemotron_calib}. Run Cell 1 of notebooks/06_s1d.ipynb to sync S1PII_DATA, then rerun."
+    )
 
 
 # ---------- question sets ----------
