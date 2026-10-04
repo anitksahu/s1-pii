@@ -32,6 +32,7 @@ UNITS = {
 }
 
 _TRAINING_SEMANTICS_VERSION = 2
+_PILOT_SEMANTICS_VERSION = 2
 
 
 def _atomic_json(path: Path, value) -> None:
@@ -611,6 +612,13 @@ def _collapse_flag(metrics: dict, thresholds: dict) -> tuple[bool, list[str]]:
     return bool(reasons), reasons
 
 
+def _prepare_pilot_eval_tokenizer(tokenizer):
+    """Register the reserved packing tokens on the tokenizer used by checkpoint evaluation."""
+    from .model import prepare_tokenizer
+    prepare_tokenizer(tokenizer)
+    return tokenizer
+
+
 def _unit_stage1_pilot(ctx, out):
     """Paired old/stable optimizer pilot with frozen data, initialization, and dropout RNG."""
     from .train import _trainable_state
@@ -624,12 +632,13 @@ def _unit_stage1_pilot(ctx, out):
     model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
     questions = _training_questions(ctx, data_seed=data_seed)
     sanity_rows = _seen_questions(ctx, descriptions=True)
-    output = {"implementation_version": 1, "data_seed": data_seed, "order_seed": order_seed,
+    output = {"implementation_version": 1, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
+              "data_seed": data_seed, "order_seed": order_seed,
               "max_steps": max_steps, "checkpoint_every": every,
               "collapse_thresholds": spec["collapse"], "sizes": sizes, "runs": {}}
     try:
         previous = json.loads(out.read_text())
-        identity = ("implementation_version", "data_seed", "order_seed", "max_steps",
+        identity = ("implementation_version", "pilot_semantics", "data_seed", "order_seed", "max_steps",
                     "checkpoint_every", "collapse_thresholds", "sizes")
         if all(previous.get(key) == output.get(key) for key in identity):
             output = previous
@@ -640,11 +649,11 @@ def _unit_stage1_pilot(ctx, out):
         model_id = model_ids[size]
         if ctx["dry"]:
             from .latency import _DryTokenizer
-            eval_tokenizer = _DryTokenizer()
+            eval_tokenizer = _prepare_pilot_eval_tokenizer(_DryTokenizer())
         else:
             from transformers import AutoTokenizer
-            eval_tokenizer = AutoTokenizer.from_pretrained(
-                model_id, revision=ctx["config"]["models"][model_id]["revision"])
+            eval_tokenizer = _prepare_pilot_eval_tokenizer(AutoTokenizer.from_pretrained(
+                model_id, revision=ctx["config"]["models"][model_id]["revision"]))
         for init_seed in map(int, spec["init_seeds"]):
             pair = f"{size}-init{init_seed}"
             revision = "local-dry" if ctx["dry"] else ctx["config"]["models"][model_id]["revision"]
@@ -705,6 +714,7 @@ def _unit_stage1_pilot(ctx, out):
                     max_steps=max_steps, callback=evaluate, callback_every=every,
                     extra_hashes={"pilot_condition": condition, "initial_state": initial["sha256"],
                                   "order_seed": str(order_seed),
+                                  "pilot_semantics": str(_PILOT_SEMANTICS_VERSION),
                                   "optimizer_spec": hashlib.sha256(json.dumps(
                                       optimizer_spec, sort_keys=True).encode()).hexdigest()})
                 condition_output["training"] = result

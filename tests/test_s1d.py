@@ -242,6 +242,14 @@ def test_stage1_seed_defaults_preserve_legacy_stream():
     assert TrainConfig(seed=7, data_seed=3, init_seed=4, order_seed=5).seeds() == (3, 4, 5)
 
 
+def test_pilot_eval_tokenizer_registers_reserved_tokens():
+    from s1pii.s1d.run import _prepare_pilot_eval_tokenizer
+    tokenizer = StubTokenizer(); tokenizer.vocab.clear()
+    _prepare_pilot_eval_tokenizer(tokenizer)
+    assert all(tokenizer.convert_tokens_to_ids(token) != tokenizer.unk_token_id
+               for token in SPECIAL_TOKENS)
+
+
 def test_explicit_data_seed_preserves_legacy_question_hash(tmp_path):
     from s1pii.s1d import run as runner
     from s1pii.s1d.data import question_set_hash
