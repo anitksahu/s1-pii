@@ -347,9 +347,7 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     from .train import TrainConfig, seed_everything, train
     dry = ctx["dry"]
     revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
-    size = model_id.rsplit("-", 1)[-1]
-    token_budget = (4096 if dry else
-                    int(ctx["config"]["training"]["token_budget_by_size"][size]))
+    token_budget = 4096 if dry else int(ctx["config"]["training"]["token_budget"])
     selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
     selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), seed)
     # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
@@ -428,7 +426,7 @@ def _unit_train_sizes(ctx, _out):
                                              run_dir=models_root / key)
     return {"implementation_version": 6, "variant": "no-nemotron", "windows_per_run": 16000,
             "training_semantics": _TRAINING_SEMANTICS_VERSION,
-            "token_budget_by_size": ctx["config"]["training"]["token_budget_by_size"],
+            "token_budget": ctx["config"]["training"]["token_budget"],
             "seeds": [1, 2], "runs": results}
 
 

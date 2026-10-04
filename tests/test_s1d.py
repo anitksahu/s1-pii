@@ -230,12 +230,10 @@ def test_forward_many_training_loss_matches_individual_and_backpropagates(tiny):
     assert tiny.pointer_bias.grad is not None
 
 
-def test_length_bucket_batches_are_real_equal_length_batches():
-    from s1pii.s1d.train import length_bucket_batches
-    batches = list(length_bucket_batches([4, 2, 4, 2, 4, 2], 8, length=lambda value: value,
-                                         shuffle=False))
-    assert sorted(value for batch in batches for value in batch) == [2, 2, 2, 4, 4, 4]
-    assert all(len(set(batch)) == 1 and sum(batch) <= 8 for batch in batches)
+def test_stage1_token_budget_preserves_optimizer_schedule():
+    import yaml
+    config = yaml.safe_load((Path(__file__).parents[1] / "s1pii" / "configs" / "s1d.yaml").read_text())
+    assert config["training"]["token_budget"] == 8192
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="batched FlexAttention requires CUDA")

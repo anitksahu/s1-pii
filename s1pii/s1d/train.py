@@ -42,33 +42,6 @@ def token_batches(rows: Sequence, token_budget: int, length=lambda x: len(x.inpu
         yield batch
 
 
-def length_bucket_batches(rows: Sequence, token_budget: int, length=lambda x: len(x.input_ids), *,
-                          seed: int = 0, shuffle: bool = True) -> Iterator[list]:
-    """Deterministic real batches with one padded length and bounded aggregate tokens.
-
-    Rows are materialized once in shuffled order. Keeping a small pending batch per length avoids
-    rebuilding lazy packed windows and avoids padding short windows to the longest random row.
-    """
-    order = list(range(len(rows)))
-    if shuffle:
-        random.Random(seed).shuffle(order)
-    pending: OrderedDict[int, tuple[list, int]] = OrderedDict()
-    for i in order:
-        row = rows[i]
-        n = int(length(row))
-        if n > token_budget:
-            raise ValueError(f"one example ({n} tokens) exceeds token budget {token_budget}")
-        batch, used = pending.get(n, ([], 0))
-        if batch and used + n > token_budget:
-            yield batch
-            batch, used = [], 0
-        batch.append(row)
-        pending[n] = (batch, used + n)
-    for batch, _used in pending.values():
-        if batch:
-            yield batch
-
-
 @dataclass
 class TrainConfig:
     seed: int = 0
@@ -154,9 +127,8 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
     meta = manifest(config, hashes or {}, model)
     last_accounted = time.monotonic(); step = 0
     for epoch in range(config.epochs):
-        for batch in length_bucket_batches(packed_rows, config.token_budget,
-                                           length=lambda x: len(x[0].input_ids),
-                                           seed=config.seed + epoch):
+        for batch in token_batches(packed_rows, config.token_budget,
+                                   length=lambda x: len(x[0].input_ids), seed=config.seed + epoch):
             if config.control_path and Path(config.control_path).exists() \
                     and Path(config.control_path).read_text().strip().upper() == "STOP":
                 raise InterruptedError("STOP requested")
@@ -166,12 +138,20 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
                                 enabled=config.bf16 and device.type == "cuda"):
-                windows = [packed for packed, _target in batch]
-                targets = [target for _packed, target in batch]
                 can_batch = (hasattr(model, "forward_many")
-                             and all(window.dense_mask.numel() for window in windows))
+                             and all(packed.dense_mask.numel() for packed, _target in batch))
                 if can_batch:
-                    losses = [output.loss for output in model.forward_many(windows, targets=targets)]
+                    # Preserve the original optimizer-batch membership and loss reduction. Only
+                    # equal padded lengths share a backbone call; their losses are then averaged
+                    # across the unchanged outer batch exactly as before.
+                    groups = OrderedDict()
+                    for packed, target in batch:
+                        groups.setdefault(len(packed.input_ids), []).append((packed, target))
+                    losses = []
+                    for group in groups.values():
+                        outputs = model.forward_many([packed for packed, _target in group],
+                                                     targets=[target for _packed, target in group])
+                        losses.extend(output.loss for output in outputs)
                 else:
                     losses = []
                     for packed, target in batch:

@@ -29,8 +29,9 @@ state_tokens: 512
 max_branches: 64
 max_options: 56
 training:
-  # Aggregate packed-token budgets for real equal-length A100 batches.
-  token_budget_by_size: {0.6B: 32768, 1.7B: 16384, 4B: 8192}
+  # Preserve the preregistered optimizer-batch schedule; equal-length rows within each batch
+  # share a real A100 backbone call.
+  token_budget: 8192
 stages:
   stage0:
     cap_a100_hours: 5
