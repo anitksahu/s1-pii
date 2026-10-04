@@ -35,10 +35,10 @@ training:
 stage1_pilot:
   data_seed: 1
   init_seeds: [1, 2]
-  order_seed: 17
-  windows: 4000
-  # Covers roughly the first 330 optimizer steps of the observed 8192-token schedule.
-  # Update only from the committed CPU loss audit before a production pilot.
+  order_seed: 1
+  windows: 16000
+  # Set from the committed CPU loss audit before the production pilot. The full 16k-window
+  # selection preserves the original batch trajectory and leaves max_steps as the only cap.
   max_steps: 330
   checkpoint_every: 50
   warmup_fraction: 0.06
