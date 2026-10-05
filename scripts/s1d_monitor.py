@@ -46,7 +46,8 @@ while True:
     fields = status.split()
     stage = fields[1] if len(fields) > 1 and fields[1].startswith("stage") else "stage0"
     caps = {"stage0": "uncapped", "stage1": "uncapped",
-            "stage1_pilot": "uncapped", "stage2": "uncapped"}
+            "stage1_pilot": "uncapped", "stage1_pilot_4b": "uncapped",
+            "stage1_cov": "uncapped", "stage2": "uncapped"}
     print(time.strftime("%H:%M:%S"), status or "STARTING", phase or "-", f"gpu {util}%",
           f"hours {hours(stage):.3f}/{caps.get(stage, 'unknown')}", current,
           tail[0][:120] if tail else "", flush=True)

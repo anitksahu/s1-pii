@@ -281,6 +281,44 @@ def test_accumulation_groups_and_question_weighted_loss():
     assert float(parameter.grad) == pytest.approx(3.5)
 
 
+def test_coverage_selection_is_deterministic_balanced_and_preserves_shares():
+    from s1pii.s1d.data import balanced_question_selection, coverage_composition
+    from s1pii.v2.labels import NATIVE
+    rows = []
+    for label, count in (("email", 20), ("phone_number", 3), ("ssn", 2)):
+        for i in range(count):
+            question = Question("choice", "classify", options=(
+                Option(label, NATIVE[label][1]), Option(HL.NOT_PII, "the span is not PII")),
+                id=f"{label}-{i}")
+            rows.append(TrainingQuestion(f"d-{label}-{i}", "x", question, 0, (0, 1),
+                                         target_raw=label))
+    negative = Question("choice", "classify", options=(
+        Option("email", NATIVE["email"][1]), Option(HL.NOT_PII, "the span is not PII")), id="hn")
+    rows.append(TrainingQuestion("hn", "x", negative, 1, (0, 1), hard_negative=True))
+    rows.append(TrainingQuestion("n", "x", Question("noul", "contains PII?"), 0))
+    rows.append(TrainingQuestion("s", "x", Question(
+        "score", "sensitivity", options=tuple(Option(str(i), value=float(i)) for i in range(2))), 0))
+    selected = balanced_question_selection(rows, 12, seed=13, exponent=0.5)
+    assert selected == balanced_question_selection(rows, 12, seed=13, exponent=0.5)
+    order = list(range(len(rows))); __import__("random").Random(13).shuffle(order)
+    baseline = [rows[order[i % len(order)]] for i in range(12)]
+    before, after = coverage_composition(baseline), coverage_composition(selected)
+    assert after["top_labels"][0]["share"] < before["top_labels"][0]["share"]
+    assert after["counts"] == before["counts"]
+
+
+def test_coverage_composition_keeps_aliases_with_shared_descriptions_distinct():
+    from s1pii.s1d.data import coverage_composition
+    description = __import__("s1pii.v2.labels", fromlist=["NATIVE"]).NATIVE["phone"][1]
+    rows = [TrainingQuestion(
+        raw, "x", Question("choice", "classify", options=(
+            Option(raw, description), Option(HL.NOT_PII, "the span is not PII"))),
+        0, (0, 1), target_raw=raw) for raw in ("phone", "phone_num")]
+    result = coverage_composition(rows)
+    assert result["distinct_target_labels"] == 2
+    assert {row["label"] for row in result["top_labels"]} == {"phone", "phone_num"}
+
+
 def test_pilot_eval_tokenizer_registers_reserved_tokens():
     from s1pii.s1d.run import _prepare_pilot_eval_tokenizer
     tokenizer = StubTokenizer(); tokenizer.vocab.clear()
@@ -375,6 +413,22 @@ def test_heldout_spans_are_never_targets_or_hard_negatives(tmp_path):
     assert_no_heldout_leakage(rows)
     assert all(r.source_span != (0, 19) for r in rows)
     assert not [r for r in rows if r.question.type.value in ("noul", "score")]
+
+
+def test_all_source_coverage_questions_exclude_heldout_labels(tmp_path):
+    held = HL.load()["dev_labels"][0]
+    text = "held-value and ada@example.test"
+    held_span = Span("d", 0, 10, OTHER_PII, held, surface="held-value")
+    start = text.index("ada@example.test")
+    email = Span("d", start, len(text), OTHER_PII, "email", surface="ada@example.test")
+    doc = Doc("d", text, (held_span, email), "nemotron", "train", "d")
+    candidate = Span("d", 11, 14, OTHER_PII, "candidate", surface="and")
+    rows = generate_questions([doc], variant="all-sources", seed=3,
+                              hard_negative_hook=lambda _doc: [candidate],
+                              ledger_path=tmp_path / "ledger.jsonl")
+    assert_no_heldout_leakage(rows)
+    assert all(row.source_span != (held_span.start, held_span.end) for row in rows)
+    assert not [row for row in rows if row.question.type.value in ("noul", "score")]
 
 
 def test_heldout_doc_has_no_document_targets_and_hard_negatives_avoid_all_gold(tmp_path):
@@ -618,8 +672,9 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source
     assert "torch.cuda.get_device_name(0)" in launch_source
-    assert "STARTING {stage}" in launch_source
-    assert launch_source.index("STARTING {stage}") < launch_source.index("subprocess.Popen")
+    assert "STARTING {stage}{mode}" in launch_source
+    assert "command.append('--composition-only')" in launch_source
+    assert launch_source.index("STARTING {stage}{mode}") < launch_source.index("subprocess.Popen")
     assert launch_source.index("run_visible([sys.executable, '-c', cuda_probe])") < launch_source.index("subprocess.Popen")
 
     helper_source = source.split("\nrun_visible([", 1)[0]
@@ -1340,6 +1395,46 @@ def test_stage1_4b_confirmation_dry_is_separate_and_final_selected(tmp_path):
     from s1pii.s1d.run import _cache_is_current
     assert _cache_is_current(root, stores, "stage1_pilot_4b", "stable_optimizer", True)
     assert len(list((root / "models" / "stage1-pilot-4b-v1").glob("*/*/checkpoint.pt"))) == 2
+
+
+def test_stage1_coverage_dry_audit_gates_training_and_writes_metrics(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    audit = subprocess.run(
+        ["bash", "scripts/s1d_chain.sh", "stage1_cov", "--composition-only"], env=env,
+        capture_output=True, text=True)
+    log = (root / "logs" / "stage1_cov.log").read_text()
+    assert audit.returncode == 0, audit.stdout + audit.stderr + "\n" + log
+    stores = root / "stores"
+    audit_result = json.loads((stores / "stage1_cov-coverage_audit.json").read_text())
+    assert set(audit_result["seeds"]) == {"1", "2"}
+    assert audit_result["go_criterion"]["minimum_dev_macro_accuracy"] == 0.829
+    assert not (stores / "stage1_cov-train_eval.json").exists()
+    assert all(row["heldout_target_or_option_leak"] is False
+               for row in audit_result["seeds"].values())
+
+    (root / "APPROVED_stage1_cov").write_text("approved")
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_cov"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "stage1_cov.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    result = json.loads((stores / "stage1_cov-train_eval.json").read_text())
+    assert result["selection_rule"] == "final_checkpoint"
+    assert result["go_criterion"] == {
+        "selection": "final_checkpoint",
+        "prompted_4b_dev_macro_accuracy": 0.829,
+        "minimum_dev_macro_accuracy": 0.829,
+        "minimum_dev_not_pii_accuracy": 0.85,
+        "require_both_final_sanity_healthy": True,
+    }
+    assert set(result["runs"]) == {"1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2"}
+    assert set(result["pooled"]) == {"1.7B", "4B"}
+    assert all({"dev", "in_domain_sanity", "final_sanity_healthy"} <= set(row)
+               for row in result["runs"].values())
+    assert isinstance(result["go"], bool)
+    from s1pii.s1d.run import _cache_is_current
+    assert _cache_is_current(root, stores, "stage1_cov", "train_eval", True)
 
 
 def test_training_batch_composition_and_probe_metrics():

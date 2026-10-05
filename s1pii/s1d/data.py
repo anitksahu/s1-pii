@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import random
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -27,6 +28,7 @@ class TrainingQuestion:
     source_span: tuple[int, int] | None = None
     hard_negative: bool = False
     forbidden_spans: tuple[tuple[int, int], ...] = ()
+    target_raw: str | None = None
 
 
 def _raw(span: Span) -> str:
@@ -136,6 +138,10 @@ def question_set_hash(questions: Sequence[TrainingQuestion]) -> str:
     rows = []
     for q in questions:
         d = asdict(q)
+        # Preserve every pre-coverage question hash. Coverage rows opt in to hashing the exact
+        # canonical source-span label because some NATIVE descriptions are shared by aliases.
+        if d["target_raw"] is None:
+            del d["target_raw"]
         d["question"]["type"] = str(q.question.type.value)
         rows.append(d)
     return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
@@ -175,6 +181,94 @@ def training_batch_composition(rows: Sequence[TrainingQuestion]) -> dict:
             "mean_option_count": sum(option_counts) / len(option_counts) if option_counts else None}
 
 
+def canonical_choice_target(row: TrainingQuestion) -> str | None:
+    """Canonical raw target for Choice rows; document-level questions return ``None``."""
+    if row.question.type is not QuestionType.CHOICE:
+        return None
+    if row.hard_negative:
+        return heldout.NOT_PII
+    if row.target_raw is not None:
+        return row.target_raw
+    description_to_raw = {description: raw for raw, (_node, description, _p) in v2.NATIVE.items()}
+    option = row.question.options[row.target]
+    raw = description_to_raw.get(option.description)
+    if raw is None:
+        raise ValueError(f"cannot recover canonical target for {row.question.id}")
+    return raw
+
+
+def _question_kind(row: TrainingQuestion) -> str:
+    if row.question.type is QuestionType.NOUL:
+        return "noul"
+    if row.question.type is QuestionType.SCORE:
+        return "score"
+    return "hard_negative" if row.hard_negative else "positive"
+
+
+def _weighted_without_replacement(rows: Sequence[TrainingQuestion], count: int, *, seed: int,
+                                  exponent: float) -> list[TrainingQuestion]:
+    """Deterministic PPS sampling; repeat only after the unique pool is exhausted."""
+    if count <= 0:
+        return []
+    if not rows:
+        raise ValueError("cannot sample positives from an empty pool")
+    label_counts = Counter(canonical_choice_target(row) for row in rows)
+    rng = random.Random(seed)
+    output = []
+    while len(output) < count:
+        keyed = []
+        for index, row in enumerate(rows):
+            weight = label_counts[canonical_choice_target(row)] ** (-exponent)
+            # Efraimidis-Spirakis exponential keys: smallest keys are sampled first.
+            key = -math.log(max(rng.random(), 1e-300)) / weight
+            keyed.append((key, index, row))
+        keyed.sort(key=lambda item: (item[0], item[1]))
+        output.extend(row for _key, _index, row in keyed[:count - len(output)])
+    return output
+
+
+def balanced_question_selection(rows: Sequence[TrainingQuestion], count: int, *, seed: int,
+                                exponent: float = 0.5) -> list[TrainingQuestion]:
+    """Balance positive targets while preserving every other kind's baseline count and row.
+
+    The uniformly shuffled/repeated selection defines the exact hard-negative, Noul and Score
+    shares. Positive slots are replaced by a weighted sample without replacement, where every
+    positive row has weight ``label_count ** -exponent``.
+    """
+    if exponent < 0:
+        raise ValueError("balance exponent must be non-negative")
+    if not rows or count < 1:
+        raise ValueError("balanced selection requires questions and a positive count")
+    order = list(range(len(rows))); random.Random(seed).shuffle(order)
+    baseline = [rows[order[i % len(order)]] for i in range(count)]
+    positives = [row for row in rows if _question_kind(row) == "positive"]
+    positive_count = sum(_question_kind(row) == "positive" for row in baseline)
+    replacements = iter(_weighted_without_replacement(
+        positives, positive_count, seed=seed, exponent=exponent))
+    return [next(replacements) if _question_kind(row) == "positive" else row for row in baseline]
+
+
+def coverage_composition(rows: Sequence[TrainingQuestion]) -> dict:
+    """Coverage audit summary for an already selected question set."""
+    kinds = Counter(_question_kind(row) for row in rows)
+    positive_targets = Counter(canonical_choice_target(row) for row in rows
+                               if _question_kind(row) == "positive")
+    choice_targets = Counter(canonical_choice_target(row) for row in rows
+                             if row.question.type is QuestionType.CHOICE)
+    positive_total = sum(positive_targets.values())
+    choice_total = sum(choice_targets.values())
+    return {
+        "questions": len(rows),
+        "distinct_target_labels": len(positive_targets),
+        "top_labels": [{"label": label, "count": n, "share": n / positive_total}
+                       for label, n in positive_targets.most_common(5)],
+        "not_pii_target_share": (choice_targets.get(heldout.NOT_PII, 0) / choice_total
+                                 if choice_total else None),
+        "counts": {name: kinds.get(name, 0)
+                   for name in ("positive", "hard_negative", "noul", "score")},
+    }
+
+
 def assert_no_heldout_leakage(questions: Sequence[TrainingQuestion], config: dict | None = None) -> None:
     cfg = config or heldout.load()
     exclusions = heldout.semantic_exclusions(cfg)
@@ -183,6 +277,8 @@ def assert_no_heldout_leakage(questions: Sequence[TrainingQuestion], config: dic
                              "replication_synonyms_all_sources", "replication_nodes")
                  for x in exclusions[key]}
     for row in questions:
+        if row.target_raw and row.target_raw.lower().replace("_", " ") in forbidden:
+            raise AssertionError(f"held-out canonical target leaked into {row.question.id}")
         option_text = {o.name.lower().replace("_", " ") for o in row.question.options}
         if option_text & forbidden:
             raise AssertionError(f"held-out option leaked into {row.question.id}")

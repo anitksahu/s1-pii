@@ -51,6 +51,24 @@ stage1_pilot:
     gold_accuracy_below: 0.5
     not_pii_rate_above: 0.3
     single_option_rate_above: 0.6
+stage1_cov:
+  variant: all-sources
+  windows: 16000
+  sizes: [1.7B, 4B]
+  seeds: [1, 2]
+  balance_exponent: 0.5
+  optimizer:
+    warmup_fraction: 0.06
+    gradient_clip: 1.0
+    lora_learning_rate: 0.0002
+    pointer_learning_rate: 0.00005
+    token_learning_rate: 0.0002
+  go_criterion:
+    selection: final_checkpoint
+    prompted_4b_dev_macro_accuracy: 0.829
+    minimum_dev_macro_accuracy: 0.829
+    minimum_dev_not_pii_accuracy: 0.85
+    require_both_final_sanity_healthy: true
 stages:
   stage0:
     cap_a100_hours: 5
@@ -64,5 +82,6 @@ stages:
   stage1: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
   stage1_pilot: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {paired_optimizer: 3}}
   stage1_pilot_4b: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {stable_optimizer: 4}}
+  stage1_cov: {cap_a100_hours: 24, enforce_cap: false, requires_approval: true, unit_estimates: {coverage_audit: 2, train_eval: 16}}
   comparators1: {cap_a100_hours: 3, enforce_cap: false, requires_approval: false, unit_estimates: {decision20: 1.5}}
   stage2: {cap_a100_hours: 23, enforce_cap: false, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

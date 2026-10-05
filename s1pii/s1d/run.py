@@ -9,6 +9,7 @@ import shutil
 import time
 import urllib.request
 from collections import OrderedDict, defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import torch
@@ -28,6 +29,7 @@ UNITS = {
     "stage1": ("train_sizes", "layout_ablation", "dev_eval"),
     "stage1_pilot": ("paired_optimizer",),
     "stage1_pilot_4b": ("stable_optimizer",),
+    "stage1_cov": ("coverage_audit", "train_eval"),
     "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
@@ -211,7 +213,9 @@ def _candidate_cache_path(root: Path, docs: list[Doc], weights_sha: str, cache_n
 
 def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
                          cache_name: str | None = None,
-                         require_cache: bool = False) -> dict[str, list[Span]]:
+                         require_cache: bool = False,
+                         proposer_variant: str = "no-nemotron",
+                         accounting_stage: str = "stage1") -> dict[str, list[Span]]:
     if dry:
         output = {}
         for doc in docs:
@@ -222,7 +226,9 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
         return output
     from ..model.train import load_exported
     from ..model.predict import S1Predictor
-    path = root / "models" / "proposer-no-nemotron" / "final"
+    if proposer_variant not in {"all-sources", "no-nemotron"}:
+        raise ValueError(f"unknown proposer variant {proposer_variant!r}")
+    path = root / "models" / f"proposer-{proposer_variant}" / "final"
     weights_sha = _proposer_weights_sha(path)
     cache_path = _candidate_cache_path(root, docs, weights_sha, cache_name) if cache_name else None
     if cache_path is not None and cache_path.exists():
@@ -236,7 +242,7 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
     if require_cache:
         expected = cache_path if cache_path is not None else "a named candidate cache"
         raise FileNotFoundError(f"CPU-only audit requires the existing proposer cache: {expected}")
-    meter = GPUHours(root / "gpu_hours.jsonl", 12, "stage1")
+    meter = GPUHours(root / "gpu_hours.jsonl", 0, accounting_stage)
     meter.reserve(0.0)
     last_accounted = time.monotonic()
     # Mining interleaves CPU tokenisation/CRF decoding with low-utilisation proposer forwards,
@@ -260,7 +266,7 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
                      if not any(span.start < gold.end and span.end > gold.start for gold in doc.spans)),
                     key=lambda span: span.score, reverse=True)
             now = time.monotonic()
-            meter.record("stage1-candidate-mining", now - last_accounted, stage="stage1",
+            meter.record("stage1-candidate-mining", now - last_accounted, stage=accounting_stage,
                          device="cuda", documents=min(first + len(batch), len(docs)))
             last_accounted = now
             print(f"stage1 proposer candidates: {min(first + len(batch), len(docs))}/{len(docs)} documents",
@@ -385,6 +391,9 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                       lora_learning_rate: float | None = None,
                       pointer_learning_rate: float | None = None,
                       token_learning_rate: float | None = None,
+                      warmup_fraction: float | None = None,
+                      gradient_clip: float | None = None,
+                      preselected: bool = False,
                       extra_hashes: dict[str, str] | None = None) -> dict:
     from .data import pack_layout_ablation_questions, pack_training_questions, question_set_hash
     from .train import TrainConfig, train
@@ -395,7 +404,13 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
     revision = "local-dry" if dry else ctx["config"]["models"][model_id]["revision"]
     token_budget = 4096 if dry else int(ctx["config"]["training"]["token_budget"])
     selected_count = min(window_count, 2 if branches_per_window > 1 else 8) if dry else window_count
-    selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions), data_seed)
+    if preselected:
+        if branches_per_window != 1 or len(questions) != selected_count:
+            raise ValueError("preselected questions must exactly match the single-branch window count")
+        selected = list(questions)
+    else:
+        selected = _repeat_rows(questions, selected_count if branches_per_window == 1 else len(questions),
+                                data_seed)
     # The manifest hashes decide reuse/resume: a completed run is reused only when its questions,
     # revision and layout all match; mismatches (including a stale checkpoint) are archived aside.
     expected_hashes = {"questions": question_set_hash(selected), "revision": revision, "layout": layout,
@@ -452,7 +467,7 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
         if initial_state_path is not None:
             packed = [(*item, row) for item, row in zip(packed, selected)]
     pilot = ctx["config"].get("stage1_pilot", {})
-    stage_name = ctx.get("stage", "stage1_pilot") if initial_state_path is not None else "stage1"
+    stage_name = ctx.get("stage", "stage1")
     unit = f"{model_id}-s{seed}-{layout}"
     if initial_state_path is not None:
         unit += f"-{unit_suffix or optimizer_condition}"
@@ -469,8 +484,10 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
                                                      else pilot.get("pointer_learning_rate", 5e-5)),
                          token_learning_rate=float(token_learning_rate if token_learning_rate is not None
                                                    else pilot.get("token_learning_rate", 2e-4)),
-                         warmup_fraction=float(pilot.get("warmup_fraction", 0.06)),
-                         gradient_clip=(float(pilot.get("gradient_clip", 1.0))
+                         warmup_fraction=float(warmup_fraction if warmup_fraction is not None
+                                               else pilot.get("warmup_fraction", 0.06)),
+                         gradient_clip=(float(gradient_clip if gradient_clip is not None
+                                              else pilot.get("gradient_clip", 1.0))
                                         if optimizer_condition == "stable" else None),
                          gradient_accumulation=gradient_accumulation,
                          max_steps=max_steps)
@@ -505,6 +522,74 @@ def _training_questions(ctx, seed: int | None = None, *, data_seed: int | None =
     return generate_questions(docs, seed=data_seed, variant="no-nemotron", min_options=2, max_options=64,
                               hard_negative_hook=lambda doc: candidates.get(doc.doc_id, ()),
                               ledger_path=ctx["root"] / "ledger.jsonl")
+
+
+def _coverage_questions(ctx, seed: int, *, require_candidate_cache: bool = False):
+    """All-source questions using the all-source proposer and a dedicated candidate cache."""
+    from .data import generate_questions
+    if ctx["dry"]:
+        docs = _dry_docs()
+    else:
+        from ..model.train import TrainConfig as V1Config, training_docs
+        docs, sources = training_docs(V1Config(variant="all-sources", seed=seed))
+        print(f"coverage training documents: {len(docs)} source_counts={sources}", flush=True)
+    candidates = _proposer_candidates(
+        ctx["root"], docs, ctx["dry"], cache_name="coverage-all-sources",
+        require_cache=require_candidate_cache, proposer_variant="all-sources",
+        accounting_stage="stage1_cov")
+    rows = generate_questions(
+        docs, seed=seed, variant="all-sources", min_options=2, max_options=64,
+        hard_negative_hook=lambda doc: candidates.get(doc.doc_id, ()),
+        ledger_path=ctx["root"] / "ledger.jsonl")
+    # NATIVE descriptions are not one-to-one (for example, several phone aliases share a
+    # description), so the coverage experiment must carry the exact source-span raw label.
+    # This is deliberately applied only here: legacy Stage 1 question hashes remain unchanged.
+    source_labels = {(doc.doc_id, span.start, span.end): span.label_raw.strip().lower()
+                     for doc in docs for span in doc.spans}
+    rows = [replace(row, target_raw=source_labels[(row.doc_id, *row.source_span)])
+            if row.question.type.value == "choice" and not row.hard_negative
+            and row.source_span is not None else row
+            for row in rows]
+    assert_no_heldout_leakage(rows)
+    return rows
+
+
+def _coverage_selections(ctx, seed: int, *, require_candidate_cache: bool = False):
+    from .data import balanced_question_selection, coverage_composition, question_set_hash
+    spec = ctx["config"]["stage1_cov"]
+    count = min(int(spec["windows"]), 8) if ctx["dry"] else int(spec["windows"])
+    rows = _coverage_questions(ctx, seed, require_candidate_cache=require_candidate_cache)
+    before = _repeat_rows(rows, count, seed)
+    after = balanced_question_selection(
+        rows, count, seed=seed, exponent=float(spec["balance_exponent"]))
+    assert_no_heldout_leakage(before); assert_no_heldout_leakage(after)
+    before_summary, after_summary = coverage_composition(before), coverage_composition(after)
+    if before_summary["counts"] != after_summary["counts"]:
+        raise RuntimeError("coverage balancing changed question-type shares")
+    return after, {
+        "seed": seed,
+        "before": before_summary,
+        "after": after_summary,
+        "before_question_set_sha256": question_set_hash(before),
+        "after_question_set_sha256": question_set_hash(after),
+        "heldout_target_or_option_leak": False,
+    }
+
+
+def _unit_coverage_audit(ctx, out):
+    spec = ctx["config"]["stage1_cov"]
+    output = {"implementation_version": 1, "variant": spec["variant"],
+              "windows": int(spec["windows"]), "balance_exponent": float(spec["balance_exponent"]),
+              "go_criterion": dict(spec["go_criterion"]),
+              "seeds": {}}
+    # Materialize the preregistered criterion before candidate preparation or any model work.
+    _atomic_json(out, output)
+    for seed in map(int, spec["seeds"]):
+        _selected, audit = _coverage_selections(ctx, seed)
+        output["seeds"][str(seed)] = audit
+        _atomic_json(out, output)
+        print(json.dumps({"stage1_cov_audit": audit}, indent=2), flush=True)
+    return output
 
 
 def _unit_train_sizes(ctx, _out):
@@ -1012,7 +1097,8 @@ def _score_loaded_trained(ctx, model, tokenizer, rows, *, layout: str, key: str,
         print(f"{key} {split}: cached {len(rows)} questions in {len(specs)} windows", flush=True)
         return probabilities
     device = next(model.parameters()).device
-    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, "stage1")
+    accounting_stage = ctx.get("stage", "stage1")
+    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, accounting_stage)
     last_accounted = time.monotonic()
     batch_size = 8 if layout == "shared" else 1
     with torch.no_grad():
@@ -1043,7 +1129,7 @@ def _score_loaded_trained(ctx, model, tokenizer, rows, *, layout: str, key: str,
             done = first + len(chunk)
             if done % 32 == 0 or done == len(specs):
                 now = time.monotonic()
-                meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage="stage1",
+                meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage=accounting_stage,
                              device=str(device), windows=done, total_windows=len(specs))
                 last_accounted = now
                 _write_eval_cache(path, fingerprint, probabilities, done, len(specs))
@@ -1152,7 +1238,7 @@ def _prompted_span_window(tokenizer, row, state_tokens: int) -> tuple[str, str]:
     return window["state"], window["state"][window["start"]:window["end"]]
 
 
-def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
+def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str, *, require_cache: bool = False):
     if ctx["dry"]:
         return {split: [[1 / len(row.question.options)] * len(row.question.options) for row in rows]
                 for split, rows in row_sets.items()}
@@ -1174,6 +1260,10 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str):
             missing[split] = rows
     if not missing:
         return output
+    if require_cache:
+        raise FileNotFoundError(
+            f"prompted baseline cache is missing exact splits {sorted(missing)}; "
+            "stage1_cov requires the unchanged Stage 1 prompted evaluation")
     tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
     if getattr(tokenizer, "pad_token_id", None) is None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
@@ -1333,6 +1423,128 @@ def _unit_dev_eval(ctx, _out):
             "calibration": calibration, "in_domain_sanity": sanity,
             "chosen_size": chosen, "trained_accuracy": trained_accuracy,
             "prompted_accuracy": prompted_accuracy, "stop_rule": trained_accuracy < prompted_accuracy}
+
+
+def _unit_coverage_train_eval(ctx, out):
+    """Train balanced all-source runs and evaluate on the unchanged Stage 1 questions."""
+    from .data import question_set_hash
+    from .infer import fit_temperatures
+    spec = ctx["config"]["stage1_cov"]
+    audit_path = ctx["root"] / "stores" / "stage1_cov-coverage_audit.json"
+    if not audit_path.exists():
+        raise FileNotFoundError("stage1_cov requires its completed CPU coverage audit")
+    audit = json.loads(audit_path.read_text())
+    go_criterion = dict(spec["go_criterion"])
+    header = {
+        "implementation_version": 1,
+        "variant": "all-sources",
+        "windows_per_run": int(spec["windows"]),
+        "sizes": list(spec["sizes"]),
+        "seeds": list(spec["seeds"]),
+        "balance_exponent": float(spec["balance_exponent"]),
+        "optimizer": dict(spec["optimizer"]),
+        "go_criterion": go_criterion,
+        "selection_rule": "final_checkpoint",
+        "audit": {"path": str(audit_path.relative_to(ctx["root"])),
+                  "selection_hashes": {seed: row["after_question_set_sha256"]
+                                       for seed, row in audit["seeds"].items()}},
+        "runs": {},
+    }
+    output = header
+    try:
+        previous = json.loads(out.read_text())
+        identity = ("implementation_version", "variant", "windows_per_run", "sizes", "seeds",
+                    "balance_exponent", "optimizer", "go_criterion", "selection_rule", "audit")
+        if all(previous.get(key) == header[key] for key in identity):
+            output = previous
+    except (OSError, ValueError):
+        pass
+    # The preregistered rule is materialized before model construction or any training call.
+    _atomic_json(out, output)
+
+    _, dev_rows = _dev_questions(ctx, descriptions=True)
+    sanity_rows = _seen_questions(ctx, descriptions=True)
+    model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
+    prompted_id = model_ids["4B"]
+    prompted_scores = _score_prompted_sets(
+        ctx, {"calib": sanity_rows, "dev": dev_rows}, prompted_id,
+        require_cache=not ctx["dry"])
+
+    def temperature(probabilities):
+        return fit_temperatures(
+            [torch.tensor(p).clamp_min(1e-30).log() for p in probabilities],
+            [row.target for row in sanity_rows], ["choice"] * len(sanity_rows))["choice"]
+
+    prompted_temperature = temperature(prompted_scores["calib"])
+    prompted_metrics = _probability_metrics(
+        dev_rows, prompted_scores["dev"], temperature=prompted_temperature)
+    output["prompted_4b"] = {key: value for key, value in prompted_metrics.items()
+                              if key != "probabilities"}
+    output["prompted_4b"]["temperature"] = prompted_temperature
+    _atomic_json(out, output)
+
+    collapse_thresholds = ctx["config"]["stage1_pilot"]["collapse"]
+    models_root = ctx["root"] / "models" / "stage1-cov"
+    for seed in map(int, spec["seeds"]):
+        selected, selection_audit = _coverage_selections(
+            ctx, seed, require_candidate_cache=not ctx["dry"])
+        expected_hash = audit["seeds"][str(seed)]["after_question_set_sha256"]
+        if question_set_hash(selected) != expected_hash or \
+                selection_audit["after_question_set_sha256"] != expected_hash:
+            raise RuntimeError(f"coverage selection for seed {seed} changed after the audit")
+        for size in spec["sizes"]:
+            size = str(size)
+            model_id = model_ids[size]
+            key = f"{size}-s{seed}"
+            run_dir = models_root / key
+            training = _train_stage1_run(
+                ctx, selected, model_id=model_id, seed=seed, layout="shared",
+                window_count=int(spec["windows"]), run_dir=run_dir,
+                optimizer_condition="stable", preselected=True,
+                lora_learning_rate=float(spec["optimizer"]["lora_learning_rate"]),
+                pointer_learning_rate=float(spec["optimizer"]["pointer_learning_rate"]),
+                token_learning_rate=float(spec["optimizer"]["token_learning_rate"]),
+                warmup_fraction=float(spec["optimizer"]["warmup_fraction"]),
+                gradient_clip=float(spec["optimizer"]["gradient_clip"]),
+                extra_hashes={"variant": "all-sources", "selection": "label-balanced",
+                              "balance_exponent": str(spec["balance_exponent"]),
+                              "coverage_audit": expected_hash})
+            scores = _score_trained_sets(
+                ctx, {"calib": sanity_rows, "dev": dev_rows}, model_id=model_id, run_dir=run_dir)
+            fitted_temperature = temperature(scores["calib"])
+            dev_metrics = _probability_metrics(
+                dev_rows, scores["dev"], temperature=fitted_temperature)
+            sanity = _sanity_metrics(
+                sanity_rows, scores["calib"], temperature=fitted_temperature)
+            collapsed, reasons = _collapse_flag(sanity, collapse_thresholds)
+            output["runs"][key] = {
+                "training": training,
+                "temperature": fitted_temperature,
+                "dev": dev_metrics,
+                "in_domain_sanity": sanity,
+                "final_sanity_healthy": not collapsed,
+                "collapse_reasons": reasons,
+            }
+            _atomic_json(out, output)
+
+    output["pooled"] = {}
+    for size in map(str, spec["sizes"]):
+        runs = [output["runs"][f"{size}-s{seed}"] for seed in map(int, spec["seeds"])]
+        pooled_macro = sum(run["dev"]["macro_accuracy"] for run in runs) / len(runs)
+        pooled_not_pii = sum(run["dev"]["not_pii_accuracy"] for run in runs) / len(runs)
+        sanity_healthy = all(run["final_sanity_healthy"] for run in runs)
+        passed = (pooled_macro >= float(go_criterion["minimum_dev_macro_accuracy"])
+                  and pooled_not_pii >= float(go_criterion["minimum_dev_not_pii_accuracy"])
+                  and (sanity_healthy or not go_criterion["require_both_final_sanity_healthy"]))
+        output["pooled"][size] = {
+            "dev_macro_accuracy": pooled_macro,
+            "dev_not_pii_accuracy": pooled_not_pii,
+            "both_final_sanity_healthy": sanity_healthy,
+            "passes_go_criterion": passed,
+        }
+    output["go"] = any(row["passes_go_criterion"] for row in output["pooled"].values())
+    _atomic_json(out, output)
+    return output
 
 
 def _decision20_window_tokenizer(ctx) -> tuple[str, str]:
@@ -1507,6 +1719,32 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
                 return json.loads(result_path.read_text()).get("implementation_version") == 2
             except (OSError, ValueError):
                 return False
+        if stage == "stage1_cov":
+            try:
+                result = json.loads(result_path.read_text())
+            except (OSError, ValueError):
+                return False
+            if result.get("implementation_version") != 1:
+                return False
+            if unit == "coverage_audit":
+                return (result.get("variant") == "all-sources"
+                        and int(result.get("windows", 0)) == 16000
+                        and float(result.get("balance_exponent", -1)) == 0.5
+                        and set(result.get("seeds", {})) == {"1", "2"} and all(
+                    row.get("heldout_target_or_option_leak") is False
+                    and row.get("after_question_set_sha256")
+                    for row in result["seeds"].values()))
+            expected_questions = 8 if dry else 16000
+            runs = result.get("runs", {})
+            return (set(runs) == {"1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2"}
+                    and set(result.get("pooled", {})) == {"1.7B", "4B"}
+                    and isinstance(result.get("go"), bool)
+                    and result.get("selection_rule") == "final_checkpoint"
+                    and all(int(row.get("training", {}).get("questions_seen", -1))
+                                == expected_questions
+                            and "dev" in row and "in_domain_sanity" in row
+                            and isinstance(row.get("final_sanity_healthy"), bool)
+                            for row in runs.values()))
         if stage == "stage1":
             # The data-template repair invalidates both training units and the resulting eval.
             required = {"train_sizes": 6, "layout_ablation": 6, "dev_eval": 7}.get(unit, 6)
@@ -1538,7 +1776,9 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
         return False
 
 
-def run(stage: str, root: Path, dry: bool = False) -> int:
+def run(stage: str, root: Path, dry: bool = False, *, composition_only: bool = False) -> int:
+    if composition_only and stage != "stage1_cov":
+        raise ValueError("--composition-only is supported only for stage1_cov")
     cfg = yaml.safe_load((Path(__file__).resolve().parents[1] / "configs" / "s1d.yaml").read_text())
     stage_cfg = cfg["stages"][stage]
     if dry and root.name != "s1d_dry":
@@ -1547,7 +1787,13 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
     (root / "PHASE").write_text("CPU")
     if stage == "stage0":
         _append_stop_rule_once(root)
-    if stage_cfg.get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
+    if stage == "stage1_cov" and not composition_only:
+        audit_stores = root / "stores"
+        if not _cache_is_current(root, audit_stores, stage, "coverage_audit", dry):
+            raise PermissionError(
+                "stage1_cov training requires a completed --composition-only audit first")
+    if stage_cfg.get("requires_approval") and not composition_only \
+            and not (root / f"APPROVED_{stage}").exists():
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
     ctx = {"root": root, "dry": dry, "config": cfg, "stage": stage}
     meter = GPUHours(root / "gpu_hours.jsonl", stage_cfg["cap_a100_hours"], stage)
@@ -1563,6 +1809,8 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "train_sizes": _unit_train_sizes,
         "paired_optimizer": _unit_stage1_pilot,
         "stable_optimizer": lambda c, o: _unit_stage1_pilot(c, o, confirm_4b=True),
+        "coverage_audit": _unit_coverage_audit,
+        "train_eval": _unit_coverage_train_eval,
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,
@@ -1582,6 +1830,8 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
             done = stores / f"{stage}-{unit}.done"
             if _cache_is_current(root, stores, stage, unit, dry):
                 (root / "CURRENT").write_text(f"{unit} cached {time.strftime('%FT%TZ', time.gmtime())}")
+                if composition_only:
+                    return 0
                 continue
             # The v1 pilot marker predates the v2 result and must not survive while v2 is
             # running: after an interruption it could otherwise authenticate partial output.
@@ -1595,6 +1845,8 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
             _atomic_json(stores / f"{stage}-{unit}.json", result)
             done.write_text(time.strftime("%FT%TZ", time.gmtime()))
             (root / "CURRENT").write_text(f"{unit} done {time.strftime('%FT%TZ', time.gmtime())}")
+            if composition_only:
+                return 0
     except InterruptedError:
         return 4
     if stage == "stage1":
@@ -1607,8 +1859,10 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(); ap.add_argument("stage", choices=UNITS); ap.add_argument("--root", type=Path, required=True)
+    ap.add_argument("--composition-only", action="store_true")
     args = ap.parse_args(argv)
-    raise SystemExit(run(args.stage, args.root, os.environ.get("S1D_DRY") == "1"))
+    raise SystemExit(run(args.stage, args.root, os.environ.get("S1D_DRY") == "1",
+                         composition_only=args.composition_only))
 
 
 if __name__ == "__main__": main()
