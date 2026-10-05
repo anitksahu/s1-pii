@@ -243,6 +243,33 @@ def test_stage1_seed_defaults_preserve_legacy_stream():
     assert TrainConfig(seed=7, data_seed=3, init_seed=4, order_seed=5).seeds() == (3, 4, 5)
 
 
+def test_resume_load_keeps_rng_state_on_cpu(monkeypatch, tmp_path):
+    from s1pii.s1d import train as trainer
+
+    calls = {}
+    rng = {"python": object(), "numpy": object(),
+           "torch": torch.random.get_rng_state(), "cuda": [torch.random.get_rng_state()]}
+    payload = {"trainable_model": {}, "optimizer": {}, "scheduler": {},
+               "rng": rng, "step": 25}
+
+    def fake_load(path, *, map_location, weights_only):
+        calls["load"] = (path, map_location, weights_only)
+        return payload
+
+    class Loader:
+        def load_state_dict(self, state, **kwargs):
+            calls.setdefault("states", []).append((state, kwargs))
+
+    monkeypatch.setattr(trainer.torch, "load", fake_load)
+    monkeypatch.setattr(trainer, "_set_rng_state", lambda state: calls.update(rng=state))
+    checkpoint = tmp_path / "checkpoint.pt"
+    result = trainer._load_training_checkpoint(checkpoint, Loader(), Loader(), Loader())
+
+    assert calls["load"] == (checkpoint, "cpu", False)
+    assert calls["rng"] is rng
+    assert result is payload
+
+
 def test_accumulation_groups_and_question_weighted_loss():
     from s1pii.s1d.train import optimizer_batches, question_weighted_mean
     assert list(optimizer_batches([[1], [2, 3], [4], [5, 6]], 3)) == [

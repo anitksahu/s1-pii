@@ -146,6 +146,21 @@ def save_checkpoint(model, optimizer, step: int, out: Path, meta: dict, schedule
     (out / "manifest.json").write_text(json.dumps(meta, indent=2, sort_keys=True))
 
 
+def _load_training_checkpoint(checkpoint: Path, model, optimizer, scheduler=None) -> dict:
+    # RNG states are CPU ByteTensors even for CUDA generators. Loading the whole
+    # checkpoint onto CUDA turns the CPU RNG state into a CUDA tensor, which
+    # torch.random.set_rng_state rejects during Colab resume. Optimizer loading
+    # moves its state to the parameter devices itself.
+    state = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    model.load_state_dict(state["trainable_model"], strict=False)
+    optimizer.load_state_dict(state["optimizer"])
+    if scheduler is not None and state.get("scheduler") is not None:
+        scheduler.load_state_dict(state["scheduler"])
+    if state.get("rng") is not None:
+        _set_rng_state(state["rng"])
+    return state
+
+
 def _stable_optimizer(model, config: TrainConfig, device: torch.device):
     groups = {"lora": [], "pointer": [], "tokens": []}
     for name, parameter in model.named_parameters():
@@ -241,13 +256,8 @@ def train(model, packed_rows: Sequence, config: TrainConfig, out: Path, gpu_hour
     start_step = 0
     checkpoint = out / "checkpoint.pt"
     if checkpoint.exists():
-        state = torch.load(checkpoint, map_location=device, weights_only=False)
-        model.load_state_dict(state["trainable_model"], strict=False)
-        optimizer.load_state_dict(state["optimizer"]); start_step = state["step"]
-        if scheduler is not None and state.get("scheduler") is not None:
-            scheduler.load_state_dict(state["scheduler"])
-        if state.get("rng") is not None:
-            _set_rng_state(state["rng"])
+        state = _load_training_checkpoint(checkpoint, model, optimizer, scheduler)
+        start_step = state["step"]
     meta = manifest(config, hashes or {}, model)
     warmup_steps = max(1, round(total_steps * config.warmup_fraction)) if scheduler else 0
     last_accounted = time.monotonic(); step = 0; stats = None
