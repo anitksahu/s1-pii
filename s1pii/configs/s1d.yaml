@@ -63,5 +63,6 @@ stages:
       latency: 0.4
   stage1: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {train_sizes: 6, layout_ablation: 3, dev_eval: 1}}
   stage1_pilot: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {paired_optimizer: 3}}
+  stage1_pilot_4b: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {stable_optimizer: 4}}
   comparators1: {cap_a100_hours: 3, enforce_cap: false, requires_approval: false, unit_estimates: {decision20: 1.5}}
   stage2: {cap_a100_hours: 23, enforce_cap: false, requires_approval: true, unit_estimates: {train_final: 15, test_inference: 3, comparators: 3}}

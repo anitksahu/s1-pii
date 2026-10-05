@@ -1318,6 +1318,30 @@ def test_partial_stage1_pilot_never_authenticates_stale_done_marker(tmp_path):
     assert not _cache_is_current(tmp_path, stores, "stage1_pilot", "paired_optimizer", False)
 
 
+def test_stage1_4b_confirmation_dry_is_separate_and_final_selected(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    (root / "APPROVED_stage1_pilot_4b").write_text("approved")
+    stores = root / "stores"; stores.mkdir()
+    prior_1_7b = {"completed": "1.7B pilot must remain untouched"}
+    (stores / "stage1_pilot-paired_optimizer.json").write_text(json.dumps(prior_1_7b))
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot_4b"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "stage1_pilot_4b.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    result = json.loads((stores / "stage1_pilot_4b-stable_optimizer.json").read_text())
+    assert json.loads((stores / "stage1_pilot-paired_optimizer.json").read_text()) == prior_1_7b
+    assert result["mode"] == "4b_final_confirmation"
+    assert result["selection_rule"] == "final_checkpoint"
+    assert set(result["runs"]) == {"4B-init1", "4B-init2"}
+    assert all(set(pair["conditions"]) == {"stable"} for pair in result["runs"].values())
+    assert set(result["condition_outcomes"]["stable"]) == {"healthy_final_both_seeds"}
+    from s1pii.s1d.run import _cache_is_current
+    assert _cache_is_current(root, stores, "stage1_pilot_4b", "stable_optimizer", True)
+    assert len(list((root / "models" / "stage1-pilot-4b-v1").glob("*/*/checkpoint.pt"))) == 2
+
+
 def test_training_batch_composition_and_probe_metrics():
     from s1pii.s1d import run as runner
     from s1pii.v2.labels import NATIVE

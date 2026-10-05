@@ -27,6 +27,7 @@ UNITS = {
                "proposer_all", "proposer_no_nemotron", "latency"),
     "stage1": ("train_sizes", "layout_ablation", "dev_eval"),
     "stage1_pilot": ("paired_optimizer",),
+    "stage1_pilot_4b": ("stable_optimizer",),
     "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
@@ -451,7 +452,7 @@ def _train_stage1_run(ctx, questions, *, model_id: str, seed: int, layout: str,
         if initial_state_path is not None:
             packed = [(*item, row) for item, row in zip(packed, selected)]
     pilot = ctx["config"].get("stage1_pilot", {})
-    stage_name = "stage1_pilot" if initial_state_path is not None else "stage1"
+    stage_name = ctx.get("stage", "stage1_pilot") if initial_state_path is not None else "stage1"
     unit = f"{model_id}-s{seed}-{layout}"
     if initial_state_path is not None:
         unit += f"-{unit_suffix or optimizer_condition}"
@@ -695,15 +696,13 @@ def _pilot_probe_metrics(rows, probabilities) -> dict:
             "mean_not_pii_probability": sum(not_pii_probabilities) / len(rows)}
 
 
-def _unit_stage1_pilot(ctx, out):
+def _unit_stage1_pilot(ctx, out, *, confirm_4b: bool = False):
     """Paired equal-exposure stability pilot with frozen data, initialization, and RNG."""
     from .train import _trainable_state
     spec = ctx["config"]["stage1_pilot"]
     data_seed = int(spec["data_seed"]); order_seed = int(spec["order_seed"])
     sanity_every = 8 if ctx["dry"] else int(spec["sanity_every_microbatches"])
-    sizes = ["1.7B"]
-    if os.environ.get("S1D_PILOT_4B") == "1":
-        sizes.append("4B")
+    sizes = ["4B"] if confirm_4b else ["1.7B"]
     model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
     questions = _training_questions(ctx, data_seed=data_seed)
     sanity_rows = _seen_questions(ctx, descriptions=True)
@@ -725,17 +724,22 @@ def _unit_stage1_pilot(ctx, out):
                        "pointer_learning_rate": 5e-5,
                        "token_learning_rate": 5e-5},
     }
+    if confirm_4b:
+        conditions = {"stable": conditions["stable"]}
     optimizer_common = {"warmup_fraction": float(spec["warmup_fraction"]),
                         "gradient_clip": float(spec["gradient_clip"]),
                         "checkpoint_every_updates": int(spec["checkpoint_every_updates"])}
     output = {"implementation_version": 2, "pilot_semantics": _PILOT_SEMANTICS_VERSION,
+              "mode": "4b_final_confirmation" if confirm_4b else "1.7b_optimizer_pilot",
               "data_seed": data_seed, "order_seed": order_seed,
               "windows": int(spec["windows"]), "full_selection": True,
               "sanity_every_microbatches": sanity_every,
               "conditions": conditions, "optimizer_common": optimizer_common,
               "probe": {"questions": len(probe_rows), "question_set_sha256": probe_hash,
                         "timing": "immediately after each optimizer update"},
-              "fixed_rule": "no collapsed sanity checkpoint after warmup, in both init seeds",
+              "fixed_rule": ("healthy final checkpoint in both init seeds" if confirm_4b else
+                             "no collapsed sanity checkpoint after warmup, in both init seeds"),
+              "selection_rule": "final_checkpoint" if confirm_4b else "no_post_warmup_collapse",
               "collapse_thresholds": spec["collapse"], "sizes": sizes, "runs": {}}
     try:
         previous = json.loads(out.read_text())
@@ -743,14 +747,16 @@ def _unit_stage1_pilot(ctx, out):
             legacy = out.with_name(f"{out.stem}-v{previous.get('implementation_version', 'unknown')}.json")
             if not legacy.exists():
                 shutil.copy2(out, legacy)
-        identity = ("implementation_version", "pilot_semantics", "data_seed", "order_seed",
+        identity = ("implementation_version", "pilot_semantics", "mode", "data_seed", "order_seed",
                     "windows", "full_selection", "sanity_every_microbatches", "conditions",
-                    "optimizer_common", "probe", "fixed_rule", "collapse_thresholds", "sizes")
+                    "optimizer_common", "probe", "fixed_rule", "selection_rule",
+                    "collapse_thresholds", "sizes")
         if all(previous.get(key) == output.get(key) for key in identity):
             output = previous
     except (OSError, ValueError):
         pass
-    pilot_root = ctx["root"] / "models" / "stage1-pilot-v2"
+    pilot_root = ctx["root"] / "models" / ("stage1-pilot-4b-v1" if confirm_4b
+                                             else "stage1-pilot-v2")
     initial_root = ctx["root"] / "models" / "stage1-pilot" / "initial"
     for size in sizes:
         model_id = model_ids[size]
@@ -881,12 +887,18 @@ def _unit_stage1_pilot(ctx, out):
                 if result["initial_state_sha256"] != initial["sha256"]:
                     raise RuntimeError("paired conditions did not load the registered initial state")
                 _atomic_json(out, output)
-    output["condition_outcomes"] = {
-        condition: {"fixed_both_seeds": all(
-            output["runs"][pair]["conditions"][condition].get("fixed_after_warmup", False)
-            for pair in output["runs"] if pair.startswith("1.7B-init"))}
-        for condition in conditions
-    }
+    if confirm_4b:
+        output["condition_outcomes"] = {
+            "stable": {"healthy_final_both_seeds": all(
+                not output["runs"][pair]["conditions"]["stable"]["checkpoints"][-1]["collapsed"]
+                for pair in output["runs"] if pair.startswith("4B-init"))}}
+    else:
+        output["condition_outcomes"] = {
+            condition: {"fixed_both_seeds": all(
+                output["runs"][pair]["conditions"][condition].get("fixed_after_warmup", False)
+                for pair in output["runs"] if pair.startswith("1.7B-init"))}
+            for condition in conditions
+        }
     _atomic_json(out, output)
     return output
 
@@ -1458,15 +1470,19 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if not (stores / f"{stage}-{unit}.done").exists() or not result_path.exists():
         return False
     if stage != "stage0":
-        if stage == "stage1_pilot":
+        if stage in {"stage1_pilot", "stage1_pilot_4b"}:
             try:
                 result = json.loads(result_path.read_text())
             except (OSError, ValueError):
                 return False
             if result.get("implementation_version") != 2:
                 return False
-            conditions = {"stable", "stable_acc8", "stable_lr5"}
-            pairs = {"1.7B-init1", "1.7B-init2"}
+            confirm_4b = stage == "stage1_pilot_4b"
+            conditions = {"stable"} if confirm_4b else {"stable", "stable_acc8", "stable_lr5"}
+            pairs = {"4B-init1", "4B-init2"} if confirm_4b else {"1.7B-init1", "1.7B-init2"}
+            expected_mode = "4b_final_confirmation" if confirm_4b else "1.7b_optimizer_pilot"
+            if result.get("mode") not in ({expected_mode} if confirm_4b else {None, expected_mode}):
+                return False
             if set(result.get("runs", {})) != pairs \
                     or set(result.get("condition_outcomes", {})) != conditions:
                 return False
@@ -1533,7 +1549,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         _append_stop_rule_once(root)
     if stage_cfg.get("requires_approval") and not (root / f"APPROVED_{stage}").exists():
         raise PermissionError(f"{root / ('APPROVED_' + stage)} is required")
-    ctx = {"root": root, "dry": dry, "config": cfg}
+    ctx = {"root": root, "dry": dry, "config": cfg, "stage": stage}
     meter = GPUHours(root / "gpu_hours.jsonl", stage_cfg["cap_a100_hours"], stage)
     meter.record("accounting_active", 0.0, stage=stage, device="n/a",
                  note="GPU-hour accounting enabled; execution is uncapped")
@@ -1546,6 +1562,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
         "latency": _unit_latency,
         "train_sizes": _unit_train_sizes,
         "paired_optimizer": _unit_stage1_pilot,
+        "stable_optimizer": lambda c, o: _unit_stage1_pilot(c, o, confirm_4b=True),
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,
@@ -1568,7 +1585,7 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
                 continue
             # The v1 pilot marker predates the v2 result and must not survive while v2 is
             # running: after an interruption it could otherwise authenticate partial output.
-            if stage == "stage1_pilot":
+            if stage in {"stage1_pilot", "stage1_pilot_4b"}:
                 done.unlink(missing_ok=True)
             if not dry and unit not in ("label_draw", "census", "revisions"):
                 meter.reserve(float(cfg["stages"][stage].get("unit_estimates", {}).get(unit, 0)))
