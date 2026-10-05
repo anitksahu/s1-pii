@@ -189,12 +189,9 @@ def canonical_choice_target(row: TrainingQuestion) -> str | None:
         return heldout.NOT_PII
     if row.target_raw is not None:
         return row.target_raw
-    description_to_raw = {description: raw for raw, (_node, description, _p) in v2.NATIVE.items()}
-    option = row.question.options[row.target]
-    raw = description_to_raw.get(option.description)
-    if raw is None:
-        raise ValueError(f"cannot recover canonical target for {row.question.id}")
-    return raw
+    # Descriptions are many-to-one across raw aliases, so reverse mapping would silently
+    # corrupt the coverage weights. Coverage positives must carry their exact source label.
+    raise ValueError(f"coverage positive {row.question.id} is missing target_raw")
 
 
 def _question_kind(row: TrainingQuestion) -> str:

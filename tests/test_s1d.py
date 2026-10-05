@@ -318,6 +318,12 @@ def test_coverage_composition_keeps_aliases_with_shared_descriptions_distinct():
     assert result["distinct_target_labels"] == 2
     assert {row["label"] for row in result["top_labels"]} == {"phone", "phone_num"}
 
+    ambiguous = TrainingQuestion(
+        "missing", "x", Question("choice", "classify", options=(
+            Option("phone", description), Option(HL.NOT_PII, "the span is not PII"))), 0, (0, 1))
+    with pytest.raises(ValueError, match="missing target_raw"):
+        coverage_composition([ambiguous])
+
 
 def test_pilot_eval_tokenizer_registers_reserved_tokens():
     from s1pii.s1d.run import _prepare_pilot_eval_tokenizer
