@@ -1267,10 +1267,28 @@ def test_stage1_paired_pilot_dry_writes_metrics_and_identical_initial_states(tmp
                        for row in step_rows)
     # Force the outer unit to re-enter while its six inner training runs are complete. This
     # exercises cached-condition reuse and must retain the paired initial-state integrity check.
+    from s1pii.s1d.run import _cache_is_current
+    assert _cache_is_current(root, stores, "stage1_pilot", "paired_optimizer", True)
+    checkpoints = sorted((root / "models" / "stage1-pilot-v2").glob("*/*/checkpoint.pt"))
+    checkpoint_mtimes = {path: path.stat().st_mtime_ns for path in checkpoints}
+    assert len(checkpoint_mtimes) == 6
     (root / "stores" / "stage1_pilot-paired_optimizer.done").unlink()
     resumed = subprocess.run(["bash", "scripts/s1d_chain.sh", "stage1_pilot"], env=env,
                              capture_output=True, text=True)
     assert resumed.returncode == 0, resumed.stdout + resumed.stderr + "\n" + log
+    assert {path: path.stat().st_mtime_ns for path in checkpoints} == checkpoint_mtimes
+
+
+def test_partial_stage1_pilot_never_authenticates_stale_done_marker(tmp_path):
+    from s1pii.s1d.run import _cache_is_current
+    stores = tmp_path / "stores"; stores.mkdir()
+    (stores / "stage1_pilot-paired_optimizer.done").write_text("stale-v1-marker")
+    (stores / "stage1_pilot-paired_optimizer.json").write_text(json.dumps({
+        "implementation_version": 2,
+        "windows": 16000,
+        "runs": {"1.7B-init1": {"conditions": {"stable": {"checkpoints": []}}}},
+    }))
+    assert not _cache_is_current(tmp_path, stores, "stage1_pilot", "paired_optimizer", False)
 
 
 def test_training_batch_composition_and_probe_metrics():

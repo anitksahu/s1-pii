@@ -1460,9 +1460,32 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
     if stage != "stage0":
         if stage == "stage1_pilot":
             try:
-                return json.loads(result_path.read_text()).get("implementation_version") == 2
+                result = json.loads(result_path.read_text())
             except (OSError, ValueError):
                 return False
+            if result.get("implementation_version") != 2:
+                return False
+            conditions = {"stable", "stable_acc8", "stable_lr5"}
+            pairs = {"1.7B-init1", "1.7B-init2"}
+            if set(result.get("runs", {})) != pairs \
+                    or set(result.get("condition_outcomes", {})) != conditions:
+                return False
+            expected_questions = min(int(result.get("windows", 0)), 8) if dry \
+                else int(result.get("windows", 0))
+            for pair in pairs:
+                rows = result["runs"][pair].get("conditions", {})
+                if set(rows) != conditions:
+                    return False
+                for condition in conditions:
+                    row = rows[condition]
+                    training = row.get("training", {})
+                    checkpoints = row.get("checkpoints", [])
+                    if (int(training.get("questions_seen", -1)) != expected_questions
+                            or not checkpoints
+                            or int(checkpoints[-1].get("questions_seen", -1)) != expected_questions
+                            or "fixed_after_warmup" not in row):
+                        return False
+            return True
         if stage == "comparators1":
             try:
                 return json.loads(result_path.read_text()).get("implementation_version") == 2
@@ -1543,6 +1566,10 @@ def run(stage: str, root: Path, dry: bool = False) -> int:
             if _cache_is_current(root, stores, stage, unit, dry):
                 (root / "CURRENT").write_text(f"{unit} cached {time.strftime('%FT%TZ', time.gmtime())}")
                 continue
+            # The v1 pilot marker predates the v2 result and must not survive while v2 is
+            # running: after an interruption it could otherwise authenticate partial output.
+            if stage == "stage1_pilot":
+                done.unlink(missing_ok=True)
             if not dry and unit not in ("label_draw", "census", "revisions"):
                 meter.reserve(float(cfg["stages"][stage].get("unit_estimates", {}).get(unit, 0)))
             result = handlers[unit](ctx, stores / f"{stage}-{unit}.json")
