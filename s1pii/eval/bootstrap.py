@@ -4,7 +4,8 @@ Resampling weights are generated per batch from a ``SeedSequence`` so memory is 
 by the batch size, and the same seed always yields the same weights. In a paired
 comparison every system (and every training seed of a system) is evaluated under the
 same weight matrix, so the bootstrap distribution of the difference is paired at the
-cluster level and propagates seed variance into the mean over seeds.
+cluster level. Training seeds are fixed and averaged; they are not resampled, so these
+intervals propagate document-cluster variation only, not training-seed variation.
 """
 from __future__ import annotations
 

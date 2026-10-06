@@ -84,4 +84,5 @@ stages:
   stage1_pilot_4b: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {stable_optimizer: 4}}
   stage1_cov: {cap_a100_hours: 24, enforce_cap: false, requires_approval: true, unit_estimates: {coverage_audit: 2, train_eval: 16}}
   s1d_test: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {test_eval: 6}}
+  s1_bench: {cap_a100_hours: 12, enforce_cap: false, requires_approval: true, unit_estimates: {predict_score: 8}}
   comparators1: {cap_a100_hours: 3, enforce_cap: false, requires_approval: false, unit_estimates: {decision20: 1.5}}

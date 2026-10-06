@@ -1545,6 +1545,34 @@ def test_s1d_test_dry_chain_is_inference_only_and_writes_all_systems(tmp_path):
     assert _cache_is_current(root, stores, "s1d_test", "test_eval", True)
 
 
+def test_s1_bench_dry_chain_scores_five_benchmarks_without_training(tmp_path):
+    from s1pii.s1d import run as runner
+
+    root = tmp_path / "s1d_dry"
+    root.mkdir()
+    (root / "APPROVED_s1_bench").write_text("approved")
+    assert runner.run("s1_bench", root, dry=True) == 0
+    result = json.loads((root / "stores" / "s1_bench-predict_score.json").read_text())
+    assert result["training_or_tuning"] is False
+    assert set(result["benchmarks"]) == {
+        "pii_trace", "tab_direct", "spy_legal", "spy_medical", "nemotron",
+    }
+    assert result["statistics"]["training_seed_variance_propagated"] is False
+    for dataset, row in result["benchmarks"].items():
+        assert row["n_calibration_docs"] == row["n_test_docs_audited"] == 2
+        assert row["proposer_ceiling"]["candidates"] > 0
+        expected = set(result["systems"])
+        if dataset == "nemotron":
+            expected.remove("nvidia_gliner_pii")
+        assert set(row["systems"]) == expected
+        assert all("strict_at_0_5" in metrics for metrics in row["systems"].values())
+        assert set(row["comparisons"]) == {
+            "s1_prompted_qwen3_4b", "s1d_1.7b_s1", "s1d_1.7b_s2", "s1d_4b_s1",
+            "proposer_only",
+        }
+    assert runner._cache_is_current(root, root / "stores", "s1_bench", "predict_score", True)
+
+
 def test_training_batch_composition_and_probe_metrics():
     from s1pii.s1d import run as runner
     from s1pii.v2.labels import NATIVE

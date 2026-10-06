@@ -31,6 +31,7 @@ UNITS = {
     "stage1_pilot_4b": ("stable_optimizer",),
     "stage1_cov": ("coverage_audit", "train_eval"),
     "s1d_test": ("test_eval",),
+    "s1_bench": ("predict_score",),
     "comparators1": ("decision20",),
 }
 
@@ -201,13 +202,19 @@ def _proposer_weights_sha(path: Path) -> str:
     return weights
 
 
-def _candidate_cache_path(root: Path, docs: list[Doc], weights_sha: str, cache_name: str) -> Path:
-    identity = hashlib.sha256(json.dumps({
+def _candidate_cache_path(root: Path, docs: list[Doc], weights_sha: str, cache_name: str, *,
+                          exclude_gold_overlap: bool = True) -> Path:
+    payload = {
         "documents": [doc.doc_id for doc in docs],
         "weights": weights_sha,
         "floor": 0.01,
         "mining_version": _CANDIDATE_MINING_VERSION,
-    }, sort_keys=True).encode()).hexdigest()[:16]
+    }
+    # Preserve every pre-benchmark cache name.  Keeping overlaps is a new mining contract and
+    # therefore receives its own identity rather than silently reusing negative-only candidates.
+    if not exclude_gold_overlap:
+        payload["exclude_gold_overlap"] = False
+    identity = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
     return root / "stores" / f"stage1-{cache_name}-candidates-{identity}.json"
 
 
@@ -215,7 +222,8 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
                          cache_name: str | None = None,
                          require_cache: bool = False,
                          proposer_variant: str = "no-nemotron",
-                         accounting_stage: str = "stage1") -> dict[str, list[Span]]:
+                         accounting_stage: str = "stage1",
+                         exclude_gold_overlap: bool = True) -> dict[str, list[Span]]:
     if dry:
         output = {}
         for doc in docs:
@@ -223,6 +231,9 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
             start = doc.text.index(surface)
             output[doc.doc_id] = [Span(doc.doc_id, start, start + len(surface), OTHER_PII,
                                        "candidate", score=0.5, surface=surface)]
+            if not exclude_gold_overlap:
+                output[doc.doc_id].extend(replace(span, score=0.75, source="dry-proposer")
+                                          for span in doc.pii_spans())
         return output
     from ..model.train import load_exported
     from ..model.predict import S1Predictor
@@ -230,7 +241,9 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
         raise ValueError(f"unknown proposer variant {proposer_variant!r}")
     path = root / "models" / f"proposer-{proposer_variant}" / "final"
     weights_sha = _proposer_weights_sha(path)
-    cache_path = _candidate_cache_path(root, docs, weights_sha, cache_name) if cache_name else None
+    cache_path = (_candidate_cache_path(root, docs, weights_sha, cache_name,
+                                        exclude_gold_overlap=exclude_gold_overlap)
+                  if cache_name else None)
     if cache_path is not None and cache_path.exists():
         payload = json.loads(cache_path.read_text())
         if payload.get("mining_version") == _CANDIDATE_MINING_VERSION:
@@ -263,7 +276,8 @@ def _proposer_candidates(root: Path, docs: list[Doc], dry: bool, *,
             for doc in batch:
                 output[doc.doc_id] = sorted(
                     (span for span in chunk.get(doc.doc_id, ())
-                     if not any(span.start < gold.end and span.end > gold.start for gold in doc.spans)),
+                     if not exclude_gold_overlap or not any(
+                         span.start < gold.end and span.end > gold.start for gold in doc.spans)),
                     key=lambda span: span.score, reverse=True)
             now = time.monotonic()
             meter.record("stage1-candidate-mining", now - last_accounted, stage=accounting_stage,
@@ -1423,7 +1437,8 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str, *, requi
         tokenizer.pad_token_id = tokenizer.eos_token_id
     model = AutoModelForCausalLM.from_pretrained(model_id, revision=revision, dtype=torch.bfloat16).cuda().eval()
     (ctx["root"] / "PHASE").write_text("GPU")
-    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, "stage1")
+    accounting_stage = ctx.get("stage", "stage1")
+    meter = GPUHours(ctx["root"] / "gpu_hours.jsonl", 0, accounting_stage)
     try:
         for split, rows in missing.items():
             path = _eval_cache_path(ctx, key, split)
@@ -1451,7 +1466,7 @@ def _score_prompted_sets(ctx, row_sets: dict[str, list], model_id: str, *, requi
                 done = first + len(chunk)
                 if done % 32 == 0 or done == len(rows):
                     now = time.monotonic()
-                    meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage="stage1",
+                    meter.record(f"dev-eval-{key}-{split}", now - last_accounted, stage=accounting_stage,
                                  device="cuda", questions=done, total_questions=len(rows))
                     last_accounted = now
                     _write_eval_cache(path, fingerprints[split], probabilities, done, len(rows))
@@ -1999,6 +2014,16 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
                     and set(result.get("differences_vs_prompted_4b", {})) == systems - {"prompted-4B"}
                     and set(result.get("outcomes", {}).values()) <= {"HELD", "FAILED"}
                     and len(result.get("outcomes", {})) == 3)
+        if stage == "s1_bench":
+            try:
+                result = json.loads(result_path.read_text())
+            except (OSError, ValueError):
+                return False
+            expected = {"pii_trace", "tab_direct", "spy_legal", "spy_medical", "nemotron"}
+            return (result.get("implementation_version") == 1
+                    and set(result.get("benchmarks", {})) == expected
+                    and all("systems" in row and "proposer_ceiling" in row
+                            for row in result["benchmarks"].values()))
         if stage == "stage1_cov":
             try:
                 result = json.loads(result_path.read_text())
@@ -2092,6 +2117,8 @@ def run(stage: str, root: Path, dry: bool = False, *, composition_only: bool = F
         "coverage_audit": _unit_coverage_audit,
         "train_eval": _unit_coverage_train_eval,
         "test_eval": _unit_test_eval,
+        "predict_score": lambda c, o: __import__(
+            "s1pii.s1d.s1_bench", fromlist=["run_benchmark"]).run_benchmark(c, o),
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,
