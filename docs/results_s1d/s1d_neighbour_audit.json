@@ -1,0 +1,583 @@
+{
+  "definition": "Excluded semantic neighbours are labels present in declared training sources that share the held-out label's semantic node and are removed by labels.semantic_exclusions. Closest remaining labels are produced by labels.nearest_trained_neighbours.",
+  "encoder": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+  },
+  "labels": {
+    "api_key": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "secret",
+            "similarity": 0.532774
+          },
+          {
+            "label": "password",
+            "similarity": 0.285936
+          },
+          {
+            "label": "account_pin",
+            "similarity": 0.232935
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "secret",
+            "similarity": 0.496117
+          },
+          {
+            "label": "password",
+            "similarity": 0.365719
+          },
+          {
+            "label": "account_pin",
+            "similarity": 0.352091
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "api_key"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "api_key",
+      "split": "test"
+    },
+    "certificate_license_number": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "driver_license_number",
+            "similarity": 0.500474
+          },
+          {
+            "label": "national_id",
+            "similarity": 0.323397
+          },
+          {
+            "label": "license_plate",
+            "similarity": 0.315717
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "driver_license_number",
+            "similarity": 0.689681
+          },
+          {
+            "label": "license_plate",
+            "similarity": 0.536588
+          },
+          {
+            "label": "phone",
+            "similarity": 0.532941
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "certificate_license_number"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "certificate_license_number",
+      "split": "test"
+    },
+    "coordinate": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "address",
+            "similarity": 0.331711
+          },
+          {
+            "label": "ipv6",
+            "similarity": 0.270376
+          },
+          {
+            "label": "mac_address",
+            "similarity": 0.208978
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "time",
+            "similarity": 0.333648
+          },
+          {
+            "label": "address",
+            "similarity": 0.300785
+          },
+          {
+            "label": "mac_address",
+            "similarity": 0.296152
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "coordinate",
+        "local_latlng"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "coordinate",
+      "split": "test"
+    },
+    "country": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "city",
+            "similarity": 0.580432
+          },
+          {
+            "label": "company_name",
+            "similarity": 0.414263
+          },
+          {
+            "label": "company",
+            "similarity": 0.350662
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "person",
+            "similarity": 0.336634
+          },
+          {
+            "label": "city",
+            "similarity": 0.33388
+          },
+          {
+            "label": "name",
+            "similarity": 0.333111
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "country"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "country",
+      "split": "test"
+    },
+    "county": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "city",
+            "similarity": 0.418993
+          },
+          {
+            "label": "address",
+            "similarity": 0.284857
+          },
+          {
+            "label": "url",
+            "similarity": 0.239566
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "city",
+            "similarity": 0.43481
+          },
+          {
+            "label": "address",
+            "similarity": 0.311056
+          },
+          {
+            "label": "phone_number",
+            "similarity": 0.270878
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "county"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "county",
+      "split": "test"
+    },
+    "customer_id": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "employee_id",
+            "similarity": 0.74776
+          },
+          {
+            "label": "unique_id",
+            "similarity": 0.656153
+          },
+          {
+            "label": "pin",
+            "similarity": 0.552041
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "employee_id",
+            "similarity": 0.559538
+          },
+          {
+            "label": "passport_number",
+            "similarity": 0.482374
+          },
+          {
+            "label": "health_plan_beneficiary_number",
+            "similarity": 0.472895
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "customer_id"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "customer_id",
+      "split": "test"
+    },
+    "cvv": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "national_id",
+            "similarity": 0.616062
+          },
+          {
+            "label": "credit_card_number",
+            "similarity": 0.576476
+          },
+          {
+            "label": "credit_debit_card",
+            "similarity": 0.576476
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "secret",
+            "similarity": 0.349051
+          },
+          {
+            "label": "password",
+            "similarity": 0.311597
+          },
+          {
+            "label": "vehicle_identifier",
+            "similarity": 0.308841
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "credit_card_security_code",
+        "cvv"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "card_security_code",
+      "split": "test"
+    },
+    "date_time": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "time",
+            "similarity": 0.396543
+          },
+          {
+            "label": "date_of_birth",
+            "similarity": 0.338912
+          },
+          {
+            "label": "age",
+            "similarity": 0.180012
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "time",
+            "similarity": 0.668881
+          },
+          {
+            "label": "date_of_birth",
+            "similarity": 0.546885
+          },
+          {
+            "label": "age",
+            "similarity": 0.273587
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "date",
+        "date_time"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "date",
+      "split": "dev"
+    },
+    "first_name": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "person",
+            "similarity": 0.857731
+          },
+          {
+            "label": "name",
+            "similarity": 0.697606
+          },
+          {
+            "label": "gender",
+            "similarity": 0.491608
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "name",
+            "similarity": 0.683207
+          },
+          {
+            "label": "person",
+            "similarity": 0.63944
+          },
+          {
+            "label": "user_name",
+            "similarity": 0.453475
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "first_name"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "first_name",
+      "split": "dev"
+    },
+    "ipv4": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "ipv6",
+            "similarity": 0.733264
+          },
+          {
+            "label": "mac_address",
+            "similarity": 0.395361
+          },
+          {
+            "label": "url",
+            "similarity": 0.363371
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "ipv6",
+            "similarity": 0.727034
+          },
+          {
+            "label": "mac_address",
+            "similarity": 0.441953
+          },
+          {
+            "label": "address",
+            "similarity": 0.395861
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "ipv4"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "ipv4",
+      "split": "dev"
+    },
+    "last_name": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "person",
+            "similarity": 0.734104
+          },
+          {
+            "label": "name",
+            "similarity": 0.556406
+          },
+          {
+            "label": "company_name",
+            "similarity": 0.391367
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "name",
+            "similarity": 0.602449
+          },
+          {
+            "label": "person",
+            "similarity": 0.521318
+          },
+          {
+            "label": "phone_number",
+            "similarity": 0.429259
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "last_name"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "last_name",
+      "split": "test"
+    },
+    "occupation": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "employment_status",
+            "similarity": 0.524789
+          },
+          {
+            "label": "employee_id",
+            "similarity": 0.501609
+          },
+          {
+            "label": "company",
+            "similarity": 0.365432
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "company",
+            "similarity": 0.568285
+          },
+          {
+            "label": "employment_status",
+            "similarity": 0.505436
+          },
+          {
+            "label": "gender",
+            "similarity": 0.368744
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "occupation"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "occupation",
+      "split": "test"
+    },
+    "postcode": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "address",
+            "similarity": 0.673952
+          },
+          {
+            "label": "credit_card_number",
+            "similarity": 0.419015
+          },
+          {
+            "label": "credit_debit_card",
+            "similarity": 0.419015
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "address",
+            "similarity": 0.482962
+          },
+          {
+            "label": "credit_debit_card",
+            "similarity": 0.376738
+          },
+          {
+            "label": "license_plate",
+            "similarity": 0.36908
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "postcode"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "postcode",
+      "split": "dev"
+    },
+    "state": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "address",
+            "similarity": 0.384062
+          },
+          {
+            "label": "city",
+            "similarity": 0.366776
+          },
+          {
+            "label": "url",
+            "similarity": 0.279881
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "city",
+            "similarity": 0.392065
+          },
+          {
+            "label": "iban",
+            "similarity": 0.286286
+          },
+          {
+            "label": "phone_number",
+            "similarity": 0.26305
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "state"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "state",
+      "split": "test"
+    },
+    "street_address": {
+      "closest_trained_labels_remaining": {
+        "description": [
+          {
+            "label": "address",
+            "similarity": 0.480418
+          },
+          {
+            "label": "pin",
+            "similarity": 0.470189
+          },
+          {
+            "label": "phone_number",
+            "similarity": 0.423048
+          }
+        ],
+        "name_and_paraphrases": [
+          {
+            "label": "address",
+            "similarity": 0.760877
+          },
+          {
+            "label": "mac_address",
+            "similarity": 0.490574
+          },
+          {
+            "label": "email",
+            "similarity": 0.459986
+          }
+        ]
+      },
+      "excluded_semantic_neighbours": [
+        "street_address"
+      ],
+      "same_node_labels_remaining_in_training": [],
+      "semantic_node": "street_address",
+      "split": "dev"
+    }
+  },
+  "version": 1
+}

@@ -1870,6 +1870,31 @@ def test_prompted_cache_identity_rejects_stale_semantics():
         assert _read_eval_cache(path, new, len(rows)) is None          # stale semantics rejected
 
 
+def test_s1d_forced_per_label_metrics_exclude_not_pii():
+    import importlib.util
+    import numpy as np
+    from s1pii.s1d.data import TrainingQuestion
+
+    spec = importlib.util.spec_from_file_location("s1d_test_forced", "scripts/s1d_test_forced.py")
+    script = importlib.util.module_from_spec(spec); spec.loader.exec_module(script)
+    options = (Option("api key"), Option("country"), Option(HL.NOT_PII))
+
+    def row(name, target):
+        return TrainingQuestion(name, "state", Question("choice", "choose", options=options), target)
+
+    rows = [row("a", 0), row("b", 0), row("c", 1)]
+    probabilities = np.asarray([[0.1, 0.2, 0.7], [0.6, 0.3, 0.1], [0.4, 0.5, 0.1]])
+    result = script.per_label(rows, probabilities, ["api_key", "country"])
+    assert result["api_key"]["accuracy"] == pytest.approx(0.5)
+    assert result["api_key"]["forced_choice_accuracy"] == pytest.approx(0.5)
+    assert result["api_key"]["not_pii_rate_on_gold"] == pytest.approx(0.5)
+    assert result["api_key"]["top_3_forced_predictions"] == [
+        {"option": "country", "count": 1, "share": 0.5},
+        {"option": "api key", "count": 1, "share": 0.5},
+    ]
+    assert result["country"]["accuracy"] == pytest.approx(1.0)
+
+
 # --------------------------------------------------------------------------- grouped eval == training packing
 
 def test_grouped_evaluation_matches_training_packing(tiny):

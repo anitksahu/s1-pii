@@ -609,10 +609,11 @@ def _unit_train_sizes(ctx, _out):
             "seeds": [1, 2], "runs": results}
 
 
-def _dev_questions(ctx, *, descriptions: bool = True):
+def _dev_questions(ctx, *, descriptions: bool = True, require_candidate_cache: bool = False):
     from .data import span_evaluation_questions
     docs = _stage1_docs(ctx["dry"])
-    candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"], cache_name="calibration")
+    candidates = _proposer_candidates(ctx["root"], docs, ctx["dry"], cache_name="calibration",
+                                      require_cache=require_candidate_cache)
     rows = span_evaluation_questions(docs, candidates, labels=labels.load()["dev_labels"], seed=0,
                                      descriptions=descriptions, require_equal_negatives=False)
     if not rows or not any(row.hard_negative for row in rows):
@@ -620,7 +621,7 @@ def _dev_questions(ctx, *, descriptions: bool = True):
     return docs, rows
 
 
-def _test_questions(ctx, *, descriptions: bool = True):
+def _test_questions(ctx, *, descriptions: bool = True, require_candidate_cache: bool = False):
     """Frozen Nemotron test questions for the ten preregistered S1-D test labels."""
     from .data import span_evaluation_questions
     config = labels.load()
@@ -636,7 +637,8 @@ def _test_questions(ctx, *, descriptions: bool = True):
         _calibration, docs = bench.splits("nemotron")
     candidates = _proposer_candidates(
         ctx["root"], docs, ctx["dry"], cache_name="s1d-test",
-        proposer_variant="no-nemotron", accounting_stage="s1d_test")
+        proposer_variant="no-nemotron", accounting_stage="s1d_test",
+        require_cache=require_candidate_cache)
     rows = span_evaluation_questions(
         docs, candidates, labels=config["test_labels"], seed=0,
         descriptions=descriptions, require_equal_negatives=False)
