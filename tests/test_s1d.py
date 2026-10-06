@@ -437,6 +437,18 @@ def test_all_source_coverage_questions_exclude_heldout_labels(tmp_path):
     assert not [row for row in rows if row.question.type.value in ("noul", "score")]
 
 
+def test_allowed_label_overlapping_heldout_span_is_not_a_target(tmp_path):
+    held = HL.load()["dev_labels"][0]
+    text = "ada@example.test"
+    held_span = Span("overlap", 0, len(text), OTHER_PII, held, surface=text)
+    allowed_span = Span("overlap", 0, len(text), OTHER_PII, "email", surface=text)
+    doc = Doc("overlap", text, (held_span, allowed_span), "gretel", "train", "overlap")
+    rows = generate_questions([doc], variant="all-sources", seed=3,
+                              ledger_path=tmp_path / "ledger.jsonl")
+    assert_no_heldout_leakage(rows)
+    assert not rows
+
+
 def test_heldout_doc_has_no_document_targets_and_hard_negatives_avoid_all_gold(tmp_path):
     held = HL.load()["test_labels"][0]
     text = "held ordinary"

@@ -101,7 +101,7 @@ def generate_questions(docs: Iterable[Doc], *, seed: int = 0, variant: str = "al
         forbidden = [s for s in doc.spans if s.label_raw and heldout.excluded(_raw(s), cfg)]
         forbidden_ranges = tuple((s.start, s.end) for s in forbidden)
         positives = [s for s in doc.pii_spans() if _raw(s) in v2.NATIVE and _raw(s) not in evaluation_only
-                     and s not in forbidden]
+                     and s not in forbidden and not _overlaps(s, forbidden)]
         for span in positives:
             opts, target = _choice_options(vocabulary, rng, min_options=min_options,
                                            max_options=max_options, target_raw=_raw(span))
