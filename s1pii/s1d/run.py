@@ -1,4 +1,4 @@
-"""Resumable Stage 0/1/2 command runner used by the Colab chain."""
+"""Resumable S1-D command runner used by the Colab chain."""
 from __future__ import annotations
 
 import argparse
@@ -31,7 +31,6 @@ UNITS = {
     "stage1_pilot_4b": ("stable_optimizer",),
     "stage1_cov": ("coverage_audit", "train_eval"),
     "s1d_test": ("test_eval",),
-    "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
 
@@ -727,19 +726,27 @@ def _binary_auroc(negative_scores, gold_scores) -> float:
     return float(wins / (positives * negatives))
 
 
-def _test_probability_metrics(rows, probabilities, *, temperature: float) -> dict:
-    """Frozen S1-D test readout, including forced choice and NOT_PII discrimination."""
+def _test_calibrated_probabilities(rows, probabilities, temperature: float):
+    """Validate and temperature-scale one frozen test system's probabilities."""
     import numpy as np
     if len(rows) != len(probabilities):
         raise ValueError("test probability count does not match question count")
     p = torch.as_tensor(probabilities, dtype=torch.float32)
     p = (p.clamp_min(1e-30).log() / float(temperature)).softmax(-1).numpy()
-    gold = [i for i, row in enumerate(rows) if not row.hard_negative]
-    negative = [i for i, row in enumerate(rows) if row.hard_negative]
-    if not gold or len(negative) != len(gold):
-        raise ValueError("test metrics require equal non-empty gold and not-PII rows")
     option_names = [option.name for option in rows[0].question.options]
-    not_pii_index = option_names.index(labels.NOT_PII)
+    if any([option.name for option in row.question.options] != option_names for row in rows):
+        raise ValueError("test questions must use the same fixed options")
+    return np.asarray(p), option_names.index(labels.NOT_PII)
+
+
+def _test_metric_values(rows, p, not_pii_index: int, indices=None) -> dict[str, float]:
+    """Compute preregistered comparison metrics on an optional clustered draw."""
+    import numpy as np
+    selected = list(range(len(rows))) if indices is None else list(indices)
+    gold = [i for i in selected if not rows[i].hard_negative]
+    negative = [i for i in selected if rows[i].hard_negative]
+    if not gold or not negative:
+        raise ValueError("test metrics require gold and not-PII rows")
     pred = p.argmax(1)
     forced = p.copy(); forced[:, not_pii_index] = -1.0
     forced_pred = forced.argmax(1)
@@ -749,17 +756,73 @@ def _test_probability_metrics(rows, probabilities, *, temperature: float) -> dic
         by_label[name].append(float(pred[i] == rows[i].target))
         by_label_forced[name].append(float(forced_pred[i] == rows[i].target))
     return {
-        "questions": len(rows), "gold_questions": len(gold),
-        "not_pii_questions": len(negative), "temperature": float(temperature),
         "macro_accuracy": float(np.mean([np.mean(values) for values in by_label.values()])),
         "forced_choice_macro_accuracy": float(
             np.mean([np.mean(values) for values in by_label_forced.values()])),
-        "not_pii_accuracy": float(np.mean([pred[i] == rows[i].target for i in negative])),
         "not_pii_auroc": _binary_auroc(
             [p[i, not_pii_index] for i in negative], [p[i, not_pii_index] for i in gold]),
+    }
+
+
+def _test_probability_metrics(rows, probabilities, *, temperature: float) -> dict:
+    """Frozen S1-D test readout, including forced choice and NOT_PII discrimination."""
+    import numpy as np
+    p, not_pii_index = _test_calibrated_probabilities(rows, probabilities, temperature)
+    gold = [i for i, row in enumerate(rows) if not row.hard_negative]
+    negative = [i for i, row in enumerate(rows) if row.hard_negative]
+    if not gold or len(negative) != len(gold):
+        raise ValueError("test metrics require equal non-empty gold and not-PII rows")
+    pred = p.argmax(1)
+    metric_values = _test_metric_values(rows, p, not_pii_index)
+    by_label = defaultdict(list)
+    for i in gold:
+        name = rows[i].question.options[rows[i].target].name
+        by_label[name].append(float(pred[i] == rows[i].target))
+    return {
+        "questions": len(rows), "gold_questions": len(gold),
+        "not_pii_questions": len(negative), "temperature": float(temperature),
+        **metric_values,
+        "not_pii_accuracy": float(np.mean([pred[i] == rows[i].target for i in negative])),
+        "not_pii_rate_on_gold": float(np.mean([pred[i] == not_pii_index for i in gold])),
         "per_label_accuracy": {name: float(np.mean(values))
                                for name, values in sorted(by_label.items())},
+        "per_label_gold_counts": {name: len(values) for name, values in sorted(by_label.items())},
     }
+
+
+def _test_difference_bootstrap(rows, system_probabilities, baseline_probabilities, cluster_by_doc,
+                               *, seed: int = 20261006, samples: int = 2000) -> dict:
+    """Paired source-document-cluster bootstrap differences versus prompted Qwen3-4B."""
+    import numpy as np
+    systems = {name: _test_calibrated_probabilities(rows, probabilities, temperature)[0]
+               for name, (probabilities, temperature) in system_probabilities.items()}
+    baseline, not_pii_index = _test_calibrated_probabilities(
+        rows, baseline_probabilities[0], baseline_probabilities[1])
+    by_cluster = defaultdict(list)
+    for i, row in enumerate(rows):
+        by_cluster[cluster_by_doc.get(row.doc_id, row.doc_id)].append(i)
+    clusters = sorted(by_cluster)
+    if not clusters:
+        raise ValueError("test bootstrap requires source-document clusters")
+    rng = np.random.default_rng(seed)
+    draws = [[i for cluster in rng.choice(clusters, len(clusters), replace=True)
+              for i in by_cluster[cluster]] for _ in range(samples)]
+    baseline_point = _test_metric_values(rows, baseline, not_pii_index)
+    baseline_values = [_test_metric_values(rows, baseline, not_pii_index, indices)
+                       for indices in draws]
+    result = {}
+    for name, p in systems.items():
+        point = _test_metric_values(rows, p, not_pii_index)
+        draw_values = [_test_metric_values(rows, p, not_pii_index, indices) for indices in draws]
+        metrics = {}
+        for key in ("macro_accuracy", "forced_choice_macro_accuracy", "not_pii_auroc"):
+            differences = [value[key] - baseline_values[j][key]
+                           for j, value in enumerate(draw_values)]
+            lower, upper = np.quantile(differences, [0.025, 0.975])
+            metrics[key] = {"difference": point[key] - baseline_point[key],
+                            "lower_95": float(lower), "upper_95": float(upper)}
+        result[name] = metrics
+    return result
 
 
 def _sanity_metrics(rows, probabilities, *, temperature: float = 1.0) -> dict:
@@ -1657,14 +1720,14 @@ def _saved_test_temperatures(ctx) -> tuple[dict[str, float], dict[str, float]]:
 
 def _unit_test_eval(ctx, out):
     """One-shot evaluation on the frozen Nemotron test sample; no fitting or training."""
-    _docs, rows = _test_questions(ctx, descriptions=True)
+    docs, rows = _test_questions(ctx, descriptions=True)
     prompted_temperatures, trained_temperatures = _saved_test_temperatures(ctx)
     model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
     expected_sizes = {"0.6B", "1.7B", "4B"}
     if set(model_ids) != expected_sizes:
         raise ValueError(f"s1d_test requires exactly the frozen model sizes {sorted(expected_sizes)}")
     output = {
-        "implementation_version": 1,
+        "implementation_version": 2,
         "split": "nemotron-test",
         "test_labels": list(labels.load()["test_labels"]),
         "questions": len(rows),
@@ -1675,13 +1738,25 @@ def _unit_test_eval(ctx, out):
             "temperatures": "existing Gretel temperatures",
             "trained_selection": "stage1_cov final checkpoints",
             "training_or_tuning": False,
+            "bootstrap": {"unit": "source_document_cluster", "samples": 2000,
+                          "seed": 20261006, "interval": "percentile_95"},
         },
+        "run_status": {"healthy_s1d": ["1.7B-s1", "1.7B-s2", "4B-s1"],
+                       "collapsed_reported_separately": ["4B-s2"]},
+        "labels": {},
         "systems": {},
     }
+    if ctx["dry"]:
+        output["labels"]["nearest_trained_neighbours"] = {
+            name: {"dry_run": True} for name in labels.load()["test_labels"]}
+    else:
+        output["labels"]["nearest_trained_neighbours"] = labels.nearest_trained_neighbours(labels.load())
     _atomic_json(out, output)
 
+    raw_scores = {}
     for size in ("0.6B", "1.7B", "4B"):
         scores = _score_prompted_sets(ctx, {"test": rows}, model_ids[size])["test"]
+        raw_scores[f"prompted-{size}"] = (scores, prompted_temperatures[size])
         output["systems"][f"prompted-{size}"] = _test_probability_metrics(
             rows, scores, temperature=prompted_temperatures[size])
         _atomic_json(out, output)
@@ -1698,9 +1773,31 @@ def _unit_test_eval(ctx, out):
                     f"s1d_test requires final stage1_cov checkpoint {run_dir}: missing {missing}")
         scores = _score_trained_sets(
             ctx, {"test": rows}, model_id=model_ids[size], run_dir=run_dir)["test"]
+        raw_scores[name] = (scores, trained_temperatures[name])
         output["systems"][name] = _test_probability_metrics(
             rows, scores, temperature=trained_temperatures[name])
         _atomic_json(out, output)
+    cluster_by_doc = {doc.doc_id: (doc.cluster_id or doc.doc_id) for doc in docs}
+    baseline = raw_scores["prompted-4B"]
+    compared = {name: scores for name, scores in raw_scores.items() if name != "prompted-4B"}
+    output["differences_vs_prompted_4b"] = _test_difference_bootstrap(
+        rows, compared, baseline, cluster_by_doc, samples=100 if ctx["dry"] else 2000)
+    systems = output["systems"]
+    healthy = output["run_status"]["healthy_s1d"]
+    outcome_values = {
+        "prompted_4b_forced_choice_macro_exceeds_every_healthy_s1d":
+            systems["prompted-4B"]["forced_choice_macro_accuracy"]
+            > max(systems[name]["forced_choice_macro_accuracy"] for name in healthy),
+        "every_healthy_s1d_not_pii_auroc_exceeds_prompted_4b":
+            min(systems[name]["not_pii_auroc"] for name in healthy)
+            > systems["prompted-4B"]["not_pii_auroc"],
+        "both_s1d_1_7b_runs_exceed_prompted_1_7b_macro":
+            min(systems[name]["macro_accuracy"] for name in ("1.7B-s1", "1.7B-s2"))
+            > systems["prompted-1.7B"]["macro_accuracy"],
+    }
+    output["outcomes"] = {name: ("HELD" if held else "FAILED")
+                          for name, held in outcome_values.items()}
+    _atomic_json(out, output)
     return output
 
 
@@ -1806,12 +1903,6 @@ def _unit_decision20(ctx, _out):
             "models": results}
 
 
-def _unimplemented(ctx, _out, name):
-    if ctx["dry"]:
-        return {"status": "dry-complete", "unit": name}
-    raise NotImplementedError(f"{name} is intentionally unavailable until its approved stage is implemented")
-
-
 def _append_stop_rule_once(root: Path) -> None:
     path = root / "ledger.jsonl"
     if path.exists():
@@ -1883,13 +1974,17 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
                 return False
             systems = {"prompted-0.6B", "prompted-1.7B", "prompted-4B",
                        "1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2"}
-            metric_keys = {"macro_accuracy", "forced_choice_macro_accuracy",
-                           "not_pii_accuracy", "not_pii_auroc", "per_label_accuracy"}
-            return (result.get("implementation_version") == 1
+            metric_keys = {"macro_accuracy", "forced_choice_macro_accuracy", "not_pii_accuracy",
+                           "not_pii_rate_on_gold", "not_pii_auroc", "per_label_accuracy",
+                           "per_label_gold_counts"}
+            return (result.get("implementation_version") == 2
                     and result.get("split") == "nemotron-test"
                     and result.get("gold_questions", 0) == result.get("not_pii_questions", -1)
                     and set(result.get("systems", {})) == systems
-                    and all(metric_keys <= set(row) for row in result["systems"].values()))
+                    and all(metric_keys <= set(row) for row in result["systems"].values())
+                    and set(result.get("differences_vs_prompted_4b", {})) == systems - {"prompted-4B"}
+                    and set(result.get("outcomes", {}).values()) <= {"HELD", "FAILED"}
+                    and len(result.get("outcomes", {})) == 3)
         if stage == "stage1_cov":
             try:
                 result = json.loads(result_path.read_text())
@@ -1986,9 +2081,6 @@ def run(stage: str, root: Path, dry: bool = False, *, composition_only: bool = F
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,
-        "train_final": lambda c, o: _unimplemented(c, o, "train_final"),
-        "test_inference": lambda c, o: _unimplemented(c, o, "test_inference"),
-        "comparators": lambda c, o: _unimplemented(c, o, "comparators"),
     }
     stores = root / "stores"; stores.mkdir(exist_ok=True)
     try:

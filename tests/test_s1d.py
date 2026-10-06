@@ -730,19 +730,6 @@ def test_non_dry_stage0_never_marks_placeholder_done(tmp_path, monkeypatch):
     assert not (tmp_path / "stores" / "stage0-proposer_all.done").exists()
 
 
-@pytest.mark.parametrize("stage", ["stage2"])
-def test_future_stage_placeholders_never_write_done(tmp_path, stage):
-    from s1pii.s1d.run import run
-    (tmp_path / f"APPROVED_{stage}").write_text("approved")
-    stores = tmp_path / "stores"; stores.mkdir()
-    first = {"stage2": "train_final"}[stage]
-    (stores / f"{stage}-{first}.json").write_text(json.dumps({"status": "entrypoint-ready"}))
-    (stores / f"{stage}-{first}.done").write_text("legacy")
-    with pytest.raises(NotImplementedError):
-        run(stage, tmp_path, dry=False)
-    assert {p.name for p in stores.glob(f"{stage}-*.done")} == {f"{stage}-{first}.done"}
-
-
 def test_stage0_macro_stop_rule_fires_before_latency(tmp_path, monkeypatch):
     from s1pii.s1d import run as runner
     assert runner.UNITS["stage0"] == ("label_draw", "census", "revisions", "prompted_probe",
@@ -1483,8 +1470,11 @@ def test_s1d_test_metrics_force_choice_and_not_pii_auroc():
     assert metrics["macro_accuracy"] == 0.0
     assert metrics["forced_choice_macro_accuracy"] == 1.0
     assert metrics["not_pii_accuracy"] == 1.0
+    assert metrics["not_pii_rate_on_gold"] == 1.0
     assert metrics["not_pii_auroc"] == 1.0
     assert set(metrics["per_label_accuracy"]) == {name.replace("_", " ") for name in test_labels}
+    assert metrics["per_label_gold_counts"] == {
+        name.replace("_", " "): 1 for name in test_labels}
 
 
 def test_s1d_test_question_builder_uses_frozen_ten_and_balanced_negatives(monkeypatch, tmp_path):
@@ -1536,8 +1526,13 @@ def test_s1d_test_dry_chain_is_inference_only_and_writes_all_systems(tmp_path):
         "1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2",
     }
     required = {"macro_accuracy", "forced_choice_macro_accuracy", "not_pii_accuracy",
-                "not_pii_auroc", "per_label_accuracy"}
+                "not_pii_rate_on_gold", "not_pii_auroc", "per_label_accuracy",
+                "per_label_gold_counts"}
     assert all(required <= set(row) for row in result["systems"].values())
+    assert set(result["differences_vs_prompted_4b"]) == set(result["systems"]) - {"prompted-4B"}
+    assert len(result["outcomes"]) == 3
+    assert set(result["outcomes"].values()) <= {"HELD", "FAILED"}
+    assert set(result["labels"]["nearest_trained_neighbours"]) == set(HL.load()["test_labels"])
     assert not (root / "models" / "stage1-cov").exists()
     from s1pii.s1d.run import _cache_is_current
     assert _cache_is_current(root, stores, "s1d_test", "test_eval", True)
