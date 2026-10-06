@@ -1455,6 +1455,94 @@ def test_stage1_coverage_dry_audit_gates_training_and_writes_metrics(tmp_path):
     assert _cache_is_current(root, stores, "stage1_cov", "train_eval", True)
 
 
+def test_s1d_test_metrics_force_choice_and_not_pii_auroc():
+    from s1pii.s1d.data import span_evaluation_questions
+    from s1pii.s1d.run import _test_probability_metrics
+    test_labels = HL.load()["test_labels"][:2]
+    docs, candidates = [], {}
+    for index, label in enumerate(test_labels):
+        text = f"secret{index} ordinary{index}"
+        split = text.index(" ")
+        doc_id = f"test-{index}"
+        docs.append(Doc(doc_id, text,
+                        (Span(doc_id, 0, split, OTHER_PII, label, surface=text[:split]),),
+                        "nemotron", "test", doc_id))
+        candidates[doc_id] = [Span(doc_id, split + 1, len(text), OTHER_PII,
+                                   "candidate", surface=text[split + 1:])]
+    rows = span_evaluation_questions(docs, candidates, labels=test_labels)
+    probabilities = []
+    for row in rows:
+        p = [1e-6] * 56
+        if row.hard_negative:
+            p[row.target] = 0.9
+        else:
+            p[row.target] = 0.4
+            p[-1] = 0.6                 # ordinary argmax abstains; forced choice is correct
+        probabilities.append(p)
+    metrics = _test_probability_metrics(rows, probabilities, temperature=1.0)
+    assert metrics["macro_accuracy"] == 0.0
+    assert metrics["forced_choice_macro_accuracy"] == 1.0
+    assert metrics["not_pii_accuracy"] == 1.0
+    assert metrics["not_pii_auroc"] == 1.0
+    assert set(metrics["per_label_accuracy"]) == {name.replace("_", " ") for name in test_labels}
+
+
+def test_s1d_test_question_builder_uses_frozen_ten_and_balanced_negatives(monkeypatch, tmp_path):
+    from s1pii import bench
+    from s1pii.s1d import run as runner
+    test_labels = HL.load()["test_labels"]
+    docs, candidates = [], {}
+    for index, label in enumerate(test_labels):
+        doc_id = f"frozen-{index}"; text = f"secret{index} ordinary{index}"
+        split = text.index(" ")
+        docs.append(Doc(doc_id, text,
+                        (Span(doc_id, 0, split, OTHER_PII, label, surface=text[:split]),),
+                        "nemotron", "test", doc_id))
+        candidates[doc_id] = [Span(doc_id, split + 1, len(text), OTHER_PII,
+                                   "candidate", surface=text[split + 1:])]
+    monkeypatch.setattr(bench, "splits", lambda name: ([], docs))
+    monkeypatch.setattr(runner, "_proposer_candidates", lambda *args, **kwargs: candidates)
+    _docs, rows = runner._test_questions({"root": tmp_path, "dry": False}, descriptions=True)
+    assert _docs == docs and len(rows) == 2 * len(test_labels)
+    assert sum(row.hard_negative for row in rows) == len(test_labels)
+    assert {row.question.options[row.target].name for row in rows if not row.hard_negative} == {
+        name.replace("_", " ") for name in test_labels}
+    assert all(len(row.question.options) == 56 for row in rows)
+
+
+def test_s1d_test_dry_chain_is_inference_only_and_writes_all_systems(tmp_path):
+    root = tmp_path / "s1d_dry"; root.mkdir()
+    stores = root / "stores"; stores.mkdir()
+    (root / "APPROVED_s1d_test").write_text("approved")
+    (stores / "stage1-dev_eval.json").write_text(json.dumps({
+        "prompted": {size: {"temperature": 1.0} for size in ("0.6B", "1.7B", "4B")}
+    }))
+    (stores / "stage1_cov-train_eval.json").write_text(json.dumps({
+        "runs": {name: {"temperature": 1.0}
+                 for name in ("1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2")}
+    }))
+    env = {**os.environ, "DRIVE": str(tmp_path), "S1D_DRY": "1", "S1D_SKIP_INSTALL": "1",
+           "PYTHON": sys.executable}
+    run = subprocess.run(["bash", "scripts/s1d_chain.sh", "s1d_test"], env=env,
+                         capture_output=True, text=True)
+    log = (root / "logs" / "s1d_test.log").read_text()
+    assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
+    result = json.loads((stores / "s1d_test-test_eval.json").read_text())
+    assert result["split"] == "nemotron-test"
+    assert result["gold_questions"] == result["not_pii_questions"] > 0
+    assert result["protocol"]["training_or_tuning"] is False
+    assert set(result["systems"]) == {
+        "prompted-0.6B", "prompted-1.7B", "prompted-4B",
+        "1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2",
+    }
+    required = {"macro_accuracy", "forced_choice_macro_accuracy", "not_pii_accuracy",
+                "not_pii_auroc", "per_label_accuracy"}
+    assert all(required <= set(row) for row in result["systems"].values())
+    assert not (root / "models" / "stage1-cov").exists()
+    from s1pii.s1d.run import _cache_is_current
+    assert _cache_is_current(root, stores, "s1d_test", "test_eval", True)
+
+
 def test_training_batch_composition_and_probe_metrics():
     from s1pii.s1d import run as runner
     from s1pii.v2.labels import NATIVE

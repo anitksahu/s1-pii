@@ -30,6 +30,7 @@ UNITS = {
     "stage1_pilot": ("paired_optimizer",),
     "stage1_pilot_4b": ("stable_optimizer",),
     "stage1_cov": ("coverage_audit", "train_eval"),
+    "s1d_test": ("test_eval",),
     "stage2": ("train_final", "test_inference", "comparators"),
     "comparators1": ("decision20",),
 }
@@ -620,6 +621,38 @@ def _dev_questions(ctx, *, descriptions: bool = True):
     return docs, rows
 
 
+def _test_questions(ctx, *, descriptions: bool = True):
+    """Frozen Nemotron test questions for the ten preregistered S1-D test labels."""
+    from .data import span_evaluation_questions
+    config = labels.load()
+    if ctx["dry"]:
+        # The regular dry documents use trained labels. Relabel their spans with two frozen test
+        # labels so the dry path exercises gold rows, balanced negatives and the 56-way options.
+        test_names = config["test_labels"]
+        docs = [replace(doc, spans=tuple(replace(span, label_raw=test_names[i % len(test_names)])
+                                         for span in doc.spans))
+                for i, doc in enumerate(_dry_docs())]
+    else:
+        from .. import bench
+        _calibration, docs = bench.splits("nemotron")
+    candidates = _proposer_candidates(
+        ctx["root"], docs, ctx["dry"], cache_name="s1d-test",
+        proposer_variant="no-nemotron", accounting_stage="s1d_test")
+    rows = span_evaluation_questions(
+        docs, candidates, labels=config["test_labels"], seed=0,
+        descriptions=descriptions, require_equal_negatives=True)
+    gold = sum(not row.hard_negative for row in rows)
+    negative = sum(row.hard_negative for row in rows)
+    if not gold or negative != gold:
+        raise ValueError(f"S1-D test requires equal non-empty gold and not-PII rows ({gold} != {negative})")
+    if not ctx["dry"]:
+        expected = {name.replace("_", " ") for name in config["test_labels"]}
+        observed = {row.question.options[row.target].name for row in rows if not row.hard_negative}
+        if observed != expected:
+            raise ValueError(f"S1-D test labels differ from the frozen ten: {sorted(observed ^ expected)}")
+    return docs, rows
+
+
 def _gretel_heldout_docs(ctx) -> list[Doc]:
     """The deterministic 2% Gretel dev slice that every training run excludes.
 
@@ -671,6 +704,62 @@ def _probability_metrics(rows, probabilities, *, temperature: float = 1.0):
             "ece": expected_calibration_error(p, targets),
             "doc_bootstrap": document_bootstrap(dict(by_doc), seed=0, samples=100 if len(rows) < 20 else 2000),
             "probabilities": p.tolist()}
+
+
+def _binary_auroc(negative_scores, gold_scores) -> float:
+    """Exact AUROC with half credit for ties; higher scores mean more likely NOT_PII."""
+    ranked = sorted([(float(score), 1) for score in negative_scores]
+                    + [(float(score), 0) for score in gold_scores])
+    positives = len(negative_scores); negatives = len(gold_scores)
+    if not positives or not negatives:
+        raise ValueError("NOT_PII AUROC requires both gold and negative questions")
+    wins = 0.0; gold_below = 0; first = 0
+    while first < len(ranked):
+        last = first + 1
+        while last < len(ranked) and ranked[last][0] == ranked[first][0]:
+            last += 1
+        group = ranked[first:last]
+        group_positive = sum(label for _score, label in group)
+        group_gold = len(group) - group_positive
+        wins += group_positive * gold_below + 0.5 * group_positive * group_gold
+        gold_below += group_gold
+        first = last
+    return float(wins / (positives * negatives))
+
+
+def _test_probability_metrics(rows, probabilities, *, temperature: float) -> dict:
+    """Frozen S1-D test readout, including forced choice and NOT_PII discrimination."""
+    import numpy as np
+    if len(rows) != len(probabilities):
+        raise ValueError("test probability count does not match question count")
+    p = torch.as_tensor(probabilities, dtype=torch.float32)
+    p = (p.clamp_min(1e-30).log() / float(temperature)).softmax(-1).numpy()
+    gold = [i for i, row in enumerate(rows) if not row.hard_negative]
+    negative = [i for i, row in enumerate(rows) if row.hard_negative]
+    if not gold or len(negative) != len(gold):
+        raise ValueError("test metrics require equal non-empty gold and not-PII rows")
+    option_names = [option.name for option in rows[0].question.options]
+    not_pii_index = option_names.index(labels.NOT_PII)
+    pred = p.argmax(1)
+    forced = p.copy(); forced[:, not_pii_index] = -1.0
+    forced_pred = forced.argmax(1)
+    by_label, by_label_forced = defaultdict(list), defaultdict(list)
+    for i in gold:
+        name = rows[i].question.options[rows[i].target].name
+        by_label[name].append(float(pred[i] == rows[i].target))
+        by_label_forced[name].append(float(forced_pred[i] == rows[i].target))
+    return {
+        "questions": len(rows), "gold_questions": len(gold),
+        "not_pii_questions": len(negative), "temperature": float(temperature),
+        "macro_accuracy": float(np.mean([np.mean(values) for values in by_label.values()])),
+        "forced_choice_macro_accuracy": float(
+            np.mean([np.mean(values) for values in by_label_forced.values()])),
+        "not_pii_accuracy": float(np.mean([pred[i] == rows[i].target for i in negative])),
+        "not_pii_auroc": _binary_auroc(
+            [p[i, not_pii_index] for i in negative], [p[i, not_pii_index] for i in gold]),
+        "per_label_accuracy": {name: float(np.mean(values))
+                               for name, values in sorted(by_label.items())},
+    }
 
 
 def _sanity_metrics(rows, probabilities, *, temperature: float = 1.0) -> dict:
@@ -1547,6 +1636,74 @@ def _unit_coverage_train_eval(ctx, out):
     return output
 
 
+def _saved_test_temperatures(ctx) -> tuple[dict[str, float], dict[str, float]]:
+    """Read the already-fitted Gretel temperatures. Test evaluation never refits them."""
+    stores = ctx["root"] / "stores"
+    try:
+        dev = json.loads((stores / "stage1-dev_eval.json").read_text())
+        coverage = json.loads((stores / "stage1_cov-train_eval.json").read_text())
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            "s1d_test requires completed stage1 dev_eval and stage1_cov train_eval results") from exc
+    prompted = {size: float(dev["prompted"][size]["temperature"])
+                for size in ("0.6B", "1.7B", "4B")}
+    trained_names = ("1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2")
+    trained = {name: float(coverage["runs"][name]["temperature"]) for name in trained_names}
+    values = [*prompted.values(), *trained.values()]
+    if any(not __import__("math").isfinite(value) or value <= 0 for value in values):
+        raise ValueError("saved Gretel temperatures must be positive and finite")
+    return prompted, trained
+
+
+def _unit_test_eval(ctx, out):
+    """One-shot evaluation on the frozen Nemotron test sample; no fitting or training."""
+    _docs, rows = _test_questions(ctx, descriptions=True)
+    prompted_temperatures, trained_temperatures = _saved_test_temperatures(ctx)
+    model_ids = {model_id.rsplit("-", 1)[-1]: model_id for model_id in ctx["config"]["models"]}
+    expected_sizes = {"0.6B", "1.7B", "4B"}
+    if set(model_ids) != expected_sizes:
+        raise ValueError(f"s1d_test requires exactly the frozen model sizes {sorted(expected_sizes)}")
+    output = {
+        "implementation_version": 1,
+        "split": "nemotron-test",
+        "test_labels": list(labels.load()["test_labels"]),
+        "questions": len(rows),
+        "gold_questions": sum(not row.hard_negative for row in rows),
+        "not_pii_questions": sum(row.hard_negative for row in rows),
+        "protocol": {
+            "options": len(rows[0].question.options), "negative_to_gold_ratio": 1.0,
+            "temperatures": "existing Gretel temperatures",
+            "trained_selection": "stage1_cov final checkpoints",
+            "training_or_tuning": False,
+        },
+        "systems": {},
+    }
+    _atomic_json(out, output)
+
+    for size in ("0.6B", "1.7B", "4B"):
+        scores = _score_prompted_sets(ctx, {"test": rows}, model_ids[size])["test"]
+        output["systems"][f"prompted-{size}"] = _test_probability_metrics(
+            rows, scores, temperature=prompted_temperatures[size])
+        _atomic_json(out, output)
+
+    models_root = ctx["root"] / "models" / "stage1-cov"
+    for name in ("1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2"):
+        size = name.split("-s", 1)[0]
+        run_dir = models_root / name
+        if not ctx["dry"]:
+            missing = [path.name for path in (run_dir / "checkpoint.pt", run_dir / "done")
+                       if not path.exists()]
+            if missing:
+                raise FileNotFoundError(
+                    f"s1d_test requires final stage1_cov checkpoint {run_dir}: missing {missing}")
+        scores = _score_trained_sets(
+            ctx, {"test": rows}, model_id=model_ids[size], run_dir=run_dir)["test"]
+        output["systems"][name] = _test_probability_metrics(
+            rows, scores, temperature=trained_temperatures[name])
+        _atomic_json(out, output)
+    return output
+
+
 def _decision20_window_tokenizer(ctx) -> tuple[str, str]:
     """The pinned Qwen3 tokenizer whose 512-token windows dev_eval uses."""
     model_id = next(iter(ctx["config"]["models"]))
@@ -1719,6 +1876,20 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
                 return json.loads(result_path.read_text()).get("implementation_version") == 2
             except (OSError, ValueError):
                 return False
+        if stage == "s1d_test":
+            try:
+                result = json.loads(result_path.read_text())
+            except (OSError, ValueError):
+                return False
+            systems = {"prompted-0.6B", "prompted-1.7B", "prompted-4B",
+                       "1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2"}
+            metric_keys = {"macro_accuracy", "forced_choice_macro_accuracy",
+                           "not_pii_accuracy", "not_pii_auroc", "per_label_accuracy"}
+            return (result.get("implementation_version") == 1
+                    and result.get("split") == "nemotron-test"
+                    and result.get("gold_questions", 0) == result.get("not_pii_questions", -1)
+                    and set(result.get("systems", {})) == systems
+                    and all(metric_keys <= set(row) for row in result["systems"].values()))
         if stage == "stage1_cov":
             try:
                 result = json.loads(result_path.read_text())
@@ -1811,6 +1982,7 @@ def run(stage: str, root: Path, dry: bool = False, *, composition_only: bool = F
         "stable_optimizer": lambda c, o: _unit_stage1_pilot(c, o, confirm_4b=True),
         "coverage_audit": _unit_coverage_audit,
         "train_eval": _unit_coverage_train_eval,
+        "test_eval": _unit_test_eval,
         "layout_ablation": _unit_layout_ablation,
         "dev_eval": _unit_dev_eval,
         "decision20": _unit_decision20,
