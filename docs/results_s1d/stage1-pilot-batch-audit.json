@@ -1,0 +1,7609 @@
+{
+  "version": 1,
+  "cpu_only": true,
+  "data_seed": 1,
+  "question_set_sha256": "6b4bfd14840a691122ba2fbebfd24d01c0af455501a77f2ec9e20c5ad577d3d5",
+  "model_id": "Qwen/Qwen3-1.7B",
+  "tokenizer_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+  "batch_seed": 1,
+  "token_budget": 8192,
+  "max_steps": 330,
+  "definitions": {
+    "window": "checkpoint-width < batch_step <= checkpoint",
+    "dominant_target": "canonical Choice target only",
+    "mean_option_count": "all questions in the optimizer batch"
+  },
+  "percentiles": {
+    "not_pii_target_share_p95": 0.4444444444444444,
+    "dominant_target_share_p95": 0.5454545454545454
+  },
+  "steps": [
+    {
+      "step": 1,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 21.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 2,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 20.545454545454547,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 3,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 20.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 4,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 5,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 6,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 5,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.5555555555555556,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 18.0,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 7,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 17.4,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 8,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 21.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 9,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 16.53846153846154,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 10,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 23.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 11,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 13.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 12,
+      "question_count": 14,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.18181818181818182,
+      "mean_option_count": 16.928571428571427,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 13,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 16.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 14,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 17.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 15,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 16.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 16,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 21.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 17,
+      "question_count": 12,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 5,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 18.416666666666668,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 18,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 19,
+      "question_count": 15,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.08333333333333333,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 19.666666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 20,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 5,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.45454545454545453,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 21.818181818181817,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 21,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 20.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 22,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.23076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 23,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.076923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 24,
+      "question_count": 11,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.18181818181818182,
+      "mean_option_count": 29.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 25,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 18.272727272727273,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 26,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 16.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 27,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 15.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 28,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 15.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 29,
+      "question_count": 12,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 16.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 30,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 16.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 31,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 20.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 32,
+      "question_count": 9,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 19.444444444444443,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 33,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 22.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 34,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 14.923076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 35,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.1,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 36,
+      "question_count": 12,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 5,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.5555555555555556,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 18.25,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 37,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.125,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 38,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 17.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 39,
+      "question_count": 14,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 11.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 40,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 11.692307692307692,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 41,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 14.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 42,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.666666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 43,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 21.916666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 44,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 13.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 45,
+      "question_count": 11,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 4
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 19.545454545454547,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 46,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 47,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 48,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 21.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 49,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 21.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 50,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 20.583333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 51,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 23.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 52,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 22.181818181818183,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 53,
+      "question_count": 11,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.545454545454547,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 54,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 17.692307692307693,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 55,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 18.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 56,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 20.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 57,
+      "question_count": 14,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 13,
+      "not_pii_target_share": 0.15384615384615385,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3076923076923077,
+      "mean_option_count": 18.928571428571427,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 58,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 21.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 59,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 15.538461538461538,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 60,
+      "question_count": 9,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.625,
+      "mean_option_count": 25.555555555555557,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 61,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 25.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 62,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 21.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 63,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 19.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 64,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "phone_num",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 15.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 65,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 14.666666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 66,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 14.357142857142858,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 67,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 20.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 68,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 18.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 69,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 0,
+        "noul": 4,
+        "score": 2
+      },
+      "choice_count": 6,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.6666666666666666,
+      "mean_option_count": 17.666666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 70,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.18181818181818182,
+      "mean_option_count": 20.076923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 71,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 14.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 72,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 73,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 17.4,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 74,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.538461538461538,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 75,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 26.272727272727273,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 76,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 21.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 77,
+      "question_count": 14,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.08333333333333333,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 18.142857142857142,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 78,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 26.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 79,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 8.166666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 80,
+      "question_count": 11,
+      "counts": {
+        "positive": 3,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.5714285714285714,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5714285714285714,
+      "mean_option_count": 13.909090909090908,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 81,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4166666666666667,
+      "mean_option_count": 23.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 82,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 83,
+      "question_count": 11,
+      "counts": {
+        "positive": 3,
+        "hard_negative": 5,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.625,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.625,
+      "mean_option_count": 16.181818181818183,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 84,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 20.8,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 85,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 23.916666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 86,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 18.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 87,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 88,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 20.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 89,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 21.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 90,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 14.23076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 91,
+      "question_count": 9,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 23.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 92,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 15.454545454545455,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 93,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 94,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 14.8,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 95,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "secret",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.166666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 96,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 0,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 22.1,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 97,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 24.9,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 98,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 99,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "secret",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 16.181818181818183,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 100,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 16.615384615384617,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 101,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 21.53846153846154,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 102,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 17.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 103,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 17.8,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 104,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 18.416666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 105,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 23.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 106,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 20.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 107,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 16.4,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 108,
+      "question_count": 12,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 5,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.416666666666668,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 109,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 18.928571428571427,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 110,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 19.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 111,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "other_pii",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 17.416666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 112,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 4,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.0,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 113,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 18.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 114,
+      "question_count": 12,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "address",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 21.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 115,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 15.916666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 116,
+      "question_count": 14,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 12.785714285714286,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 117,
+      "question_count": 13,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 21.53846153846154,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 118,
+      "question_count": 9,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 23.88888888888889,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 119,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 17.571428571428573,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 120,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 121,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 15.416666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 122,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 123,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 18.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 124,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 20.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 125,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 28.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 126,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 25.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 127,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 128,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 129,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 23.23076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 130,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 25.181818181818183,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 131,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 4
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 19.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 132,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 133,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 134,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 18.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 135,
+      "question_count": 14,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 16.928571428571427,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 136,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 16.46153846153846,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 137,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 16.916666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 138,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 139,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 15.090909090909092,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 140,
+      "question_count": 12,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.08333333333333333,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 27.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 141,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 23.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 142,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 22.846153846153847,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 143,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.545454545454547,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 144,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 20.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 145,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 26.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 146,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 15.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 147,
+      "question_count": 11,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 4
+      },
+      "choice_count": 6,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 12.909090909090908,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 148,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.6,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 149,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 19.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 150,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 4
+      },
+      "choice_count": 6,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.6666666666666666,
+      "mean_option_count": 19.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 151,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 26.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 152,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 16.333333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 153,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.625,
+      "mean_option_count": 24.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 154,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 23.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 155,
+      "question_count": 10,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 12.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 156,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 157,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 18.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 158,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 159,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 22.416666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 160,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 16.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 161,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 19.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 162,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 32.6,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 163,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 13.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 164,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 15.384615384615385,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 165,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 166,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 22.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 167,
+      "question_count": 9,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 21.22222222222222,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 168,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 20.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 169,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 18.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 170,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.46153846153846,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 171,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 25.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 172,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 15.090909090909092,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 173,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 16.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 174,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 22.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 175,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 24.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 176,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 20.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 177,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 19.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 178,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 24.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 179,
+      "question_count": 14,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 14.285714285714286,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 180,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.846153846153847,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 181,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 5,
+        "score": 0
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 15.461538461538462,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 182,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5714285714285714,
+      "mean_option_count": 17.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 183,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "phone_num",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 16.4,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 184,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 18.1,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 185,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 18.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 186,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 5,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.5555555555555556,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 14.0,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 187,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 17.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 188,
+      "question_count": 12,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 2,
+        "noul": 4,
+        "score": 2
+      },
+      "choice_count": 6,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 11.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 189,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4166666666666667,
+      "mean_option_count": 24.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 190,
+      "question_count": 12,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 4
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.916666666666668,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 191,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 4
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 16.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 192,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 16.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 193,
+      "question_count": 12,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 3,
+        "noul": 4,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.42857142857142855,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 10.333333333333334,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 194,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 4,
+        "score": 0
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 16.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 195,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 18.636363636363637,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 196,
+      "question_count": 14,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 19.714285714285715,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 197,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 198,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 23.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 199,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 15.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 200,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 20.384615384615383,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 201,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 26.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 202,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 15.461538461538462,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 203,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 21.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 204,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 20.181818181818183,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 205,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 17.916666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 206,
+      "question_count": 12,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 22.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 207,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 208,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.36363636363636365,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 28.636363636363637,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 209,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.25,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 210,
+      "question_count": 12,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 15.916666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 211,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 11.307692307692308,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 212,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 17.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 213,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 13.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 214,
+      "question_count": 14,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 215,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 16.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 216,
+      "question_count": 11,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.42857142857142855,
+      "mean_option_count": 16.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 217,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 21.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 218,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 18.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 219,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.23076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 220,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 14.692307692307692,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 221,
+      "question_count": 15,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5454545454545454,
+      "mean_option_count": 14.933333333333334,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 222,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 24.9,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 223,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 16.923076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 224,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 18.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 225,
+      "question_count": 14,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 12.928571428571429,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 226,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 22.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 227,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 18.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 228,
+      "question_count": 12,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 12.166666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 229,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 13.416666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 230,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5714285714285714,
+      "mean_option_count": 17.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 231,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 14.76923076923077,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 232,
+      "question_count": 10,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 6,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 233,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 13.23076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 234,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 23.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 235,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 22.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 236,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 19.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 237,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 19.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 238,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 4,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.4,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 19.692307692307693,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 239,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 3
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.2857142857142857,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 10.461538461538462,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 240,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 20.333333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 241,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 21.333333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 242,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 16.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 243,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 17.818181818181817,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 244,
+      "question_count": 15,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 0,
+        "noul": 2,
+        "score": 3
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 8.066666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 245,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 10.181818181818182,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 246,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 22.272727272727273,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 247,
+      "question_count": 11,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 20.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 248,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 21.416666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 249,
+      "question_count": 12,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 5,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 21.75,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 250,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.333333333333334,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 251,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 25.1,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 252,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 14.909090909090908,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 253,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 22.615384615384617,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 254,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 23.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 255,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.923076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 256,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 23.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 257,
+      "question_count": 15,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5454545454545454,
+      "mean_option_count": 13.333333333333334,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 258,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "secret",
+      "dominant_target_share": 0.18181818181818182,
+      "mean_option_count": 23.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 259,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.36363636363636365,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 31.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 260,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 17.90909090909091,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 261,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 22.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 262,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 18.636363636363637,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 263,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 16.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 264,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 20.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 265,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 14.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 266,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 20.8,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 267,
+      "question_count": 14,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5454545454545454,
+      "mean_option_count": 16.857142857142858,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 268,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 269,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 16.7,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 270,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 4,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 12.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 271,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 19.923076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 272,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 18.583333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 273,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 17.923076923076923,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 274,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 18.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 275,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 11.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 276,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 277,
+      "question_count": 11,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.545454545454547,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 278,
+      "question_count": 12,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.09090909090909091,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.45454545454545453,
+      "mean_option_count": 19.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 279,
+      "question_count": 14,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 8.714285714285714,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 280,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 12.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 281,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 282,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 21.2,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 283,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 284,
+      "question_count": 14,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.16666666666666666,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4166666666666667,
+      "mean_option_count": 16.857142857142858,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 285,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 3,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.846153846153847,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 286,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 24.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 287,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 4,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 17.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 288,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 16.285714285714285,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 289,
+      "question_count": 10,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 19.9,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 290,
+      "question_count": 10,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 291,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 4,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.36363636363636365,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 28.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 292,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 19.09090909090909,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 293,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 21.181818181818183,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 294,
+      "question_count": 13,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "account_number",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.53846153846154,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 295,
+      "question_count": 13,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 3,
+        "noul": 2,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.375,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 11.538461538461538,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 296,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "email",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 16.615384615384617,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 297,
+      "question_count": 13,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.46153846153846,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 298,
+      "question_count": 11,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 5,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.5555555555555556,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5555555555555556,
+      "mean_option_count": 17.90909090909091,
+      "high_not_pii_share": true,
+      "high_dominant_share": true
+    },
+    {
+      "step": 299,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 15.181818181818182,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 300,
+      "question_count": 13,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 18.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 301,
+      "question_count": 13,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 19.307692307692307,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 302,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 17.545454545454547,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 303,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 24.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 304,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 3,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.3333333333333333,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.083333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 305,
+      "question_count": 13,
+      "counts": {
+        "positive": 10,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2,
+      "mean_option_count": 18.46153846153846,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 306,
+      "question_count": 11,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 24.454545454545453,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 307,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.25,
+      "mean_option_count": 22.666666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 308,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 19.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 309,
+      "question_count": 10,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 19.9,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 310,
+      "question_count": 11,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "bban",
+      "dominant_target_share": 0.14285714285714285,
+      "mean_option_count": 10.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 311,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 1,
+        "noul": 3,
+        "score": 2
+      },
+      "choice_count": 7,
+      "not_pii_target_share": 0.14285714285714285,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2857142857142857,
+      "mean_option_count": 16.166666666666668,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 312,
+      "question_count": 12,
+      "counts": {
+        "positive": 6,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 3
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.25,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 19.833333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 313,
+      "question_count": 15,
+      "counts": {
+        "positive": 11,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 12,
+      "not_pii_target_share": 0.08333333333333333,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.5833333333333334,
+      "mean_option_count": 17.333333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": true
+    },
+    {
+      "step": 314,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 16.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 315,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.3,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 24.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 316,
+      "question_count": 12,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 20.5,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 317,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.125,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 21.363636363636363,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 318,
+      "question_count": 11,
+      "counts": {
+        "positive": 4,
+        "hard_negative": 4,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.5,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.5,
+      "mean_option_count": 19.181818181818183,
+      "high_not_pii_share": true,
+      "high_dominant_share": false
+    },
+    {
+      "step": 319,
+      "question_count": 11,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 0,
+        "noul": 2,
+        "score": 1
+      },
+      "choice_count": 8,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.375,
+      "mean_option_count": 17.0,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 320,
+      "question_count": 10,
+      "counts": {
+        "positive": 5,
+        "hard_negative": 4,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.4444444444444444,
+      "dominant_target_label": "not personal information",
+      "dominant_target_share": 0.4444444444444444,
+      "mean_option_count": 21.3,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 321,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 2
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.2,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.4,
+      "mean_option_count": 21.333333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 322,
+      "question_count": 10,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 0,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.0,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 24.6,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 323,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 1,
+        "score": 0
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 20.75,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 324,
+      "question_count": 10,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 0,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 22.8,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 325,
+      "question_count": 10,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 18.4,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 326,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 3,
+        "noul": 0,
+        "score": 1
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.2727272727272727,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2727272727272727,
+      "mean_option_count": 15.333333333333334,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 327,
+      "question_count": 12,
+      "counts": {
+        "positive": 8,
+        "hard_negative": 1,
+        "noul": 1,
+        "score": 2
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.1111111111111111,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3333333333333333,
+      "mean_option_count": 17.583333333333332,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 328,
+      "question_count": 14,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 2,
+        "noul": 0,
+        "score": 3
+      },
+      "choice_count": 11,
+      "not_pii_target_share": 0.18181818181818182,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.36363636363636365,
+      "mean_option_count": 14.142857142857142,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 329,
+      "question_count": 12,
+      "counts": {
+        "positive": 9,
+        "hard_negative": 1,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 10,
+      "not_pii_target_share": 0.1,
+      "dominant_target_label": "person",
+      "dominant_target_share": 0.3,
+      "mean_option_count": 15.916666666666666,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    },
+    {
+      "step": 330,
+      "question_count": 11,
+      "counts": {
+        "positive": 7,
+        "hard_negative": 2,
+        "noul": 2,
+        "score": 0
+      },
+      "choice_count": 9,
+      "not_pii_target_share": 0.2222222222222222,
+      "dominant_target_label": "name",
+      "dominant_target_share": 0.2222222222222222,
+      "mean_option_count": 18.727272727272727,
+      "high_not_pii_share": false,
+      "high_dominant_share": false
+    }
+  ],
+  "checkpoints": [
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 50,
+      "loss": 0.8373311758041382,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.273538961038961,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3151298701298701,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.23475613275613277,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.32808658008658,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          36
+        ],
+        "high_dominant_steps": [
+          36
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 100,
+      "loss": 1.3524545431137085,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24305555555555552,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3684523809523809,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24735642135642133,
+        "max_not_pii_target_share": 0.625,
+        "mean_dominant_target_share": 0.37355555555555553,
+        "max_dominant_target_share": 0.625,
+        "high_not_pii_steps": [
+          80,
+          83
+        ],
+        "high_dominant_steps": [
+          80,
+          83
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 150,
+      "loss": 1.097509741783142,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.22532828282828282,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.40101010101010104,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.21619191919191919,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.3617171717171717,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 200,
+      "loss": 0.8342989683151245,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.22115079365079363,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.32210317460317456,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.23815873015873013,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.35561904761904756,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          186,
+          190
+        ],
+        "high_dominant_steps": [
+          182,
+          186
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 250,
+      "loss": 0.8612801432609558,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.14159090909090907,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.3848989898989899,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.1929408369408369,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.362932178932179,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": [
+          230
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 300,
+      "loss": 0.533255934715271,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.24719696969696967,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.3827525252525253,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          276,
+          277,
+          278,
+          279,
+          280,
+          281,
+          282,
+          283,
+          284,
+          285,
+          286,
+          287,
+          288,
+          289,
+          290,
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.23488888888888887,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.36198989898989903,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          277,
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "old",
+      "step": 330,
+      "loss": 0.9630196690559387,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.1591919191919192,
+        "max_not_pii_target_share": 0.2727272727272727,
+        "mean_dominant_target_share": 0.32222222222222224,
+        "max_dominant_target_share": 0.4,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          306,
+          307,
+          308,
+          309,
+          310,
+          311,
+          312,
+          313,
+          314,
+          315,
+          316,
+          317,
+          318,
+          319,
+          320,
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.18045887445887446,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.33971861471861464,
+        "max_dominant_target_share": 0.5833333333333334,
+        "high_not_pii_steps": [
+          318
+        ],
+        "high_dominant_steps": [
+          313
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 50,
+      "loss": 0.8346697688102722,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.273538961038961,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3151298701298701,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.23475613275613277,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.32808658008658,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          36
+        ],
+        "high_dominant_steps": [
+          36
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 100,
+      "loss": 0.2099914699792862,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24305555555555552,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3684523809523809,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24735642135642133,
+        "max_not_pii_target_share": 0.625,
+        "mean_dominant_target_share": 0.37355555555555553,
+        "max_dominant_target_share": 0.625,
+        "high_not_pii_steps": [
+          80,
+          83
+        ],
+        "high_dominant_steps": [
+          80,
+          83
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 150,
+      "loss": 0.23034973442554474,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.22532828282828282,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.40101010101010104,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.21619191919191919,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.3617171717171717,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 200,
+      "loss": 0.9624977707862854,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.22115079365079363,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.32210317460317456,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.23815873015873013,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.35561904761904756,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          186,
+          190
+        ],
+        "high_dominant_steps": [
+          182,
+          186
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 250,
+      "loss": 0.6438918113708496,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.14159090909090907,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.3848989898989899,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.1929408369408369,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.362932178932179,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": [
+          230
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 300,
+      "loss": 0.34427982568740845,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.24719696969696967,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.3827525252525253,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          276,
+          277,
+          278,
+          279,
+          280,
+          281,
+          282,
+          283,
+          284,
+          285,
+          286,
+          287,
+          288,
+          289,
+          290,
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.23488888888888887,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.36198989898989903,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          277,
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init1",
+      "condition": "stable",
+      "step": 330,
+      "loss": 1.4846957921981812,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.1591919191919192,
+        "max_not_pii_target_share": 0.2727272727272727,
+        "mean_dominant_target_share": 0.32222222222222224,
+        "max_dominant_target_share": 0.4,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          306,
+          307,
+          308,
+          309,
+          310,
+          311,
+          312,
+          313,
+          314,
+          315,
+          316,
+          317,
+          318,
+          319,
+          320,
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.18045887445887446,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.33971861471861464,
+        "max_dominant_target_share": 0.5833333333333334,
+        "high_not_pii_steps": [
+          318
+        ],
+        "high_dominant_steps": [
+          313
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 50,
+      "loss": 0.9118067622184753,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.273538961038961,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3151298701298701,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.23475613275613277,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.32808658008658,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          36
+        ],
+        "high_dominant_steps": [
+          36
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 100,
+      "loss": 0.38063493371009827,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24305555555555552,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3684523809523809,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24735642135642133,
+        "max_not_pii_target_share": 0.625,
+        "mean_dominant_target_share": 0.37355555555555553,
+        "max_dominant_target_share": 0.625,
+        "high_not_pii_steps": [
+          80,
+          83
+        ],
+        "high_dominant_steps": [
+          80,
+          83
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 150,
+      "loss": 0.4858154356479645,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.22532828282828282,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.40101010101010104,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.21619191919191919,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.3617171717171717,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 200,
+      "loss": 0.7771235704421997,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.22115079365079363,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.32210317460317456,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.23815873015873013,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.35561904761904756,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          186,
+          190
+        ],
+        "high_dominant_steps": [
+          182,
+          186
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 250,
+      "loss": 0.7672566175460815,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.14159090909090907,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.3848989898989899,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.1929408369408369,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.362932178932179,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": [
+          230
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 300,
+      "loss": 0.6187552213668823,
+      "collapsed": true,
+      "collapse_reasons": [
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.24719696969696967,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.3827525252525253,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          276,
+          277,
+          278,
+          279,
+          280,
+          281,
+          282,
+          283,
+          284,
+          285,
+          286,
+          287,
+          288,
+          289,
+          290,
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.23488888888888887,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.36198989898989903,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          277,
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "old",
+      "step": 330,
+      "loss": 1.0660792589187622,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.1591919191919192,
+        "max_not_pii_target_share": 0.2727272727272727,
+        "mean_dominant_target_share": 0.32222222222222224,
+        "max_dominant_target_share": 0.4,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          306,
+          307,
+          308,
+          309,
+          310,
+          311,
+          312,
+          313,
+          314,
+          315,
+          316,
+          317,
+          318,
+          319,
+          320,
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.18045887445887446,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.33971861471861464,
+        "max_dominant_target_share": 0.5833333333333334,
+        "high_not_pii_steps": [
+          318
+        ],
+        "high_dominant_steps": [
+          313
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 50,
+      "loss": 0.41676852107048035,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy"
+      ],
+      "previous_10": {
+        "steps": [
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.273538961038961,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3151298701298701,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50
+        ],
+        "mean_not_pii_target_share": 0.23475613275613277,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.32808658008658,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          36
+        ],
+        "high_dominant_steps": [
+          36
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 100,
+      "loss": 0.11010874807834625,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24305555555555552,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.3684523809523809,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83,
+          84,
+          85,
+          86,
+          87,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          95,
+          96,
+          97,
+          98,
+          99,
+          100
+        ],
+        "mean_not_pii_target_share": 0.24735642135642133,
+        "max_not_pii_target_share": 0.625,
+        "mean_dominant_target_share": 0.37355555555555553,
+        "max_dominant_target_share": 0.625,
+        "high_not_pii_steps": [
+          80,
+          83
+        ],
+        "high_dominant_steps": [
+          80,
+          83
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 150,
+      "loss": 0.39646634459495544,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate",
+        "single_option_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.22532828282828282,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.40101010101010104,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          126,
+          127,
+          128,
+          129,
+          130,
+          131,
+          132,
+          133,
+          134,
+          135,
+          136,
+          137,
+          138,
+          139,
+          140,
+          141,
+          142,
+          143,
+          144,
+          145,
+          146,
+          147,
+          148,
+          149,
+          150
+        ],
+        "mean_not_pii_target_share": 0.21619191919191919,
+        "max_not_pii_target_share": 0.4,
+        "mean_dominant_target_share": 0.3617171717171717,
+        "max_dominant_target_share": 0.6666666666666666,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": [
+          150
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 200,
+      "loss": 0.3574831783771515,
+      "collapsed": true,
+      "collapse_reasons": [
+        "gold_accuracy",
+        "not_pii_rate"
+      ],
+      "previous_10": {
+        "steps": [
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.22115079365079363,
+        "max_not_pii_target_share": 0.42857142857142855,
+        "mean_dominant_target_share": 0.32210317460317456,
+        "max_dominant_target_share": 0.42857142857142855,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          176,
+          177,
+          178,
+          179,
+          180,
+          181,
+          182,
+          183,
+          184,
+          185,
+          186,
+          187,
+          188,
+          189,
+          190,
+          191,
+          192,
+          193,
+          194,
+          195,
+          196,
+          197,
+          198,
+          199,
+          200
+        ],
+        "mean_not_pii_target_share": 0.23815873015873013,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.35561904761904756,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          186,
+          190
+        ],
+        "high_dominant_steps": [
+          182,
+          186
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 250,
+      "loss": 0.4756724536418915,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.14159090909090907,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.3848989898989899,
+        "max_dominant_target_share": 0.5,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241,
+          242,
+          243,
+          244,
+          245,
+          246,
+          247,
+          248,
+          249,
+          250
+        ],
+        "mean_not_pii_target_share": 0.1929408369408369,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.362932178932179,
+        "max_dominant_target_share": 0.5714285714285714,
+        "high_not_pii_steps": [
+          249
+        ],
+        "high_dominant_steps": [
+          230
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 300,
+      "loss": 0.38564804196357727,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.24719696969696967,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.3827525252525253,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      },
+      "previous_25": {
+        "steps": [
+          276,
+          277,
+          278,
+          279,
+          280,
+          281,
+          282,
+          283,
+          284,
+          285,
+          286,
+          287,
+          288,
+          289,
+          290,
+          291,
+          292,
+          293,
+          294,
+          295,
+          296,
+          297,
+          298,
+          299,
+          300
+        ],
+        "mean_not_pii_target_share": 0.23488888888888887,
+        "max_not_pii_target_share": 0.5555555555555556,
+        "mean_dominant_target_share": 0.36198989898989903,
+        "max_dominant_target_share": 0.5555555555555556,
+        "high_not_pii_steps": [
+          277,
+          298
+        ],
+        "high_dominant_steps": [
+          298
+        ]
+      }
+    },
+    {
+      "pair": "1.7B-init2",
+      "condition": "stable",
+      "step": 330,
+      "loss": 1.4857832193374634,
+      "collapsed": false,
+      "collapse_reasons": [],
+      "previous_10": {
+        "steps": [
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.1591919191919192,
+        "max_not_pii_target_share": 0.2727272727272727,
+        "mean_dominant_target_share": 0.32222222222222224,
+        "max_dominant_target_share": 0.4,
+        "high_not_pii_steps": [],
+        "high_dominant_steps": []
+      },
+      "previous_25": {
+        "steps": [
+          306,
+          307,
+          308,
+          309,
+          310,
+          311,
+          312,
+          313,
+          314,
+          315,
+          316,
+          317,
+          318,
+          319,
+          320,
+          321,
+          322,
+          323,
+          324,
+          325,
+          326,
+          327,
+          328,
+          329,
+          330
+        ],
+        "mean_not_pii_target_share": 0.18045887445887446,
+        "max_not_pii_target_share": 0.5,
+        "mean_dominant_target_share": 0.33971861471861464,
+        "max_dominant_target_share": 0.5833333333333334,
+        "high_not_pii_steps": [
+          318
+        ],
+        "high_dominant_steps": [
+          313
+        ]
+      }
+    }
+  ]
+}

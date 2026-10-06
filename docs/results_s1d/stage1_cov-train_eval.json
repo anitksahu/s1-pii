@@ -1,0 +1,524 @@
+{
+ "audit": {
+  "path": "stores/stage1_cov-coverage_audit.json",
+  "selection_hashes": {
+   "1": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+   "2": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde"
+  }
+ },
+ "balance_exponent": 0.5,
+ "go": false,
+ "go_criterion": {
+  "minimum_dev_macro_accuracy": 0.829,
+  "minimum_dev_not_pii_accuracy": 0.85,
+  "prompted_4b_dev_macro_accuracy": 0.829,
+  "require_both_final_sanity_healthy": true,
+  "selection": "final_checkpoint"
+ },
+ "implementation_version": 1,
+ "optimizer": {
+  "gradient_clip": 1.0,
+  "lora_learning_rate": 0.0002,
+  "pointer_learning_rate": 5e-05,
+  "token_learning_rate": 0.0002,
+  "warmup_fraction": 0.06
+ },
+ "pooled": {
+  "1.7B": {
+   "both_final_sanity_healthy": true,
+   "dev_macro_accuracy": 0.2532465288361995,
+   "dev_not_pii_accuracy": 0.9030303030303031,
+   "passes_go_criterion": false
+  },
+  "4B": {
+   "both_final_sanity_healthy": false,
+   "dev_macro_accuracy": 0.1403766430231371,
+   "dev_not_pii_accuracy": 0.5006060606060606,
+   "passes_go_criterion": false
+  }
+ },
+ "prompted_4b": {
+  "doc_bootstrap": {
+   "lower_95": 0.7294049082373026,
+   "mean": 0.7559576345984113,
+   "one_sided_lower_95": 0.733390448076223,
+   "one_sided_upper_95": 0.7805504118976453,
+   "upper_95": 0.7842489576655499
+  },
+  "ece": 0.15115881562401703,
+  "macro_accuracy": 0.8290464848434066,
+  "not_pii_accuracy": 0.09333333333333334,
+  "temperature": 3.02250599861145
+ },
+ "runs": {
+  "1.7B-s1": {
+   "collapse_reasons": [],
+   "dev": {
+    "doc_bootstrap": {
+     "lower_95": 0.13266899243002062,
+     "mean": 0.14916151809355693,
+     "one_sided_lower_95": 0.13470981483098174,
+     "one_sided_upper_95": 0.16369223666332536,
+     "upper_95": 0.1668911376318825
+    },
+    "ece": 0.42627768130778343,
+    "macro_accuracy": 0.2244272097814473,
+    "not_pii_accuracy": 0.8884848484848484
+   },
+   "final_sanity_healthy": true,
+   "in_domain_sanity": {
+    "accuracy": 0.9171428571428571,
+    "gold_questions": 350,
+    "labels": [
+     "date of birth",
+     "email",
+     "employee id",
+     "ipv6",
+     "password",
+     "phone number",
+     "ssn",
+     "user name"
+    ],
+    "macro_accuracy": 0.8467235708929378,
+    "negative_questions": 350,
+    "not_pii_accuracy": 0.9028571428571428,
+    "not_pii_rate": 0.06571428571428571,
+    "per_label_accuracy": {
+     "date of birth": 0.88,
+     "email": 0.9673202614379085,
+     "employee id": 0.7857142857142857,
+     "ipv6": 0.875,
+     "password": 0.6666666666666666,
+     "phone number": 0.9067796610169492,
+     "ssn": 0.8461538461538461,
+     "user name": 0.8461538461538461
+    },
+    "prediction_distribution": {
+     "customer id": 1,
+     "date of birth": 22,
+     "email": 148,
+     "employee id": 11,
+     "fax number": 2,
+     "ipv6": 7,
+     "not personal information": 23,
+     "password": 4,
+     "phone number": 107,
+     "ssn": 11,
+     "street address": 1,
+     "user name": 13
+    },
+    "questions": 700
+   },
+   "temperature": 1.1494057178497314,
+   "training": {
+    "config": {
+     "bf16": true,
+     "cap_hours": 24,
+     "checkpoint_every": 25,
+     "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+     "data_seed": 1,
+     "epochs": 1,
+     "estimated_hours": 0.0,
+     "gradient_accumulation": 1,
+     "gradient_clip": 1.0,
+     "init_seed": 1,
+     "learning_rate": 0.0002,
+     "lora_learning_rate": 0.0002,
+     "max_steps": null,
+     "optimizer_condition": "stable",
+     "order_seed": 1,
+     "pointer_learning_rate": 5e-05,
+     "seed": 1,
+     "stage": "stage1_cov",
+     "token_budget": 8192,
+     "token_learning_rate": 0.0002,
+     "unit": "Qwen/Qwen3-1.7B-s1-shared",
+     "warmup_fraction": 0.06
+    },
+    "git_sha": "0e907d1df54fff75f13ff66fb169c28df260dd08",
+    "hashes": {
+     "balance_exponent": "0.5",
+     "coverage_audit": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+     "layout": "shared",
+     "questions": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+     "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+     "selection": "label-balanced",
+     "token_budget": "8192",
+     "training_semantics": "2",
+     "variant": "all-sources"
+    },
+    "microbatches": 1421,
+    "optimizer_updates": 1421,
+    "parameters": 1763841025,
+    "questions_seen": 16000,
+    "steps": 1421,
+    "trainable_parameters": 43266049,
+    "versions": {
+     "accelerate": "1.15.0",
+     "peft": "0.21.2",
+     "python": "3.13.15",
+     "torch": "2.14.1",
+     "transformers": "5.18.0"
+    },
+    "warmup_updates": 85
+   }
+  },
+  "1.7B-s2": {
+   "collapse_reasons": [],
+   "dev": {
+    "doc_bootstrap": {
+     "lower_95": 0.2962946538556295,
+     "mean": 0.32215357458075905,
+     "one_sided_lower_95": 0.30150520197267877,
+     "one_sided_upper_95": 0.34398834174210124,
+     "upper_95": 0.34894478519789657
+    },
+    "ece": 0.2477012612998235,
+    "macro_accuracy": 0.28206584789095174,
+    "not_pii_accuracy": 0.9175757575757576
+   },
+   "final_sanity_healthy": true,
+   "in_domain_sanity": {
+    "accuracy": 0.9142857142857143,
+    "gold_questions": 350,
+    "labels": [
+     "date of birth",
+     "email",
+     "employee id",
+     "ipv6",
+     "password",
+     "phone number",
+     "ssn",
+     "user name"
+    ],
+    "macro_accuracy": 0.8791696309119041,
+    "negative_questions": 350,
+    "not_pii_accuracy": 0.8657142857142858,
+    "not_pii_rate": 0.08,
+    "per_label_accuracy": {
+     "date of birth": 0.84,
+     "email": 0.9738562091503268,
+     "employee id": 0.7142857142857143,
+     "ipv6": 1.0,
+     "password": 1.0,
+     "phone number": 0.8898305084745762,
+     "ssn": 0.7692307692307693,
+     "user name": 0.8461538461538461
+    },
+    "prediction_distribution": {
+     "date of birth": 21,
+     "email": 149,
+     "employee id": 10,
+     "ipv6": 8,
+     "not personal information": 28,
+     "password": 6,
+     "phone number": 105,
+     "ssn": 10,
+     "user name": 13
+    },
+    "questions": 700
+   },
+   "temperature": 1.0203980207443237,
+   "training": {
+    "config": {
+     "bf16": true,
+     "cap_hours": 24,
+     "checkpoint_every": 25,
+     "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+     "data_seed": 2,
+     "epochs": 1,
+     "estimated_hours": 0.0,
+     "gradient_accumulation": 1,
+     "gradient_clip": 1.0,
+     "init_seed": 2,
+     "learning_rate": 0.0002,
+     "lora_learning_rate": 0.0002,
+     "max_steps": null,
+     "optimizer_condition": "stable",
+     "order_seed": 2,
+     "pointer_learning_rate": 5e-05,
+     "seed": 2,
+     "stage": "stage1_cov",
+     "token_budget": 8192,
+     "token_learning_rate": 0.0002,
+     "unit": "Qwen/Qwen3-1.7B-s2-shared",
+     "warmup_fraction": 0.06
+    },
+    "git_sha": "0e907d1df54fff75f13ff66fb169c28df260dd08",
+    "hashes": {
+     "balance_exponent": "0.5",
+     "coverage_audit": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde",
+     "layout": "shared",
+     "questions": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde",
+     "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+     "selection": "label-balanced",
+     "token_budget": "8192",
+     "training_semantics": "2",
+     "variant": "all-sources"
+    },
+    "microbatches": 1422,
+    "optimizer_updates": 1422,
+    "parameters": 1763841025,
+    "questions_seen": 16000,
+    "steps": 1422,
+    "trainable_parameters": 43266049,
+    "versions": {
+     "accelerate": "1.15.0",
+     "peft": "0.21.2",
+     "python": "3.13.15",
+     "torch": "2.14.1",
+     "transformers": "5.18.0"
+    },
+    "warmup_updates": 85
+   }
+  },
+  "4B-s1": {
+   "collapse_reasons": [],
+   "dev": {
+    "doc_bootstrap": {
+     "lower_95": 0.37218160015826324,
+     "mean": 0.39805825242718446,
+     "one_sided_lower_95": 0.3753850024642745,
+     "one_sided_upper_95": 0.42232501719123855,
+     "upper_95": 0.426100887385676
+    },
+    "ece": 0.23373900279185794,
+    "macro_accuracy": 0.27877497575792,
+    "not_pii_accuracy": 0.9139393939393939
+   },
+   "final_sanity_healthy": true,
+   "in_domain_sanity": {
+    "accuracy": 0.92,
+    "gold_questions": 350,
+    "labels": [
+     "date of birth",
+     "email",
+     "employee id",
+     "ipv6",
+     "password",
+     "phone number",
+     "ssn",
+     "user name"
+    ],
+    "macro_accuracy": 0.8649156224854131,
+    "negative_questions": 350,
+    "not_pii_accuracy": 0.8685714285714285,
+    "not_pii_rate": 0.07428571428571429,
+    "per_label_accuracy": {
+     "date of birth": 0.92,
+     "email": 0.9673202614379085,
+     "employee id": 0.9285714285714286,
+     "ipv6": 1.0,
+     "password": 0.6666666666666666,
+     "phone number": 0.8983050847457628,
+     "ssn": 1.0,
+     "user name": 0.5384615384615384
+    },
+    "prediction_distribution": {
+     "date of birth": 23,
+     "email": 148,
+     "employee id": 13,
+     "ipv6": 8,
+     "national id": 1,
+     "not personal information": 26,
+     "password": 4,
+     "phone number": 106,
+     "pin": 1,
+     "ssn": 13,
+     "user name": 7
+    },
+    "questions": 700
+   },
+   "temperature": 1.116977572441101,
+   "training": {
+    "config": {
+     "bf16": true,
+     "cap_hours": 24,
+     "checkpoint_every": 25,
+     "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+     "data_seed": 1,
+     "epochs": 1,
+     "estimated_hours": 0.0,
+     "gradient_accumulation": 1,
+     "gradient_clip": 1.0,
+     "init_seed": 1,
+     "learning_rate": 0.0002,
+     "lora_learning_rate": 0.0002,
+     "max_steps": null,
+     "optimizer_condition": "stable",
+     "order_seed": 1,
+     "pointer_learning_rate": 5e-05,
+     "seed": 1,
+     "stage": "stage1_cov",
+     "token_budget": 8192,
+     "token_learning_rate": 0.0002,
+     "unit": "Qwen/Qwen3-4B-s1-shared",
+     "warmup_fraction": 0.06
+    },
+    "git_sha": "0e907d1df54fff75f13ff66fb169c28df260dd08",
+    "hashes": {
+     "balance_exponent": "0.5",
+     "coverage_audit": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+     "layout": "shared",
+     "questions": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "selection": "label-balanced",
+     "token_budget": "8192",
+     "training_semantics": "2",
+     "variant": "all-sources"
+    },
+    "microbatches": 1421,
+    "optimizer_updates": 1421,
+    "parameters": 4101650945,
+    "questions_seen": 16000,
+    "steps": 1421,
+    "trainable_parameters": 79182849,
+    "versions": {
+     "accelerate": "1.15.0",
+     "peft": "0.21.2",
+     "python": "3.13.15",
+     "torch": "2.14.1",
+     "transformers": "5.18.0"
+    },
+    "warmup_updates": 85
+   }
+  },
+  "4B-s2": {
+   "collapse_reasons": [
+    "gold_accuracy"
+   ],
+   "dev": {
+    "doc_bootstrap": {
+     "lower_95": 0.0,
+     "mean": 0.003089143865842895,
+     "one_sided_lower_95": 0.0004222972972972973,
+     "one_sided_upper_95": 0.0067283997432725055,
+     "upper_95": 0.0077413625947470475
+    },
+    "ece": 0.20449892844521508,
+    "macro_accuracy": 0.0019783102883542056,
+    "not_pii_accuracy": 0.08727272727272728
+   },
+   "final_sanity_healthy": false,
+   "in_domain_sanity": {
+    "accuracy": 0.08,
+    "gold_questions": 350,
+    "labels": [
+     "date of birth",
+     "email",
+     "employee id",
+     "ipv6",
+     "password",
+     "phone number",
+     "ssn",
+     "user name"
+    ],
+    "macro_accuracy": 0.09785226585201659,
+    "negative_questions": 350,
+    "not_pii_accuracy": 0.4142857142857143,
+    "not_pii_rate": 0.06571428571428571,
+    "per_label_accuracy": {
+     "date of birth": 0.24,
+     "email": 0.0457516339869281,
+     "employee id": 0.0,
+     "ipv6": 0.25,
+     "password": 0.0,
+     "phone number": 0.09322033898305085,
+     "ssn": 0.0,
+     "user name": 0.15384615384615385
+    },
+    "prediction_distribution": {
+     "account number": 33,
+     "bank routing number": 14,
+     "biometric identifier": 1,
+     "certificate license number": 4,
+     "cvv": 1,
+     "date of birth": 20,
+     "device identifier": 9,
+     "email": 7,
+     "employee id": 1,
+     "fax number": 8,
+     "first name": 73,
+     "health plan beneficiary number": 28,
+     "ipv6": 3,
+     "license plate": 2,
+     "mac address": 2,
+     "medical record number": 11,
+     "not personal information": 23,
+     "password": 3,
+     "phone number": 12,
+     "street address": 1,
+     "swift bic": 5,
+     "url": 85,
+     "user name": 2,
+     "vehicle identifier": 2
+    },
+    "questions": 700
+   },
+   "temperature": 1.4074459075927734,
+   "training": {
+    "config": {
+     "bf16": true,
+     "cap_hours": 24,
+     "checkpoint_every": 25,
+     "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+     "data_seed": 2,
+     "epochs": 1,
+     "estimated_hours": 0.0,
+     "gradient_accumulation": 1,
+     "gradient_clip": 1.0,
+     "init_seed": 2,
+     "learning_rate": 0.0002,
+     "lora_learning_rate": 0.0002,
+     "max_steps": null,
+     "optimizer_condition": "stable",
+     "order_seed": 2,
+     "pointer_learning_rate": 5e-05,
+     "seed": 2,
+     "stage": "stage1_cov",
+     "token_budget": 8192,
+     "token_learning_rate": 0.0002,
+     "unit": "Qwen/Qwen3-4B-s2-shared",
+     "warmup_fraction": 0.06
+    },
+    "git_sha": "0e907d1df54fff75f13ff66fb169c28df260dd08",
+    "hashes": {
+     "balance_exponent": "0.5",
+     "coverage_audit": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde",
+     "layout": "shared",
+     "questions": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde",
+     "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+     "selection": "label-balanced",
+     "token_budget": "8192",
+     "training_semantics": "2",
+     "variant": "all-sources"
+    },
+    "microbatches": 1422,
+    "optimizer_updates": 1422,
+    "parameters": 4101650945,
+    "questions_seen": 16000,
+    "steps": 1422,
+    "trainable_parameters": 79182849,
+    "versions": {
+     "accelerate": "1.15.0",
+     "peft": "0.21.2",
+     "python": "3.13.15",
+     "torch": "2.14.1",
+     "transformers": "5.18.0"
+    },
+    "warmup_updates": 85
+   }
+  }
+ },
+ "seeds": [
+  1,
+  2
+ ],
+ "selection_rule": "final_checkpoint",
+ "sizes": [
+  "1.7B",
+  "4B"
+ ],
+ "variant": "all-sources",
+ "windows_per_run": 16000
+}

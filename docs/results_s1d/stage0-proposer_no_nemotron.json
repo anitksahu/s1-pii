@@ -1,0 +1,23 @@
+{
+  "autocast": "bfloat16",
+  "backbone_revision": "45bb4654a4d5aaff24dd11d4781fa46d39bf8c13",
+  "data_sha": "19d9cf2de25f521b",
+  "gate_g1": {
+    "blocking": false,
+    "candidate_cap": 64,
+    "exact_boundary_recall": 0.7916387959866221,
+    "gold": 5980,
+    "hits": 4734
+  },
+  "implementation_version": 2,
+  "master_dtype": "float32",
+  "model": "/content/drive/MyDrive/s1pii/s1d/models/proposer-no-nemotron/final",
+  "optimizer": "v1-separated",
+  "scheduler": "v1-linear-warmup-decay",
+  "source_counts": {
+    "gretel": 25360,
+    "synthetic_conv": 20000
+  },
+  "steps": 655,
+  "variant": "no-nemotron"
+}

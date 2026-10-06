@@ -1,0 +1,17 @@
+{
+  "counts": {
+    "api_key": 5229,
+    "certificate_license_number": 3389,
+    "coordinate": 8721,
+    "country": 26218,
+    "county": 9364,
+    "customer_id": 22359,
+    "cvv": 5480,
+    "last_name": 65547,
+    "occupation": 40791,
+    "state": 20359
+  },
+  "failed": [],
+  "fallback": [],
+  "passed": true
+}

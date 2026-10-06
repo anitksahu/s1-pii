@@ -1,0 +1,179 @@
+{
+  "balance_exponent": 0.5,
+  "go_criterion": {
+    "minimum_dev_macro_accuracy": 0.829,
+    "minimum_dev_not_pii_accuracy": 0.85,
+    "prompted_4b_dev_macro_accuracy": 0.829,
+    "require_both_final_sanity_healthy": true,
+    "selection": "final_checkpoint"
+  },
+  "implementation_version": 1,
+  "seeds": {
+    "1": {
+      "after": {
+        "counts": {
+          "hard_negative": 1296,
+          "noul": 842,
+          "positive": 13028,
+          "score": 834
+        },
+        "distinct_target_labels": 35,
+        "not_pii_target_share": 0.09047752024574142,
+        "questions": 16000,
+        "top_labels": [
+          {
+            "count": 1027,
+            "label": "email",
+            "share": 0.07883021185139699
+          },
+          {
+            "count": 875,
+            "label": "url",
+            "share": 0.0671630334663801
+          },
+          {
+            "count": 859,
+            "label": "person",
+            "share": 0.065934909425852
+          },
+          {
+            "count": 814,
+            "label": "name",
+            "share": 0.062480810561866745
+          },
+          {
+            "count": 734,
+            "label": "phone_number",
+            "share": 0.05634019035922628
+          }
+        ]
+      },
+      "after_question_set_sha256": "20f046075b0f9754394a6257c268b05df50b969ade2493d7b52ecfd5fa8db9c7",
+      "before": {
+        "counts": {
+          "hard_negative": 1296,
+          "noul": 842,
+          "positive": 13028,
+          "score": 834
+        },
+        "distinct_target_labels": 35,
+        "not_pii_target_share": 0.09047752024574142,
+        "questions": 16000,
+        "top_labels": [
+          {
+            "count": 1994,
+            "label": "email",
+            "share": 0.15305495855081364
+          },
+          {
+            "count": 1589,
+            "label": "url",
+            "share": 0.12196806877494627
+          },
+          {
+            "count": 1223,
+            "label": "name",
+            "share": 0.09387473134786613
+          },
+          {
+            "count": 1210,
+            "label": "person",
+            "share": 0.09287688056493706
+          },
+          {
+            "count": 1001,
+            "label": "phone_number",
+            "share": 0.07683451028553884
+          }
+        ]
+      },
+      "before_question_set_sha256": "bc95ae4b706c0de1808edc06f892d03985f3a0c231a030c17d3500891e36f269",
+      "heldout_target_or_option_leak": false,
+      "seed": 1
+    },
+    "2": {
+      "after": {
+        "counts": {
+          "hard_negative": 1247,
+          "noul": 833,
+          "positive": 13099,
+          "score": 821
+        },
+        "distinct_target_labels": 35,
+        "not_pii_target_share": 0.08692318416283284,
+        "questions": 16000,
+        "top_labels": [
+          {
+            "count": 1043,
+            "label": "email",
+            "share": 0.0796243988090694
+          },
+          {
+            "count": 935,
+            "label": "url",
+            "share": 0.07137949461790977
+          },
+          {
+            "count": 833,
+            "label": "name",
+            "share": 0.06359264065959233
+          },
+          {
+            "count": 819,
+            "label": "person",
+            "share": 0.06252385678296053
+          },
+          {
+            "count": 680,
+            "label": "phone_number",
+            "share": 0.05191235972211619
+          }
+        ]
+      },
+      "after_question_set_sha256": "f1865337a58f61f6d25040d8c42d2322420ef0d7d8fb94fa2a8948cd996c1cde",
+      "before": {
+        "counts": {
+          "hard_negative": 1247,
+          "noul": 833,
+          "positive": 13099,
+          "score": 821
+        },
+        "distinct_target_labels": 35,
+        "not_pii_target_share": 0.08692318416283284,
+        "questions": 16000,
+        "top_labels": [
+          {
+            "count": 2066,
+            "label": "email",
+            "share": 0.15772196350866477
+          },
+          {
+            "count": 1563,
+            "label": "url",
+            "share": 0.11932208565539354
+          },
+          {
+            "count": 1218,
+            "label": "name",
+            "share": 0.09298419726696694
+          },
+          {
+            "count": 1212,
+            "label": "person",
+            "share": 0.09252614703412475
+          },
+          {
+            "count": 931,
+            "label": "phone_number",
+            "share": 0.07107412779601496
+          }
+        ]
+      },
+      "before_question_set_sha256": "2c8155e7460bdec4eb135127797d03aeb5b1db82bf0e9a4e0c92f89233602a31",
+      "heldout_target_or_option_leak": false,
+      "seed": 2
+    }
+  },
+  "variant": "all-sources",
+  "windows": 16000
+}

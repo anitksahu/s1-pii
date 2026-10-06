@@ -1,0 +1,1778 @@
+{
+  "checkpoint_every": 50,
+  "collapse_thresholds": {
+    "gold_accuracy_below": 0.5,
+    "not_pii_rate_above": 0.3,
+    "single_option_rate_above": 0.6
+  },
+  "data_seed": 1,
+  "implementation_version": 1,
+  "max_steps": 330,
+  "order_seed": 1,
+  "pilot_semantics": 2,
+  "runs": {
+    "1.7B-init1": {
+      "conditions": {
+        "old": {
+          "checkpoints": [
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 18.16490936279297,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.8373311758041382,
+              "metrics": {
+                "accuracy": 0.4228571428571429,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.12945995347291459,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.6457142857142857,
+                "not_pii_rate": 0.1742857142857143,
+                "per_label_accuracy": {
+                  "date of birth": 0.04,
+                  "email": 0.8431372549019608,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.15254237288135594,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "date": 1,
+                  "date of birth": 1,
+                  "email": 235,
+                  "employee id": 1,
+                  "first name": 28,
+                  "ipv4": 1,
+                  "last name": 1,
+                  "not personal information": 61,
+                  "phone number": 20,
+                  "street address": 1
+                },
+                "questions": 700
+              },
+              "step": 50
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 49.449729919433594,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 1.3524545431137085,
+              "metrics": {
+                "accuracy": 0.0,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.0,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.24857142857142858,
+                "not_pii_rate": 0.12,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.0,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.0,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "age": 1,
+                  "city": 11,
+                  "company name": 35,
+                  "country": 11,
+                  "education level": 1,
+                  "fax number": 2,
+                  "first name": 138,
+                  "gender": 1,
+                  "language": 70,
+                  "last name": 25,
+                  "not personal information": 42,
+                  "password": 1,
+                  "pin": 1,
+                  "state": 2,
+                  "url": 4,
+                  "user name": 5
+                },
+                "questions": 700
+              },
+              "step": 100
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 14.346116065979004,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 1.097509741783142,
+              "metrics": {
+                "accuracy": 0.0,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.0,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9914285714285714,
+                "not_pii_rate": 0.9914285714285714,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.0,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.0,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "first name": 3,
+                  "not personal information": 347
+                },
+                "questions": 700
+              },
+              "step": 150
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.9024224281311035,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.8342989683151245,
+              "metrics": {
+                "accuracy": 0.24571428571428572,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.1307911628362775,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.6685714285714286,
+                "not_pii_rate": 0.18,
+                "per_label_accuracy": {
+                  "date of birth": 0.04,
+                  "email": 0.05228758169934641,
+                  "employee id": 0.0,
+                  "ipv6": 0.25,
+                  "password": 0.0,
+                  "phone number": 0.6271186440677966,
+                  "ssn": 0.07692307692307693,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 5,
+                  "credit debit card": 2,
+                  "date of birth": 6,
+                  "email": 18,
+                  "first name": 84,
+                  "ipv4": 5,
+                  "ipv6": 11,
+                  "not personal information": 63,
+                  "phone number": 154,
+                  "ssn": 1,
+                  "swift bic": 1
+                },
+                "questions": 700
+              },
+              "step": 200
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.05304479598999,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.8612801432609558,
+              "metrics": {
+                "accuracy": 0.16857142857142857,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.05353384291569735,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.40285714285714286,
+                "not_pii_rate": 0.03142857142857143,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.24183006535947713,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.1864406779661017,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "email": 58,
+                  "first name": 250,
+                  "not personal information": 11,
+                  "phone number": 29,
+                  "user name": 2
+                },
+                "questions": 700
+              },
+              "step": 250
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 2.773621082305908,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.533255934715271,
+              "metrics": {
+                "accuracy": 0.3742857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.1894700323632278,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8857142857142857,
+                "not_pii_rate": 0.3057142857142857,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.6601307189542484,
+                  "employee id": 0.2857142857142857,
+                  "ipv6": 0.375,
+                  "password": 0.0,
+                  "phone number": 0.19491525423728814,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 6,
+                  "bank routing number": 1,
+                  "credit debit card": 2,
+                  "customer id": 4,
+                  "email": 176,
+                  "employee id": 6,
+                  "first name": 5,
+                  "ipv4": 2,
+                  "ipv6": 4,
+                  "not personal information": 107,
+                  "phone number": 37
+                },
+                "questions": 700
+              },
+              "step": 300
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 5.018771171569824,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.9630196690559387,
+              "metrics": {
+                "accuracy": 0.5342857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.3426196410767697,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.3514285714285714,
+                "not_pii_rate": 0.02,
+                "per_label_accuracy": {
+                  "date of birth": 0.56,
+                  "email": 0.6470588235294118,
+                  "employee id": 0.5,
+                  "ipv6": 0.5,
+                  "password": 0.0,
+                  "phone number": 0.5338983050847458,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "date of birth": 42,
+                  "email": 144,
+                  "employee id": 7,
+                  "first name": 40,
+                  "ipv4": 2,
+                  "ipv6": 6,
+                  "not personal information": 7,
+                  "phone number": 102
+                },
+                "questions": 700
+              },
+              "step": 330
+            }
+          ],
+          "training": {
+            "config": {
+              "bf16": true,
+              "cap_hours": 12,
+              "checkpoint_every": 50,
+              "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+              "data_seed": 1,
+              "epochs": 1,
+              "estimated_hours": 0.0,
+              "gradient_clip": null,
+              "init_seed": 1,
+              "learning_rate": 0.0002,
+              "lora_learning_rate": 0.0002,
+              "max_steps": 330,
+              "optimizer_condition": "old",
+              "order_seed": 1,
+              "pointer_learning_rate": 5e-05,
+              "seed": 1,
+              "stage": "stage1_pilot",
+              "token_budget": 8192,
+              "token_learning_rate": 0.0002,
+              "unit": "Qwen/Qwen3-1.7B-s1-shared-old",
+              "warmup_fraction": 0.06
+            },
+            "git_sha": "f88928567c5fd10a779e1c2760f861873b41aca5",
+            "hashes": {
+              "initial_state": "fed00f2caa1ab18599b83d7633cad0308419f08bdee34ecf594a66cc19cb1ce5",
+              "layout": "shared",
+              "optimizer_spec": "4d5ed321418c8bec9d31b570b56a70d13bfc11ed1846073c3dbbd7a2be9bba24",
+              "order_seed": "1",
+              "pilot_condition": "old",
+              "pilot_semantics": "2",
+              "questions": "6b4bfd14840a691122ba2fbebfd24d01c0af455501a77f2ec9e20c5ad577d3d5",
+              "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+              "token_budget": "8192",
+              "training_semantics": "2"
+            },
+            "initial_state_sha256": "fed00f2caa1ab18599b83d7633cad0308419f08bdee34ecf594a66cc19cb1ce5",
+            "parameters": 1763841025,
+            "steps": 330,
+            "trainable_parameters": 43266049,
+            "versions": {
+              "accelerate": "1.15.0",
+              "peft": "0.21.2",
+              "python": "3.13.15",
+              "torch": "2.14.1",
+              "transformers": "5.18.0"
+            }
+          }
+        },
+        "stable": {
+          "checkpoints": [
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 16.581274032592773,
+              "learning_rates": {
+                "lora": 0.0001812903225806452,
+                "pointer": 4.53225806451613e-05,
+                "tokens": 0.0001812903225806452
+              },
+              "loss": 0.8346697688102722,
+              "metrics": {
+                "accuracy": 0.28,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.10287020881799047,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8914285714285715,
+                "not_pii_rate": 0.4742857142857143,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.41830065359477125,
+                  "employee id": 0.0,
+                  "ipv6": 0.125,
+                  "password": 0.0,
+                  "phone number": 0.2796610169491525,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "bank routing number": 1,
+                  "email": 116,
+                  "ipv4": 1,
+                  "ipv6": 1,
+                  "not personal information": 166,
+                  "phone number": 58,
+                  "street address": 7
+                },
+                "questions": 700
+              },
+              "step": 50
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 4.242520332336426,
+              "learning_rates": {
+                "lora": 0.00014903225806451613,
+                "pointer": 3.725806451612903e-05,
+                "tokens": 0.00014903225806451613
+              },
+              "loss": 0.2099914699792862,
+              "metrics": {
+                "accuracy": 0.4114285714285714,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.17076894317048855,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9171428571428571,
+                "not_pii_rate": 0.2571428571428571,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.29411764705882354,
+                  "employee id": 0.0,
+                  "ipv6": 0.25,
+                  "password": 0.0,
+                  "phone number": 0.8220338983050848,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "date": 3,
+                  "email": 60,
+                  "employment status": 1,
+                  "fax number": 3,
+                  "ipv4": 1,
+                  "ipv6": 2,
+                  "not personal information": 90,
+                  "phone number": 188,
+                  "url": 2
+                },
+                "questions": 700
+              },
+              "step": 100
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.437602996826172,
+              "learning_rates": {
+                "lora": 0.0001167741935483871,
+                "pointer": 2.9193548387096776e-05,
+                "tokens": 0.0001167741935483871
+              },
+              "loss": 0.23034973442554474,
+              "metrics": {
+                "accuracy": 0.2742857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.09159167795758025,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9857142857142858,
+                "not_pii_rate": 0.5885714285714285,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.5032679738562091,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.15254237288135594,
+                  "ssn": 0.07692307692307693,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 2,
+                  "credit debit card": 2,
+                  "date": 1,
+                  "email": 116,
+                  "not personal information": 206,
+                  "phone number": 22,
+                  "ssn": 1
+                },
+                "questions": 700
+              },
+              "step": 150
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 13.704931259155273,
+              "learning_rates": {
+                "lora": 8.451612903225808e-05,
+                "pointer": 2.112903225806452e-05,
+                "tokens": 8.451612903225808e-05
+              },
+              "loss": 0.9624977707862854,
+              "metrics": {
+                "accuracy": 0.26,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.18944448705166553,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9857142857142858,
+                "not_pii_rate": 0.62,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.21568627450980393,
+                  "employee id": 0.0,
+                  "ipv6": 0.5,
+                  "password": 0.0,
+                  "phone number": 0.4152542372881356,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "email": 45,
+                  "fax number": 1,
+                  "ipv4": 11,
+                  "ipv6": 5,
+                  "not personal information": 217,
+                  "phone number": 61,
+                  "ssn": 6,
+                  "swift bic": 4
+                },
+                "questions": 700
+              },
+              "step": 200
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 9.665474891662598,
+              "learning_rates": {
+                "lora": 5.225806451612903e-05,
+                "pointer": 1.3064516129032258e-05,
+                "tokens": 5.225806451612903e-05
+              },
+              "loss": 0.6438918113708496,
+              "metrics": {
+                "accuracy": 0.5942857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.4640527889773902,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8485714285714285,
+                "not_pii_rate": 0.07714285714285714,
+                "per_label_accuracy": {
+                  "date of birth": 0.56,
+                  "email": 0.7843137254901961,
+                  "employee id": 0.42857142857142855,
+                  "ipv6": 0.875,
+                  "password": 0.0,
+                  "phone number": 0.4491525423728814,
+                  "ssn": 0.5384615384615384,
+                  "user name": 0.07692307692307693
+                },
+                "prediction_distribution": {
+                  "account number": 14,
+                  "bank routing number": 5,
+                  "coordinate": 1,
+                  "credit debit card": 2,
+                  "customer id": 6,
+                  "date": 1,
+                  "date of birth": 15,
+                  "date time": 1,
+                  "email": 170,
+                  "employee id": 8,
+                  "fax number": 3,
+                  "ipv4": 4,
+                  "ipv6": 18,
+                  "not personal information": 27,
+                  "phone number": 62,
+                  "postcode": 1,
+                  "ssn": 7,
+                  "street address": 1,
+                  "swift bic": 3,
+                  "user name": 1
+                },
+                "questions": 700
+              },
+              "step": 250
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 7.732246398925781,
+              "learning_rates": {
+                "lora": 2e-05,
+                "pointer": 5e-06,
+                "tokens": 2e-05
+              },
+              "loss": 0.34427982568740845,
+              "metrics": {
+                "accuracy": 0.32285714285714284,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.24199316047583744,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9828571428571429,
+                "not_pii_rate": 0.5771428571428572,
+                "per_label_accuracy": {
+                  "date of birth": 0.24,
+                  "email": 0.45751633986928103,
+                  "employee id": 0.0,
+                  "ipv6": 0.625,
+                  "password": 0.0,
+                  "phone number": 0.2288135593220339,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "bank routing number": 2,
+                  "credit debit card": 1,
+                  "customer id": 2,
+                  "date of birth": 8,
+                  "email": 81,
+                  "employee id": 1,
+                  "ipv4": 10,
+                  "ipv6": 6,
+                  "not personal information": 202,
+                  "phone number": 30,
+                  "ssn": 5,
+                  "swift bic": 2
+                },
+                "questions": 700
+              },
+              "step": 300
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 20.282711029052734,
+              "learning_rates": {
+                "lora": 6.451612903225807e-07,
+                "pointer": 1.6129032258064518e-07,
+                "tokens": 6.451612903225807e-07
+              },
+              "loss": 1.4846957921981812,
+              "metrics": {
+                "accuracy": 0.5714285714285714,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.47075029642452376,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9628571428571429,
+                "not_pii_rate": 0.2542857142857143,
+                "per_label_accuracy": {
+                  "date of birth": 0.68,
+                  "email": 0.7973856209150327,
+                  "employee id": 0.5714285714285714,
+                  "ipv6": 0.75,
+                  "password": 0.16666666666666666,
+                  "phone number": 0.3389830508474576,
+                  "ssn": 0.46153846153846156,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "bank routing number": 4,
+                  "credit debit card": 1,
+                  "customer id": 3,
+                  "date": 1,
+                  "date of birth": 18,
+                  "email": 151,
+                  "employee id": 10,
+                  "fax number": 2,
+                  "ipv4": 12,
+                  "ipv6": 7,
+                  "not personal information": 89,
+                  "password": 1,
+                  "phone number": 42,
+                  "ssn": 6,
+                  "street address": 1,
+                  "swift bic": 2
+                },
+                "questions": 700
+              },
+              "step": 330
+            }
+          ],
+          "training": {
+            "config": {
+              "bf16": true,
+              "cap_hours": 12,
+              "checkpoint_every": 50,
+              "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+              "data_seed": 1,
+              "epochs": 1,
+              "estimated_hours": 0.0,
+              "gradient_clip": 1.0,
+              "init_seed": 1,
+              "learning_rate": 0.0002,
+              "lora_learning_rate": 0.0002,
+              "max_steps": 330,
+              "optimizer_condition": "stable",
+              "order_seed": 1,
+              "pointer_learning_rate": 5e-05,
+              "seed": 1,
+              "stage": "stage1_pilot",
+              "token_budget": 8192,
+              "token_learning_rate": 0.0002,
+              "unit": "Qwen/Qwen3-1.7B-s1-shared-stable",
+              "warmup_fraction": 0.06
+            },
+            "git_sha": "f88928567c5fd10a779e1c2760f861873b41aca5",
+            "hashes": {
+              "initial_state": "fed00f2caa1ab18599b83d7633cad0308419f08bdee34ecf594a66cc19cb1ce5",
+              "layout": "shared",
+              "optimizer_spec": "8f10196ed1391b2d381c69c31607c17e5e861f4bbad64699798ce75e9d38f88f",
+              "order_seed": "1",
+              "pilot_condition": "stable",
+              "pilot_semantics": "2",
+              "questions": "6b4bfd14840a691122ba2fbebfd24d01c0af455501a77f2ec9e20c5ad577d3d5",
+              "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+              "token_budget": "8192",
+              "training_semantics": "2"
+            },
+            "initial_state_sha256": "fed00f2caa1ab18599b83d7633cad0308419f08bdee34ecf594a66cc19cb1ce5",
+            "parameters": 1763841025,
+            "steps": 330,
+            "trainable_parameters": 43266049,
+            "versions": {
+              "accelerate": "1.15.0",
+              "peft": "0.21.2",
+              "python": "3.13.15",
+              "torch": "2.14.1",
+              "transformers": "5.18.0"
+            }
+          }
+        }
+      },
+      "initial_state_sha256": "fed00f2caa1ab18599b83d7633cad0308419f08bdee34ecf594a66cc19cb1ce5"
+    },
+    "1.7B-init2": {
+      "conditions": {
+        "old": {
+          "checkpoints": [
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 8.32640266418457,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.9118067622184753,
+              "metrics": {
+                "accuracy": 0.4,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.12752824858757061,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8085714285714286,
+                "not_pii_rate": 0.2914285714285714,
+                "per_label_accuracy": {
+                  "date of birth": 0.04,
+                  "email": 0.6666666666666666,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.3135593220338983,
+                  "ssn": 0.0,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 1,
+                  "date of birth": 3,
+                  "email": 180,
+                  "not personal information": 102,
+                  "phone number": 56,
+                  "street address": 8
+                },
+                "questions": 700
+              },
+              "step": 50
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 6.081489562988281,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.38063493371009827,
+              "metrics": {
+                "accuracy": 0.46,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.20498636492841377,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.6828571428571428,
+                "not_pii_rate": 0.2,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.6928104575163399,
+                  "employee id": 0.07142857142857142,
+                  "ipv6": 0.375,
+                  "password": 0.0,
+                  "phone number": 0.423728813559322,
+                  "ssn": 0.07692307692307693,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "email": 181,
+                  "employee id": 1,
+                  "fax number": 3,
+                  "first name": 12,
+                  "ipv6": 3,
+                  "last name": 1,
+                  "not personal information": 70,
+                  "phone number": 77,
+                  "ssn": 1,
+                  "swift bic": 1
+                },
+                "questions": 700
+              },
+              "step": 100
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.396328926086426,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.4858154356479645,
+              "metrics": {
+                "accuracy": 0.49142857142857144,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.20389404131926564,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.7457142857142857,
+                "not_pii_rate": 0.18857142857142858,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.7254901960784313,
+                  "employee id": 0.2857142857142857,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.4661016949152542,
+                  "ssn": 0.15384615384615385,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 2,
+                  "customer id": 1,
+                  "date time": 1,
+                  "email": 187,
+                  "employee id": 6,
+                  "first name": 4,
+                  "ipv4": 1,
+                  "not personal information": 66,
+                  "phone number": 80,
+                  "ssn": 2
+                },
+                "questions": 700
+              },
+              "step": 150
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 4.250731945037842,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.7771235704421997,
+              "metrics": {
+                "accuracy": 0.017142857142857144,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.02298340022667042,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9885714285714285,
+                "not_pii_rate": 0.9285714285714286,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.013071895424836602,
+                  "employee id": 0.0,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.01694915254237288,
+                  "ssn": 0.15384615384615385,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "email": 6,
+                  "ipv4": 11,
+                  "not personal information": 325,
+                  "phone number": 2,
+                  "ssn": 2,
+                  "swift bic": 4
+                },
+                "questions": 700
+              },
+              "step": 200
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 4.807990074157715,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.7672566175460815,
+              "metrics": {
+                "accuracy": 0.4542857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.27113699043285283,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.4942857142857143,
+                "not_pii_rate": 0.10571428571428572,
+                "per_label_accuracy": {
+                  "date of birth": 0.04,
+                  "email": 0.6928104575163399,
+                  "employee id": 0.42857142857142855,
+                  "ipv6": 0.25,
+                  "password": 0.3333333333333333,
+                  "phone number": 0.3474576271186441,
+                  "ssn": 0.07692307692307693,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "customer id": 1,
+                  "date of birth": 2,
+                  "email": 168,
+                  "employee id": 8,
+                  "first name": 31,
+                  "ipv4": 3,
+                  "ipv6": 2,
+                  "last name": 35,
+                  "not personal information": 37,
+                  "password": 4,
+                  "phone number": 57,
+                  "ssn": 1,
+                  "swift bic": 1
+                },
+                "questions": 700
+              },
+              "step": 250
+            },
+            {
+              "collapse_reasons": [
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.333056926727295,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 0.6187552213668823,
+              "metrics": {
+                "accuracy": 0.5285714285714286,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.3436190109464038,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8114285714285714,
+                "not_pii_rate": 0.15714285714285714,
+                "per_label_accuracy": {
+                  "date of birth": 0.08,
+                  "email": 0.8496732026143791,
+                  "employee id": 0.35714285714285715,
+                  "ipv6": 0.375,
+                  "password": 0.16666666666666666,
+                  "phone number": 0.3050847457627119,
+                  "ssn": 0.6153846153846154,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 1,
+                  "customer id": 2,
+                  "date of birth": 3,
+                  "email": 217,
+                  "employee id": 7,
+                  "ipv6": 3,
+                  "last name": 1,
+                  "not personal information": 55,
+                  "password": 1,
+                  "phone number": 51,
+                  "ssn": 9
+                },
+                "questions": 700
+              },
+              "step": 300
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 4.167964458465576,
+              "learning_rates": {
+                "all": 0.0002
+              },
+              "loss": 1.0660792589187622,
+              "metrics": {
+                "accuracy": 0.54,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.4300539917183736,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.6257142857142857,
+                "not_pii_rate": 0.045714285714285714,
+                "per_label_accuracy": {
+                  "date of birth": 0.36,
+                  "email": 0.43790849673202614,
+                  "employee id": 0.7142857142857143,
+                  "ipv6": 0.375,
+                  "password": 0.16666666666666666,
+                  "phone number": 0.7711864406779662,
+                  "ssn": 0.6153846153846154,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "customer id": 1,
+                  "date of birth": 23,
+                  "email": 89,
+                  "employee id": 12,
+                  "first name": 4,
+                  "ipv4": 1,
+                  "ipv6": 4,
+                  "last name": 4,
+                  "not personal information": 16,
+                  "password": 1,
+                  "phone number": 184,
+                  "ssn": 8,
+                  "street address": 3
+                },
+                "questions": 700
+              },
+              "step": 330
+            }
+          ],
+          "training": {
+            "config": {
+              "bf16": true,
+              "cap_hours": 12,
+              "checkpoint_every": 50,
+              "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+              "data_seed": 1,
+              "epochs": 1,
+              "estimated_hours": 0.0,
+              "gradient_clip": null,
+              "init_seed": 2,
+              "learning_rate": 0.0002,
+              "lora_learning_rate": 0.0002,
+              "max_steps": 330,
+              "optimizer_condition": "old",
+              "order_seed": 1,
+              "pointer_learning_rate": 5e-05,
+              "seed": 1,
+              "stage": "stage1_pilot",
+              "token_budget": 8192,
+              "token_learning_rate": 0.0002,
+              "unit": "Qwen/Qwen3-1.7B-s1-shared-old",
+              "warmup_fraction": 0.06
+            },
+            "git_sha": "f88928567c5fd10a779e1c2760f861873b41aca5",
+            "hashes": {
+              "initial_state": "34ad7dcb4ae10251c5a17ca6d814471f8f709d6dd73964f9a62766a5859cc72a",
+              "layout": "shared",
+              "optimizer_spec": "4d5ed321418c8bec9d31b570b56a70d13bfc11ed1846073c3dbbd7a2be9bba24",
+              "order_seed": "1",
+              "pilot_condition": "old",
+              "pilot_semantics": "2",
+              "questions": "6b4bfd14840a691122ba2fbebfd24d01c0af455501a77f2ec9e20c5ad577d3d5",
+              "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+              "token_budget": "8192",
+              "training_semantics": "2"
+            },
+            "initial_state_sha256": "34ad7dcb4ae10251c5a17ca6d814471f8f709d6dd73964f9a62766a5859cc72a",
+            "parameters": 1763841025,
+            "steps": 330,
+            "trainable_parameters": 43266049,
+            "versions": {
+              "accelerate": "1.15.0",
+              "peft": "0.21.2",
+              "python": "3.13.15",
+              "torch": "2.14.1",
+              "transformers": "5.18.0"
+            }
+          }
+        },
+        "stable": {
+          "checkpoints": [
+            {
+              "collapse_reasons": [
+                "gold_accuracy"
+              ],
+              "collapsed": true,
+              "grad_norm": 11.93914794921875,
+              "learning_rates": {
+                "lora": 0.0001812903225806452,
+                "pointer": 4.53225806451613e-05,
+                "tokens": 0.0001812903225806452
+              },
+              "loss": 0.41676852107048035,
+              "metrics": {
+                "accuracy": 0.35714285714285715,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.21338749548059122,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.66,
+                "not_pii_rate": 0.13714285714285715,
+                "per_label_accuracy": {
+                  "date of birth": 0.12,
+                  "email": 0.4117647058823529,
+                  "employee id": 0.21428571428571427,
+                  "ipv6": 0.375,
+                  "password": 0.0,
+                  "phone number": 0.4322033898305085,
+                  "ssn": 0.15384615384615385,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 12,
+                  "bank routing number": 1,
+                  "credit debit card": 2,
+                  "date": 2,
+                  "date of birth": 3,
+                  "date time": 1,
+                  "email": 112,
+                  "employee id": 5,
+                  "employment status": 6,
+                  "first name": 2,
+                  "ipv4": 2,
+                  "ipv6": 4,
+                  "medical record number": 2,
+                  "not personal information": 48,
+                  "occupation": 2,
+                  "phone number": 87,
+                  "ssn": 2,
+                  "state": 1,
+                  "street address": 53,
+                  "unique id": 3
+                },
+                "questions": 700
+              },
+              "step": 50
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 4.477456092834473,
+              "learning_rates": {
+                "lora": 0.00014903225806451613,
+                "pointer": 3.725806451612903e-05,
+                "tokens": 0.00014903225806451613
+              },
+              "loss": 0.11010874807834625,
+              "metrics": {
+                "accuracy": 0.5142857142857142,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.3540446791493651,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.6257142857142857,
+                "not_pii_rate": 0.08571428571428572,
+                "per_label_accuracy": {
+                  "date of birth": 0.12,
+                  "email": 0.7843137254901961,
+                  "employee id": 0.2857142857142857,
+                  "ipv6": 0.5,
+                  "password": 0.3333333333333333,
+                  "phone number": 0.3474576271186441,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.07692307692307693
+                },
+                "prediction_distribution": {
+                  "bank routing number": 2,
+                  "date": 2,
+                  "date of birth": 3,
+                  "email": 205,
+                  "employee id": 5,
+                  "fax number": 15,
+                  "ipv4": 1,
+                  "ipv6": 4,
+                  "not personal information": 30,
+                  "password": 8,
+                  "phone number": 62,
+                  "postcode": 1,
+                  "ssn": 5,
+                  "street address": 6,
+                  "user name": 1
+                },
+                "questions": 700
+              },
+              "step": 100
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate",
+                "single_option_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 16.69043731689453,
+              "learning_rates": {
+                "lora": 0.0001167741935483871,
+                "pointer": 2.9193548387096776e-05,
+                "tokens": 0.0001167741935483871
+              },
+              "loss": 0.39646634459495544,
+              "metrics": {
+                "accuracy": 0.02857142857142857,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.033445916828269764,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9171428571428571,
+                "not_pii_rate": 0.9657142857142857,
+                "per_label_accuracy": {
+                  "date of birth": 0.08,
+                  "email": 0.0392156862745098,
+                  "employee id": 0.07142857142857142,
+                  "ipv6": 0.0,
+                  "password": 0.0,
+                  "phone number": 0.0,
+                  "ssn": 0.07692307692307693,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "date of birth": 2,
+                  "email": 6,
+                  "employee id": 2,
+                  "first name": 1,
+                  "not personal information": 338,
+                  "ssn": 1
+                },
+                "questions": 700
+              },
+              "step": 150
+            },
+            {
+              "collapse_reasons": [
+                "gold_accuracy",
+                "not_pii_rate"
+              ],
+              "collapsed": true,
+              "grad_norm": 5.949034214019775,
+              "learning_rates": {
+                "lora": 8.451612903225808e-05,
+                "pointer": 2.112903225806452e-05,
+                "tokens": 8.451612903225808e-05
+              },
+              "loss": 0.3574831783771515,
+              "metrics": {
+                "accuracy": 0.4742857142857143,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.2811507670212805,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9742857142857143,
+                "not_pii_rate": 0.3057142857142857,
+                "per_label_accuracy": {
+                  "date of birth": 0.0,
+                  "email": 0.49019607843137253,
+                  "employee id": 0.07142857142857142,
+                  "ipv6": 0.625,
+                  "password": 0.0,
+                  "phone number": 0.6779661016949152,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "bank routing number": 1,
+                  "email": 93,
+                  "employee id": 1,
+                  "fax number": 2,
+                  "ipv4": 6,
+                  "ipv6": 11,
+                  "not personal information": 107,
+                  "phone number": 123,
+                  "ssn": 5,
+                  "swift bic": 1
+                },
+                "questions": 700
+              },
+              "step": 200
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 6.641194820404053,
+              "learning_rates": {
+                "lora": 5.225806451612903e-05,
+                "pointer": 1.3064516129032258e-05,
+                "tokens": 5.225806451612903e-05
+              },
+              "loss": 0.4756724536418915,
+              "metrics": {
+                "accuracy": 0.6028571428571429,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.4762922519072818,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.8628571428571429,
+                "not_pii_rate": 0.07428571428571429,
+                "per_label_accuracy": {
+                  "date of birth": 0.28,
+                  "email": 0.6078431372549019,
+                  "employee id": 0.8571428571428571,
+                  "ipv6": 0.875,
+                  "password": 0.0,
+                  "phone number": 0.7288135593220338,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.07692307692307693
+                },
+                "prediction_distribution": {
+                  "account number": 8,
+                  "bank routing number": 6,
+                  "coordinate": 1,
+                  "customer id": 4,
+                  "date": 1,
+                  "date of birth": 7,
+                  "email": 112,
+                  "employee id": 14,
+                  "fax number": 4,
+                  "ipv4": 3,
+                  "ipv6": 10,
+                  "not personal information": 26,
+                  "phone number": 143,
+                  "ssn": 5,
+                  "street address": 2,
+                  "swift bic": 3,
+                  "user name": 1
+                },
+                "questions": 700
+              },
+              "step": 250
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 7.609040260314941,
+              "learning_rates": {
+                "lora": 2e-05,
+                "pointer": 5e-06,
+                "tokens": 2e-05
+              },
+              "loss": 0.38564804196357727,
+              "metrics": {
+                "accuracy": 0.6314285714285715,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.43442128818063513,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9628571428571429,
+                "not_pii_rate": 0.18571428571428572,
+                "per_label_accuracy": {
+                  "date of birth": 0.52,
+                  "email": 0.673202614379085,
+                  "employee id": 0.42857142857142855,
+                  "ipv6": 0.625,
+                  "password": 0.16666666666666666,
+                  "phone number": 0.7542372881355932,
+                  "ssn": 0.3076923076923077,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 1,
+                  "bank routing number": 2,
+                  "customer id": 3,
+                  "date of birth": 13,
+                  "email": 113,
+                  "employee id": 8,
+                  "fax number": 2,
+                  "ipv6": 6,
+                  "not personal information": 65,
+                  "password": 1,
+                  "phone number": 132,
+                  "ssn": 4
+                },
+                "questions": 700
+              },
+              "step": 300
+            },
+            {
+              "collapse_reasons": [],
+              "collapsed": false,
+              "grad_norm": 17.198566436767578,
+              "learning_rates": {
+                "lora": 6.451612903225807e-07,
+                "pointer": 1.6129032258064518e-07,
+                "tokens": 6.451612903225807e-07
+              },
+              "loss": 1.4857832193374634,
+              "metrics": {
+                "accuracy": 0.7028571428571428,
+                "gold_questions": 350,
+                "labels": [
+                  "date of birth",
+                  "email",
+                  "employee id",
+                  "ipv6",
+                  "password",
+                  "phone number",
+                  "ssn",
+                  "user name"
+                ],
+                "macro_accuracy": 0.5532453562694091,
+                "negative_questions": 350,
+                "not_pii_accuracy": 0.9285714285714286,
+                "not_pii_rate": 0.11142857142857143,
+                "per_label_accuracy": {
+                  "date of birth": 0.72,
+                  "email": 0.7516339869281046,
+                  "employee id": 0.8571428571428571,
+                  "ipv6": 0.625,
+                  "password": 0.3333333333333333,
+                  "phone number": 0.7542372881355932,
+                  "ssn": 0.38461538461538464,
+                  "user name": 0.0
+                },
+                "prediction_distribution": {
+                  "account number": 3,
+                  "bank routing number": 2,
+                  "credit debit card": 1,
+                  "customer id": 3,
+                  "date": 1,
+                  "date of birth": 21,
+                  "email": 125,
+                  "employee id": 14,
+                  "fax number": 3,
+                  "ipv4": 2,
+                  "ipv6": 6,
+                  "not personal information": 39,
+                  "password": 2,
+                  "phone number": 121,
+                  "ssn": 5,
+                  "street address": 2
+                },
+                "questions": 700
+              },
+              "step": 330
+            }
+          ],
+          "training": {
+            "config": {
+              "bf16": true,
+              "cap_hours": 12,
+              "checkpoint_every": 50,
+              "control_path": "/content/drive/MyDrive/s1pii/s1d/CONTROL",
+              "data_seed": 1,
+              "epochs": 1,
+              "estimated_hours": 0.0,
+              "gradient_clip": 1.0,
+              "init_seed": 2,
+              "learning_rate": 0.0002,
+              "lora_learning_rate": 0.0002,
+              "max_steps": 330,
+              "optimizer_condition": "stable",
+              "order_seed": 1,
+              "pointer_learning_rate": 5e-05,
+              "seed": 1,
+              "stage": "stage1_pilot",
+              "token_budget": 8192,
+              "token_learning_rate": 0.0002,
+              "unit": "Qwen/Qwen3-1.7B-s1-shared-stable",
+              "warmup_fraction": 0.06
+            },
+            "git_sha": "f88928567c5fd10a779e1c2760f861873b41aca5",
+            "hashes": {
+              "initial_state": "34ad7dcb4ae10251c5a17ca6d814471f8f709d6dd73964f9a62766a5859cc72a",
+              "layout": "shared",
+              "optimizer_spec": "8f10196ed1391b2d381c69c31607c17e5e861f4bbad64699798ce75e9d38f88f",
+              "order_seed": "1",
+              "pilot_condition": "stable",
+              "pilot_semantics": "2",
+              "questions": "6b4bfd14840a691122ba2fbebfd24d01c0af455501a77f2ec9e20c5ad577d3d5",
+              "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+              "token_budget": "8192",
+              "training_semantics": "2"
+            },
+            "initial_state_sha256": "34ad7dcb4ae10251c5a17ca6d814471f8f709d6dd73964f9a62766a5859cc72a",
+            "parameters": 1763841025,
+            "steps": 330,
+            "trainable_parameters": 43266049,
+            "versions": {
+              "accelerate": "1.15.0",
+              "peft": "0.21.2",
+              "python": "3.13.15",
+              "torch": "2.14.1",
+              "transformers": "5.18.0"
+            }
+          }
+        }
+      },
+      "initial_state_sha256": "34ad7dcb4ae10251c5a17ca6d814471f8f709d6dd73964f9a62766a5859cc72a"
+    }
+  },
+  "sizes": [
+    "1.7B"
+  ]
+}

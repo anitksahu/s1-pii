@@ -1,0 +1,24 @@
+{
+  "autocast": "bfloat16",
+  "backbone_revision": "45bb4654a4d5aaff24dd11d4781fa46d39bf8c13",
+  "data_sha": "1cb84315e41a0689",
+  "gate_g1": {
+    "blocking": false,
+    "candidate_cap": 64,
+    "exact_boundary_recall": 0.5801003344481606,
+    "gold": 5980,
+    "hits": 3469
+  },
+  "implementation_version": 2,
+  "master_dtype": "float32",
+  "model": "/content/drive/MyDrive/s1pii/s1d/models/proposer-all-sources/final",
+  "optimizer": "v1-separated",
+  "scheduler": "v1-linear-warmup-decay",
+  "source_counts": {
+    "gretel": 25360,
+    "nemotron": 97926,
+    "synthetic_conv": 20000
+  },
+  "steps": 2098,
+  "variant": "all-sources"
+}

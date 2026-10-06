@@ -1,0 +1,422 @@
+{
+ "calibration": {
+  "gold_questions": 350,
+  "held_out_from_training": true,
+  "labels": [
+   "date of birth",
+   "email",
+   "employee id",
+   "ipv6",
+   "password",
+   "phone number",
+   "ssn",
+   "user name"
+  ],
+  "questions": 700,
+  "source": "gretel",
+  "split": "dev_slice"
+ },
+ "chosen_size": "4B",
+ "implementation_version": 7,
+ "in_domain_sanity": {
+  "0.6B-s1": {
+   "accuracy": 0.8228571428571428,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.4707516180092202,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.9771428571428571,
+   "not_pii_rate": 0.13142857142857142,
+   "per_label_accuracy": {
+    "date of birth": 0.76,
+    "email": 0.9934640522875817,
+    "employee id": 0.0,
+    "ipv6": 0.875,
+    "password": 0.0,
+    "phone number": 0.9067796610169492,
+    "ssn": 0.07692307692307693,
+    "user name": 0.15384615384615385
+   },
+   "prediction_distribution": {
+    "date of birth": 19,
+    "email": 166,
+    "ipv6": 7,
+    "not personal information": 46,
+    "phone number": 109,
+    "ssn": 1,
+    "user name": 2
+   },
+   "questions": 700
+  },
+  "0.6B-s2": {
+   "accuracy": 0.9114285714285715,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.7399057939125238,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.9028571428571428,
+   "not_pii_rate": 0.06857142857142857,
+   "per_label_accuracy": {
+    "date of birth": 0.8,
+    "email": 0.9869281045751634,
+    "employee id": 0.6428571428571429,
+    "ipv6": 0.75,
+    "password": 0.8333333333333334,
+    "phone number": 0.9830508474576272,
+    "ssn": 0.46153846153846156,
+    "user name": 0.46153846153846156
+   },
+   "prediction_distribution": {
+    "api key": 1,
+    "date of birth": 20,
+    "email": 155,
+    "employee id": 9,
+    "ipv6": 6,
+    "not personal information": 24,
+    "password": 7,
+    "phone number": 116,
+    "ssn": 6,
+    "user name": 6
+   },
+   "questions": 700
+  },
+  "1.7B-s1": {
+   "accuracy": 0.06571428571428571,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.018790849673202614,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.9457142857142857,
+   "not_pii_rate": 0.6628571428571428,
+   "per_label_accuracy": {
+    "date of birth": 0.0,
+    "email": 0.1503267973856209,
+    "employee id": 0.0,
+    "ipv6": 0.0,
+    "password": 0.0,
+    "phone number": 0.0,
+    "ssn": 0.0,
+    "user name": 0.0
+   },
+   "prediction_distribution": {
+    "email": 109,
+    "first name": 1,
+    "not personal information": 232,
+    "url": 8
+   },
+   "questions": 700
+  },
+  "1.7B-s2": {
+   "accuracy": 0.9085714285714286,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.7237405046764468,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.6657142857142857,
+   "not_pii_rate": 0.02857142857142857,
+   "per_label_accuracy": {
+    "date of birth": 0.84,
+    "email": 0.9803921568627451,
+    "employee id": 0.9285714285714286,
+    "ipv6": 0.75,
+    "password": 0.3333333333333333,
+    "phone number": 0.9576271186440678,
+    "ssn": 0.6923076923076923,
+    "user name": 0.3076923076923077
+   },
+   "prediction_distribution": {
+    "date of birth": 21,
+    "email": 160,
+    "employee id": 19,
+    "ipv4": 1,
+    "ipv6": 6,
+    "not personal information": 10,
+    "password": 2,
+    "phone number": 118,
+    "ssn": 9,
+    "user name": 4
+   },
+   "questions": 700
+  },
+  "4B-s1": {
+   "accuracy": 0.46285714285714286,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.2615603228470875,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.6285714285714286,
+   "not_pii_rate": 0.008571428571428572,
+   "per_label_accuracy": {
+    "date of birth": 0.12,
+    "email": 0.9738562091503268,
+    "employee id": 0.14285714285714285,
+    "ipv6": 0.625,
+    "password": 0.0,
+    "phone number": 0.0,
+    "ssn": 0.23076923076923078,
+    "user name": 0.0
+   },
+   "prediction_distribution": {
+    "coordinate": 1,
+    "customer id": 1,
+    "date": 1,
+    "date of birth": 3,
+    "email": 321,
+    "employee id": 2,
+    "ipv4": 2,
+    "ipv6": 7,
+    "not personal information": 3,
+    "ssn": 8,
+    "swift bic": 1
+   },
+   "questions": 700
+  },
+  "4B-s2": {
+   "accuracy": 0.002857142857142857,
+   "gold_questions": 350,
+   "labels": [
+    "date of birth",
+    "email",
+    "employee id",
+    "ipv6",
+    "password",
+    "phone number",
+    "ssn",
+    "user name"
+   ],
+   "macro_accuracy": 0.009615384615384616,
+   "negative_questions": 350,
+   "not_pii_accuracy": 0.9428571428571428,
+   "not_pii_rate": 0.8742857142857143,
+   "per_label_accuracy": {
+    "date of birth": 0.0,
+    "email": 0.0,
+    "employee id": 0.0,
+    "ipv6": 0.0,
+    "password": 0.0,
+    "phone number": 0.0,
+    "ssn": 0.07692307692307693,
+    "user name": 0.0
+   },
+   "prediction_distribution": {
+    "api key": 1,
+    "first name": 20,
+    "language": 5,
+    "last name": 1,
+    "not personal information": 306,
+    "pin": 9,
+    "ssn": 8
+   },
+   "questions": 700
+  }
+ },
+ "not_pii_questions": 825,
+ "pooled": {
+  "0.6B": {
+   "ece": 0.4368300097721829,
+   "macro_accuracy": 0.05227693084876681,
+   "p95_ms_per_window": 271.04409499952453
+  },
+  "1.7B": {
+   "ece": 0.2088803083466234,
+   "macro_accuracy": 0.12266169912742526,
+   "p95_ms_per_window": 315.38212899977225
+  },
+  "4B": {
+   "ece": 0.2521847482169284,
+   "macro_accuracy": 0.10219458258904499,
+   "p95_ms_per_window": 425.01234200062754
+  }
+ },
+ "prompted": {
+  "0.6B": {
+   "doc_bootstrap": {
+    "lower_95": 0.06287895061365792,
+    "mean": 0.0763459841129744,
+    "one_sided_lower_95": 0.06515821754233608,
+    "one_sided_upper_95": 0.08799894265988563,
+    "upper_95": 0.090787760874148
+   },
+   "ece": 0.03338350550567147,
+   "macro_accuracy": 0.11763595100040927,
+   "not_pii_accuracy": 0.0,
+   "temperature": 20.0
+  },
+  "1.7B": {
+   "doc_bootstrap": {
+    "lower_95": 0.06925011737017986,
+    "mean": 0.08340688437775816,
+    "one_sided_lower_95": 0.07097054826893537,
+    "one_sided_upper_95": 0.09635189199675516,
+    "upper_95": 0.09905052139812075
+   },
+   "ece": 0.06295609522149308,
+   "macro_accuracy": 0.10644033809678674,
+   "not_pii_accuracy": 0.024242424242424242,
+   "temperature": 4.3833088874816895
+  },
+  "4B": {
+   "doc_bootstrap": {
+    "lower_95": 0.7294049082373026,
+    "mean": 0.7559576345984113,
+    "one_sided_lower_95": 0.733390448076223,
+    "one_sided_upper_95": 0.7805504118976453,
+    "upper_95": 0.7842489576655499
+   },
+   "ece": 0.15115881562401703,
+   "macro_accuracy": 0.8290464848434066,
+   "not_pii_accuracy": 0.09333333333333334,
+   "temperature": 3.02250599861145
+  }
+ },
+ "prompted_accuracy": 0.8290464848434066,
+ "questions": 3091,
+ "rule_outcomes": {
+  "0.6B": {
+   "accuracy_gap": 0.07038476827865844,
+   "accuracy_gap_one_sided_upper_95": 0.20753049878268198,
+   "ece_gap": 0.22794970142555948,
+   "latency_ok": true
+  },
+  "1.7B": {
+   "accuracy_gap": 0.0,
+   "accuracy_gap_one_sided_upper_95": 0.0,
+   "ece_gap": 0.0,
+   "latency_ok": false
+  },
+  "4B": {
+   "accuracy_gap": 0.02046711653838028,
+   "accuracy_gap_one_sided_upper_95": 0.2022433507187331,
+   "ece_gap": 0.04330443987030497,
+   "latency_ok": false
+  }
+ },
+ "split": "nemotron-calib",
+ "stop_rule": true,
+ "trained": {
+  "0.6B-s1": {
+   "doc_bootstrap": {
+    "lower_95": 0.0641180384276776,
+    "mean": 0.08120035304501325,
+    "one_sided_lower_95": 0.06696270263424518,
+    "one_sided_upper_95": 0.09549703514726253,
+    "upper_95": 0.09847213841343765
+   },
+   "ece": 0.5174061288458751,
+   "macro_accuracy": 0.045774091305375166,
+   "not_pii_accuracy": 0.9684848484848485,
+   "temperature": 1.0024620294570923
+  },
+  "0.6B-s2": {
+   "doc_bootstrap": {
+    "lower_95": 0.10412009290032163,
+    "mean": 0.12400706090026478,
+    "one_sided_lower_95": 0.1074672757521284,
+    "one_sided_upper_95": 0.1412565511004366,
+    "upper_95": 0.14509808452181383
+   },
+   "ece": 0.3562538906984906,
+   "macro_accuracy": 0.05877977039215846,
+   "not_pii_accuracy": 0.9454545454545454,
+   "temperature": 0.7232379913330078
+  },
+  "1.7B-s1": {
+   "doc_bootstrap": {
+    "lower_95": 0.039076281223617275,
+    "mean": 0.04942630185348632,
+    "one_sided_lower_95": 0.04047312496413474,
+    "one_sided_upper_95": 0.05908486788779321,
+    "upper_95": 0.060956293981106975
+   },
+   "ece": 0.29275613839053216,
+   "macro_accuracy": 0.01797752808988764,
+   "not_pii_accuracy": 0.9648484848484848,
+   "temperature": 1.1633306741714478
+  },
+  "1.7B-s2": {
+   "doc_bootstrap": {
+    "lower_95": 0.5100313335718859,
+    "mean": 0.5397175639894086,
+    "one_sided_lower_95": 0.5152378717322217,
+    "one_sided_upper_95": 0.5627487013937592,
+    "upper_95": 0.5672758153966799
+   },
+   "ece": 0.1250044783027147,
+   "macro_accuracy": 0.22734587016496288,
+   "not_pii_accuracy": 0.8363636363636363,
+   "temperature": 1.071001410484314
+  },
+  "4B-s1": {
+   "doc_bootstrap": {
+    "lower_95": 0.14150169823233685,
+    "mean": 0.16063548102383055,
+    "one_sided_lower_95": 0.1440661421375786,
+    "one_sided_upper_95": 0.1777525655043406,
+    "upper_95": 0.1800191299932909
+   },
+   "ece": 0.32056533940322035,
+   "macro_accuracy": 0.1832013642150081,
+   "not_pii_accuracy": 0.5866666666666667,
+   "temperature": 0.623136043548584
+  },
+  "4B-s2": {
+   "doc_bootstrap": {
+    "lower_95": 0.04465751708794719,
+    "mean": 0.05825242718446602,
+    "one_sided_lower_95": 0.04644719394800999,
+    "one_sided_upper_95": 0.06990773518580776,
+    "upper_95": 0.07246519269853932
+   },
+   "ece": 0.18380415703063643,
+   "macro_accuracy": 0.021187800963081864,
+   "not_pii_accuracy": 0.7672727272727272,
+   "temperature": 0.5075206756591797
+  }
+ },
+ "trained_accuracy": 0.10219458258904499
+}
