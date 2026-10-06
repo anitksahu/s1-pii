@@ -1,9 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260">
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1020"/><stop offset="1" stop-color="#1f3a8a"/></linearGradient></defs>
 <rect width="1200" height="260" rx="18" fill="url(#g)"/>
-<g font-family="Menlo,Consolas,monospace" font-size="17" fill="#8fb4ff" opacity="0.55">
-<text x="70" y="70">Contact <tspan fill="#0b1020" style="paint-order:stroke" stroke="#8fb4ff" stroke-width="16">Jane Doe</tspan> at <tspan fill="#0b1020" stroke="#8fb4ff" stroke-width="16">jane@acme.io</tspan>, card <tspan fill="#0b1020" stroke="#8fb4ff" stroke-width="16">4111 1111 1111 1111</tspan></text>
-</g>
 <text x="70" y="150" font-family="Helvetica,Arial,sans-serif" font-size="68" font-weight="700" fill="#ffffff">S1-PII</text>
 <text x="72" y="195" font-family="Helvetica,Arial,sans-serif" font-size="24" fill="#c7d7ff">System One decision models for PII: options supplied at inference, one forward pass.</text>
 <text x="72" y="230" font-family="Helvetica,Arial,sans-serif" font-size="16" fill="#8fa3d9">Qwen3 S1-D decision models, a leakage-audited benchmark, and a CRF redaction baseline against GLiNER</text>
