@@ -1477,7 +1477,7 @@ def test_s1d_test_metrics_force_choice_and_not_pii_auroc():
         name.replace("_", " "): 1 for name in test_labels}
 
 
-def test_s1d_test_question_builder_uses_frozen_ten_and_balanced_negatives(monkeypatch, tmp_path):
+def test_s1d_test_question_builder_uses_frozen_ten_and_all_available_negatives(monkeypatch, tmp_path):
     from s1pii import bench
     from s1pii.s1d import run as runner
     test_labels = HL.load()["test_labels"]
@@ -1488,13 +1488,15 @@ def test_s1d_test_question_builder_uses_frozen_ten_and_balanced_negatives(monkey
         docs.append(Doc(doc_id, text,
                         (Span(doc_id, 0, split, OTHER_PII, label, surface=text[:split]),),
                         "nemotron", "test", doc_id))
-        candidates[doc_id] = [Span(doc_id, split + 1, len(text), OTHER_PII,
-                                   "candidate", surface=text[split + 1:])]
+        if index < len(test_labels) - 1:
+            candidates[doc_id] = [Span(doc_id, split + 1, len(text), OTHER_PII,
+                                       "candidate", surface=text[split + 1:])]
     monkeypatch.setattr(bench, "splits", lambda name: ([], docs))
     monkeypatch.setattr(runner, "_proposer_candidates", lambda *args, **kwargs: candidates)
     _docs, rows = runner._test_questions({"root": tmp_path, "dry": False}, descriptions=True)
-    assert _docs == docs and len(rows) == 2 * len(test_labels)
-    assert sum(row.hard_negative for row in rows) == len(test_labels)
+    assert _docs == docs and len(rows) == 2 * len(test_labels) - 1
+    assert sum(not row.hard_negative for row in rows) == len(test_labels)
+    assert sum(row.hard_negative for row in rows) == len(test_labels) - 1
     assert {row.question.options[row.target].name for row in rows if not row.hard_negative} == {
         name.replace("_", " ") for name in test_labels}
     assert all(len(row.question.options) == 56 for row in rows)
@@ -1519,8 +1521,13 @@ def test_s1d_test_dry_chain_is_inference_only_and_writes_all_systems(tmp_path):
     assert run.returncode == 0, run.stdout + run.stderr + "\n" + log
     result = json.loads((stores / "s1d_test-test_eval.json").read_text())
     assert result["split"] == "nemotron-test"
-    assert result["gold_questions"] == result["not_pii_questions"] > 0
+    assert result["gold_questions"] > 0 and result["not_pii_questions"] > 0
     assert result["protocol"]["training_or_tuning"] is False
+    assert result["protocol"]["negative_sampling"].startswith("all available")
+    assert sum(row["gold_questions"] for row in result["question_counts_by_target"].values()) \
+        == result["gold_questions"]
+    assert sum(row["not_pii_questions"] for row in result["question_counts_by_target"].values()) \
+        == result["not_pii_questions"]
     assert set(result["systems"]) == {
         "prompted-0.6B", "prompted-1.7B", "prompted-4B",
         "1.7B-s1", "1.7B-s2", "4B-s1", "4B-s2",

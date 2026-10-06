@@ -639,11 +639,11 @@ def _test_questions(ctx, *, descriptions: bool = True):
         proposer_variant="no-nemotron", accounting_stage="s1d_test")
     rows = span_evaluation_questions(
         docs, candidates, labels=config["test_labels"], seed=0,
-        descriptions=descriptions, require_equal_negatives=True)
+        descriptions=descriptions, require_equal_negatives=False)
     gold = sum(not row.hard_negative for row in rows)
     negative = sum(row.hard_negative for row in rows)
-    if not gold or negative != gold:
-        raise ValueError(f"S1-D test requires equal non-empty gold and not-PII rows ({gold} != {negative})")
+    if not gold or not negative:
+        raise ValueError(f"S1-D test requires non-empty gold and not-PII rows ({gold}, {negative})")
     if not ctx["dry"]:
         expected = {name.replace("_", " ") for name in config["test_labels"]}
         observed = {row.question.options[row.target].name for row in rows if not row.hard_negative}
@@ -770,8 +770,8 @@ def _test_probability_metrics(rows, probabilities, *, temperature: float) -> dic
     p, not_pii_index = _test_calibrated_probabilities(rows, probabilities, temperature)
     gold = [i for i, row in enumerate(rows) if not row.hard_negative]
     negative = [i for i, row in enumerate(rows) if row.hard_negative]
-    if not gold or len(negative) != len(gold):
-        raise ValueError("test metrics require equal non-empty gold and not-PII rows")
+    if not gold or not negative:
+        raise ValueError("test metrics require non-empty gold and not-PII rows")
     pred = p.argmax(1)
     metric_values = _test_metric_values(rows, p, not_pii_index)
     by_label = defaultdict(list)
@@ -1726,15 +1726,23 @@ def _unit_test_eval(ctx, out):
     expected_sizes = {"0.6B", "1.7B", "4B"}
     if set(model_ids) != expected_sizes:
         raise ValueError(f"s1d_test requires exactly the frozen model sizes {sorted(expected_sizes)}")
+    counts_by_target = defaultdict(lambda: {"gold_questions": 0, "not_pii_questions": 0})
+    for row in rows:
+        name = row.question.options[row.target].name
+        key = "not_pii_questions" if row.hard_negative else "gold_questions"
+        counts_by_target[name][key] += 1
     output = {
-        "implementation_version": 2,
+        "implementation_version": 3,
         "split": "nemotron-test",
         "test_labels": list(labels.load()["test_labels"]),
         "questions": len(rows),
         "gold_questions": sum(not row.hard_negative for row in rows),
         "not_pii_questions": sum(row.hard_negative for row in rows),
         "protocol": {
-            "options": len(rows[0].question.options), "negative_to_gold_ratio": 1.0,
+            "options": len(rows[0].question.options),
+            "negative_sampling": "all available non-overlapping proposer-no-nemotron candidates",
+            "negative_to_gold_ratio": (sum(row.hard_negative for row in rows)
+                                       / sum(not row.hard_negative for row in rows)),
             "temperatures": "existing Gretel temperatures",
             "trained_selection": "stage1_cov final checkpoints",
             "training_or_tuning": False,
@@ -1743,6 +1751,7 @@ def _unit_test_eval(ctx, out):
         },
         "run_status": {"healthy_s1d": ["1.7B-s1", "1.7B-s2", "4B-s1"],
                        "collapsed_reported_separately": ["4B-s2"]},
+        "question_counts_by_target": dict(sorted(counts_by_target.items())),
         "labels": {},
         "systems": {},
     }
@@ -1977,9 +1986,12 @@ def _cache_is_current(root: Path, stores: Path, stage: str, unit: str, dry: bool
             metric_keys = {"macro_accuracy", "forced_choice_macro_accuracy", "not_pii_accuracy",
                            "not_pii_rate_on_gold", "not_pii_auroc", "per_label_accuracy",
                            "per_label_gold_counts"}
-            return (result.get("implementation_version") == 2
+            return (result.get("implementation_version") == 3
                     and result.get("split") == "nemotron-test"
-                    and result.get("gold_questions", 0) == result.get("not_pii_questions", -1)
+                    and result.get("gold_questions", 0) > 0
+                    and result.get("not_pii_questions", 0) > 0
+                    and result.get("protocol", {}).get("negative_sampling")
+                    == "all available non-overlapping proposer-no-nemotron candidates"
                     and set(result.get("systems", {})) == systems
                     and all(metric_keys <= set(row) for row in result["systems"].values())
                     and set(result.get("differences_vs_prompted_4b", {})) == systems - {"prompted-4B"}
