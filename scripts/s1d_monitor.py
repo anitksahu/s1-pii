@@ -23,7 +23,16 @@ def gpu_util():
 def hours(stage):
     path = ROOT / "gpu_hours.jsonl"
     try:
-        rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+        rows = []
+        for line in path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except (json.JSONDecodeError, TypeError):
+                # Accounting is append-only and an interrupted Drive write can leave one
+                # malformed record. Monitoring must continue; valid records remain counted.
+                continue
         return sum(float(row.get("hours", 0)) for row in rows if row.get("stage", stage) == stage)
     except OSError: return 0.0
 
@@ -46,7 +55,7 @@ while True:
     fields = status.split()
     caps = {"stage0": "uncapped", "stage1": "uncapped",
             "stage1_pilot": "uncapped", "stage1_pilot_4b": "uncapped",
-            "stage1_cov": "uncapped", "s1d_test": "uncapped"}
+            "stage1_cov": "uncapped", "s1d_test": "uncapped", "s1_bench": "uncapped"}
     stage = fields[1] if len(fields) > 1 and fields[1] in caps else "stage0"
     print(time.strftime("%H:%M:%S"), status or "STARTING", phase or "-", f"gpu {util}%",
           f"hours {hours(stage):.3f}/{caps.get(stage, 'unknown')}", current,

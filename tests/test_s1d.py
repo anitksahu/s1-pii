@@ -686,6 +686,8 @@ def test_colab_cpu_test_cell_hides_gpu_checks_imports_and_streams_failures(capsy
     monitor = Path("scripts/s1d_monitor.py").read_text()
     assert 'read(ROOT / "CURRENT")' in monitor
     assert "max(logs, key=lambda path: path.stat().st_mtime)" in monitor
+    assert "json.JSONDecodeError" in monitor
+    assert '"s1_bench": "uncapped"' in monitor
 
     launch_source = "".join(notebook["cells"][2]["source"])
     assert "Runtime > Change runtime type > GPU" in launch_source
